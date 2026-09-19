@@ -1,4 +1,44 @@
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
 .venv/
+venv/
+.python-version
+
+# ─── Packaging / build ───────────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+
+# ─── Tooling caches ──────────────────────────────────────────────────────────
 .pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.rag_cache/
+
+# ─── Secrets and local logs (never commit) ───────────────────────────────────
 .env
+.env.*
+!.env.example
+app-logs.txt
+*.log
+
+# ─── Generated output and Terraform working state ────────────────────────────
 output/
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# ─── Editor / OS noise ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

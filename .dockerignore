@@ -1,0 +1,31 @@
+# VCS
+.git
+.gitignore
+
+# Python cache and virtual envs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local build and test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Local outputs, logs, secrets
+output/
+app-logs.txt
+*.log
+.env
+
+# Editor/OS noise
+.vscode/
+.idea/
+.DS_Store
