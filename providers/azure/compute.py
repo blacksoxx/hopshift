@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
+from providers.common import safe_file_stem
 from providers.azure.sizing_table import get_instance_type
 
 
@@ -15,7 +16,7 @@ def render_compute(
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"azure-migration/compute/{compute_unit.name}.tf"
+        path = f"azure-migration/compute/{safe_file_stem(compute_unit.name)}.tf"
         output[path] = _render_compute_unit(compute_unit, tags)
 
     return output

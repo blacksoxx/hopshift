@@ -66,7 +66,9 @@ def _build_storage_volumes(vm: dict[str, Any]) -> list[StorageVolume]:
 
     for idx, disk in enumerate(vm.get("disks", []) or []):
         backing_type = str(disk.get("backing_type", "")).lower()
-        sharing = str(disk.get("sharing", "")).lower()
+        # An absent/empty sharing value means "unknown", not "shared"; only explicit
+        # non-default sharing modes (e.g. sharingMultiWriter) mark the volume shared.
+        sharing = str(disk.get("sharing") or "").strip().lower()
         disk_id = str(
             disk.get("filename")
             or disk.get("label")
@@ -83,8 +85,8 @@ def _build_storage_volumes(vm: dict[str, Any]) -> list[StorageVolume]:
                 datastore=disk.get("datastore"),
                 thin_provisioned=disk.get("thin_provisioned"),
                 is_encrypted=is_vm_encrypted,
-                is_shared=bool(disk.get("multi_writer")) or sharing != "sharingnone",
-                is_rdm="rdm" in backing_type,
+                is_shared=bool(disk.get("multi_writer")) or sharing not in {"", "sharingnone"},
+                is_rdm="rdm" in backing_type or "rawdiskmapping" in backing_type,
             )
         )
 

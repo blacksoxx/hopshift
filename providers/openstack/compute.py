@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
+from providers.common import safe_file_stem
 from providers.openstack.sizing_table import get_instance_type
 
 
@@ -16,7 +17,7 @@ def render_compute(
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"openstack-migration/compute/{compute_unit.name}.tf"
+        path = f"openstack-migration/compute/{safe_file_stem(compute_unit.name)}.tf"
         network_ref = _network_ref(
             compute_unit,
             port_group_to_network_ref=port_group_to_network_ref,

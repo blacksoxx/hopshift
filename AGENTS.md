@@ -43,6 +43,13 @@ between the VMware world and the cloud provider world. Never bypass it.
 - No 0.0.0.0/0 ingress in security groups
 - Encrypted VMs are quarantined, not migrated
 - All generated resources must have Environment, Owner, MigratedFrom tags
+- No code-execution constructs in generated HCL: provisioner blocks, external/http data
+  sources, null_resource, local_file. Module sources must be local `./` paths and provider
+  sources must be on the per-cloud allow-list in `agent/nodes/hcl_generator.py`
+- Generated file paths are validated (no absolute paths, no `..`); VM names are sanitized
+  before they become file names
+- The reporter always runs; unvalidated HCL is never written to output/; the CLI exits
+  non-zero when the run did not succeed
 
 ## How to add a new resource type
 1. Add the Pydantic model to `cim/schema.py`

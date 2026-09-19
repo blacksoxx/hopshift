@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
+from providers.common import safe_file_stem
 
 
 def render_storage(
@@ -14,7 +15,7 @@ def render_storage(
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"azure-migration/storage/{compute_unit.name}_disks.tf"
+        path = f"azure-migration/storage/{safe_file_stem(compute_unit.name)}_disks.tf"
         output[path] = _render_compute_unit_storage(compute_unit, tags)
 
     return output

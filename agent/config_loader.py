@@ -98,7 +98,8 @@ def _configure_logging(config: dict[str, object]) -> None:
             level=detailed_log_level,
             serialize=True,
             backtrace=True,
-            diagnose=True,
+            # diagnose=True would dump local variable values (including API keys) into the log file.
+            diagnose=False,
             enqueue=True,
             encoding="utf-8",
         )
@@ -162,10 +163,11 @@ def _validate_mcp_config(config: dict[str, object], target_cloud: str) -> None:
     mcp = _ensure_mapping(config, "mcp")
 
     enabled = mcp.get("enabled", True)
-    if isinstance(enabled, bool) and not enabled:
-        raise ConfigLoadError("mcp.enabled must be true (MCP retrieval is mandatory)")
-    if isinstance(enabled, str) and enabled.strip().lower() in {"false", "0", "no", "off"}:
-        raise ConfigLoadError("mcp.enabled must be true (MCP retrieval is mandatory)")
+    if isinstance(enabled, str):
+        enabled = enabled.strip().lower() not in {"false", "0", "no", "off"}
+    if enabled is False:
+        # MCP retrieval is optional; nothing else in this section needs validation.
+        return
 
     tool_timeout_seconds = _as_int(mcp.get("tool_timeout_seconds"), default=30)
     if tool_timeout_seconds <= 0:

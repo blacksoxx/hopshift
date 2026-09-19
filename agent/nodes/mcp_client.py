@@ -345,7 +345,14 @@ def mcp_client(state: MigrationState) -> MigrationState:
 
     mcp_cfg = _get_mapping(config, "mcp")
     if not _get_bool(mcp_cfg, "enabled", True):
-        raise MCPRetrievalError("mcp_client: mcp.enabled must be true")
+        messages = list(next_state.get("messages", []))
+        messages.append("mcp_client: disabled by config; skipping retrieval")
+        next_state["mcp_context"] = ""
+        next_state["messages"] = messages
+        next_state["status"] = "running"
+
+        logger.info("mcp_client: disabled by config; skipping retrieval")
+        return next_state
 
     cim_doc = next_state.get("sized_cim") or next_state.get("cim")
     if cim_doc is None:

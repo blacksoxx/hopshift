@@ -145,17 +145,21 @@ class LLMClient:
         system_prompt: str | None,
         temperature: float,
     ) -> str:
+        # Claude 5-family models reject sampling parameters (temperature/top_p/top_k),
+        # so temperature is intentionally not forwarded to Anthropic.
+        del temperature
         client = self._get_anthropic_client()
-        system_text = system_prompt or ""
 
-        response = client.messages.create(
-            model=self.settings.model,
-            max_tokens=self.settings.max_tokens,
-            temperature=temperature,
-            system=system_text,
-            messages=[{"role": "user", "content": prompt}],
-            timeout=self.settings.timeout_seconds,
-        )
+        request_kwargs: dict[str, Any] = {
+            "model": self.settings.model,
+            "max_tokens": self.settings.max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+            "timeout": self.settings.timeout_seconds,
+        }
+        if system_prompt and system_prompt.strip():
+            request_kwargs["system"] = system_prompt
+
+        response = client.messages.create(**request_kwargs)
 
         text_chunks: list[str] = []
         for block in response.content:
@@ -403,7 +407,7 @@ def _resolve_openai_base_url() -> str | None:
 
 def _default_model(provider: LLMProvider) -> str:
     return {
-        LLMProvider.ANTHROPIC: "claude-sonnet-4-5",
+        LLMProvider.ANTHROPIC: "claude-opus-5",
         LLMProvider.OPENAI: "gpt-4o",
         LLMProvider.GOOGLE: "gemini-2.0-flash",
     }[provider]

@@ -10,6 +10,7 @@ variables:
   LLM_PROVIDER: "anthropic"
   ENVIRONMENT: "ci"
   OWNER: "platform-team"
+  DOCKER_CLI_VERSION: "27.3.1"
 
 cache:
   paths:
@@ -20,7 +21,7 @@ cache:
   before_script:
     - python --version
     - pip install --upgrade pip
-    - pip install .
+    - pip install ".[dev]"
 
 verify:python-syntax:
   extends: .default_python_job
@@ -72,9 +73,16 @@ migrate:run:
     - rm -f /tmp/tflint.zip
     - curl -fsSL -o /usr/local/bin/opa "https://openpolicyagent.org/downloads/v0.68.0/opa_linux_amd64_static"
     - chmod +x /usr/local/bin/opa
+    # Docker CLI is required because mcp_client launches the Terraform MCP server with `docker run`
+    # against the docker:dind service (DOCKER_HOST is set above).
+    - curl -fsSL -o /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz"
+    - tar -xzf /tmp/docker.tgz -C /tmp docker/docker
+    - install -m 0755 /tmp/docker/docker /usr/local/bin/docker
+    - rm -rf /tmp/docker /tmp/docker.tgz
     - terraform version
     - tflint --version
     - opa version
+    - docker --version
   script:
     - |
       if [ -z "$LLM_API_KEY" ]; then

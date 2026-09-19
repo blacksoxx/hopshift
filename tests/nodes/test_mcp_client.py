@@ -132,3 +132,19 @@ def test_mcp_client_skips_empty_workload(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert updated["status"] == "running"
     assert updated["mcp_context"] == ""
+
+
+def test_mcp_client_skips_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _should_not_call_tool(self: _MCPStdioClient, tool_name: str, arguments: dict[str, object]) -> object:
+        raise AssertionError("MCP tool calls should be skipped when mcp.enabled is false")
+
+    monkeypatch.setattr(_MCPStdioClient, "call_tool", _should_not_call_tool)
+
+    state = _base_state()
+    state["config"]["mcp"]["enabled"] = False  # type: ignore[index]
+
+    updated = mcp_client(state)  # type: ignore[arg-type]
+
+    assert updated["status"] == "running"
+    assert updated["mcp_context"] == ""
+    assert any("disabled" in message for message in updated["messages"])

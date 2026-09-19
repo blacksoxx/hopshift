@@ -7,13 +7,17 @@ llm:
   provider: anthropic
 
   # Model per provider — change here, not in code
+  # anthropic: claude-opus-5 (default quality) or claude-sonnet-5 (lower cost)
   models:
-    anthropic: claude-sonnet-4-5
+    anthropic: claude-opus-5
     openai: gpt-4o
     google: gemini-2.0-flash
 
   # Temperature rules — do not raise these values
-  # HCL generation must be deterministic
+  # HCL generation must be deterministic.
+  # Note: Claude 5-family models reject sampling parameters, so temperature is only
+  # sent to the openai and google providers; determinism on Anthropic comes from the
+  # prompt contract and the deterministic validation loop.
   temperature_hcl: 0.0
   # Report/review notes can be slightly more natural
   temperature_report: 0.2
@@ -61,10 +65,14 @@ validation:
 
 # ─── MCP DOCUMENTATION CONTEXT ───────────────────────────────────────────────
 mcp:
+  # true: retrieve Terraform Registry docs via the MCP server (requires the docker CLI and a daemon).
+  # false: skip retrieval; hcl_generator runs without documentation context.
+  # The terragen --no-mcp flag sets this to false for one run.
   enabled: true
   tool_timeout_seconds: 30
   terraform:
-    image: "hashicorp/terraform-mcp-server:latest"
+    # Pinned by tag and multi-arch index digest (2026-08-26 release). Update both together.
+    image: "hashicorp/terraform-mcp-server:1.3.0@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
     toolsets: "registry"
 
 # ─── OUTPUT ──────────────────────────────────────────────────────────────────
@@ -84,6 +92,9 @@ output:
 
   # Overwrite existing files in output/ (set false to protect manual edits)
   overwrite: true
+
+  # When true, no files are written at all (set by the terragen --dry-run flag)
+  dry_run: false
 
 # ─── VSPHERE MAPPING ─────────────────────────────────────────────────────────
 vsphere:
