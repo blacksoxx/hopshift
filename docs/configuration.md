@@ -6,8 +6,8 @@ Runtime configuration is loaded from config.yaml and then selectively overridden
 
 - provider: anthropic | openai | google
 - models: per-provider defaults
-- temperature_hcl: must stay 0.0
-- temperature_report: report generation temperature
+- temperature_hcl: must stay 0.0 (sent to openai/google only; Claude 5-family models reject sampling parameters)
+- temperature_report: report generation temperature (same caveat)
 - max_tokens
 - timeout_seconds
 
@@ -57,8 +57,9 @@ Behavior:
 
 Behavior:
 
-- mcp_client requires mcp.enabled = true.
+- mcp.enabled=false makes mcp_client skip retrieval and lets hcl_generator run without documentation context. The terragen --no-mcp flag sets this per run.
 - mcp_client expects registry-only toolset for Terraform MCP retrieval.
+- terraform.image should be pinned by tag and digest (image:tag@sha256:...); the docker CLI and a reachable daemon are required when enabled.
 
 ## output
 
@@ -69,11 +70,13 @@ Behavior:
 - write_review_notes
 - review_notes_filename
 - overwrite
+- dry_run
 
 Behavior:
 
-- reporter writes hcl_output keys under output.base_dir.
-- reporter removes provider root directories when overwrite = true.
+- reporter writes hcl_output keys under output.base_dir only when validation passed.
+- reporter always writes the quarantine report and review notes, except when dry_run = true, in which case nothing is written.
+- reporter removes generated .tf files under provider root directories when overwrite = true.
 
 ## vsphere
 

@@ -23,7 +23,7 @@ The active graph flow is:
 6. mcp_client
 7. hcl_generator
 8. validator
-9. reporter (only when validation passes)
+9. reporter (always runs; HCL is written only when validation passes)
 
 Summary:
 
@@ -65,16 +65,16 @@ Summary:
            |                           | validator | ---> |TF + TFLint + OPA |
            |                           +-----+-----+      +------------------+
            |                                 |
-           |                  passed=true ---+--- passed=false
-           |                                 |           |
-           |                                 v           v
-           |                           +-----+-----+    END
+           |                                 | (always)
+           |                                 v
+           |                           +-----+-----+
            |                           | reporter  |
            |                           +-----+-----+
            |                                 |
            v                                 v
   +--------+----------+            +---------+-------------------------------+
-  | quarantine_report |            | output/{provider}-migration/** + notes  |
+  | quarantine_report |            | output/{provider}-migration/** (only if |
+  | + review_notes    |            | validation passed)                      |
   +-------------------+            +-----------------------------------------+
 ```
 
@@ -82,7 +82,8 @@ Notes:
 
 - CIM is produced at cim_mapper and transformed further by sizer.
 - LLM usage is restricted to hcl_generator and reporter.
-- reporter only runs when validator reports passed=true.
+- reporter always runs. It writes quarantine_report.json and review_notes.md for every run and writes HCL files only when validation_result.passed is true.
+- The CLI exits with status 1 when the final status is not succeeded, so CI jobs fail on failed migrations.
 
 ## Docs Map
 
@@ -119,7 +120,7 @@ Most-used `terragen` flags:
 
 - Required: `--input`, `--cloud`, `--llm-provider`, `--environment`, `--owner`
 - Useful optional: `--llm-model`, `--output-dir`, `--config`
-- Control flags: `--dry-run`, `--skip-validation`, `--skip-opa`
+- Control flags: `--dry-run`, `--skip-validation`, `--skip-opa`, `--no-mcp`
 
 For complete option details, see [cli.md](cli.md).
 
@@ -129,7 +130,8 @@ For complete option details, see [cli.md](cli.md).
 - Validation happens in two phases:
   - Internal generation feedback loop in hcl_generator.
   - Final deterministic gate in validator.
-- reporter runs only when validator sets validation_result.passed to true.
+- reporter runs after validator on every path; unvalidated HCL is never written to output.
+- MCP retrieval can be disabled with mcp.enabled=false or the terragen --no-mcp flag; hcl_generator then runs without documentation context.
 
 ## Canonical Terms
 

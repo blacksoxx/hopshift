@@ -53,16 +53,17 @@ Phase 1: hcl_generator internal loop
 
 - Parses and validates LLM JSON response.
 - Enforces output path policy and .tf-only file suffix.
-- Enforces security guardrails (public exposure patterns blocked).
+- Enforces security guardrails: public exposure patterns, code-execution constructs (provisioner blocks, external/http data sources, null_resource, local_file), and `source = ...` assignments that are not local `./` modules or providers on the per-cloud allow-list.
+- Rejects output paths that are absolute or contain `..`.
 - Runs terraform validate/tflint/OPA through deterministic helpers.
 - Feeds errors/warnings back into subsequent generation attempts.
 
 Phase 2: validator final gate
 
-- Re-runs terraform validate, tflint, and OPA according to config flags.
+- Re-runs terraform init/validate and tflint through validation.tf_runner, inside the provider root directory (running in the workspace root would validate an empty module), then OPA, according to config flags.
 - Produces final validation_result.
 - On failure, appends validator-stage quarantine entries and sets status failed.
-- Graph routes to reporter only when validation_result.passed is true.
+- The reporter always runs next. On failure it writes quarantine_report.json and review_notes.md but no HCL files, and the CLI exits 1.
 
 ## Validation Flags
 

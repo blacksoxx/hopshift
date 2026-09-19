@@ -9,10 +9,17 @@ from loguru import logger
 from agent.llm_client import LLMClient
 from agent.prompts import build_report_system_prompt, build_report_user_prompt
 from agent.state import MigrationState
+from validation.paths import ensure_safe_relative_path
 
 
 def reporter(state: MigrationState) -> MigrationState:
-    """Generate review notes and write runtime artifacts."""
+    """Generate review notes and write runtime artifacts.
+
+    Runs for every pipeline outcome. HCL files are written only when the final
+    validation passed; the quarantine report and review notes are always written so a
+    failed run still leaves an auditable trail. With output.dry_run=true nothing is
+    written at all.
+    """
     next_state = cast(MigrationState, dict(state))
 
     config = next_state.get("config", {})
@@ -26,20 +33,38 @@ def reporter(state: MigrationState) -> MigrationState:
     overwrite_output = _get_bool(output_cfg, "overwrite", True)
     review_notes_filename = _get_str(output_cfg, "review_notes_filename", "review_notes.md")
     quarantine_filename = _get_str(output_cfg, "quarantine_report_filename", "quarantine_report.json")
+    dry_run = _get_bool(output_cfg, "dry_run", False)
+
+    validation_result = next_state.get("validation_result", {})
+    validation_passed = bool(validation_result.get("passed")) if isinstance(validation_result, dict) else False
+    run_failed = next_state.get("status") == "failed" or not validation_passed
 
     hcl_output = _normalize_hcl_output(next_state.get("hcl_output", {}))
-    _prepare_hcl_output_base_dir(base_dir=base_dir, hcl_output=hcl_output, overwrite=overwrite_output)
-    _write_hcl_output(base_dir=base_dir, hcl_output=hcl_output)
+    messages = list(next_state.get("messages", []))
+    hcl_files_written = 0
+
+    if dry_run:
+        messages.append("reporter: dry-run enabled; no files written")
+    elif run_failed:
+        messages.append(
+            "reporter: validation did not pass; skipped writing {} HCL file(s), reports still written".format(
+                len(hcl_output)
+            )
+        )
+    else:
+        _prepare_hcl_output_base_dir(base_dir=base_dir, hcl_output=hcl_output, overwrite=overwrite_output)
+        _write_hcl_output(base_dir=base_dir, hcl_output=hcl_output)
+        hcl_files_written = len(hcl_output)
 
     review_notes = _generate_review_notes(next_state, config)
 
-    if write_review_notes:
+    if write_review_notes and not dry_run:
         notes_path = base_dir / review_notes_filename
         notes_path.parent.mkdir(parents=True, exist_ok=True)
         notes_path.write_text(review_notes, encoding="utf-8")
 
     quarantine_queue = list(next_state.get("quarantine_queue", []))
-    if write_quarantine_report:
+    if write_quarantine_report and not dry_run:
         quarantine_path = base_dir / quarantine_filename
         quarantine_path.parent.mkdir(parents=True, exist_ok=True)
         quarantine_path.write_text(
@@ -47,25 +72,24 @@ def reporter(state: MigrationState) -> MigrationState:
             encoding="utf-8",
         )
 
-    messages = list(next_state.get("messages", []))
     messages.append(
         "reporter: wrote_hcl_files={} wrote_review_notes={} wrote_quarantine_report={}".format(
-            len(hcl_output),
-            write_review_notes,
-            write_quarantine_report,
+            hcl_files_written,
+            write_review_notes and not dry_run,
+            write_quarantine_report and not dry_run,
         )
     )
 
     next_state["review_notes"] = review_notes
     next_state["messages"] = messages
-
-    if next_state.get("status") != "failed":
-        next_state["status"] = "succeeded"
+    next_state["status"] = "failed" if run_failed else "succeeded"
 
     logger.info(
-        "reporter: completed artifact write with {} HCL files and {} quarantine items",
-        len(hcl_output),
+        "reporter: completed with status={} hcl_files_written={} quarantine_items={} dry_run={}",
+        next_state["status"],
+        hcl_files_written,
         len(quarantine_queue),
+        dry_run,
     )
 
     return next_state
@@ -143,10 +167,10 @@ def _write_hcl_output(base_dir: Path, hcl_output: dict[str, str]) -> None:
     base_dir.mkdir(parents=True, exist_ok=True)
 
     for raw_path, content in hcl_output.items():
-        relative = Path(raw_path)
-
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ValueError(f"reporter: unsafe HCL output path: {raw_path}")
+        try:
+            relative = Path(str(ensure_safe_relative_path(raw_path)))
+        except ValueError as exc:
+            raise ValueError(f"reporter: unsafe HCL output path: {raw_path}") from exc
 
         destination = (base_dir / relative).resolve()
         if destination.parent.exists() and not destination.parent.is_dir():

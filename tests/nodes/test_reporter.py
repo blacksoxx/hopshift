@@ -34,6 +34,7 @@ def test_reporter_writes_hcl_under_configured_output_base_dir(
         "hcl_output": {
             "aws-migration/main.tf": 'resource "aws_vpc" "main" { cidr_block = "10.0.0.0/16" }'
         },
+        "validation_result": {"passed": True},
         "messages": [],
         "quarantine_queue": [],
         "status": "running",
@@ -67,6 +68,7 @@ def test_reporter_rejects_output_base_dir_when_file_exists(
         "hcl_output": {
             "aws-migration/main.tf": 'resource "aws_vpc" "main" { cidr_block = "10.0.0.0/16" }'
         },
+        "validation_result": {"passed": True},
         "messages": [],
         "quarantine_queue": [],
         "status": "running",
@@ -99,6 +101,7 @@ def test_reporter_overwrite_cleans_stale_provider_root(
         "hcl_output": {
             "aws-migration/main.tf": 'resource "aws_vpc" "main" { cidr_block = "10.0.0.0/16" }'
         },
+        "validation_result": {"passed": True},
         "messages": [],
         "quarantine_queue": [],
         "status": "running",
@@ -148,6 +151,7 @@ def test_reporter_overwrite_preserves_terraform_state_files(
         "hcl_output": {
             "aws-migration/main.tf": 'resource "aws_vpc" "main" { cidr_block = "10.0.0.0/16" }'
         },
+        "validation_result": {"passed": True},
         "messages": [],
         "quarantine_queue": [],
         "status": "running",
@@ -161,3 +165,101 @@ def test_reporter_overwrite_preserves_terraform_state_files(
     assert tfstate_backup.exists()
     assert lock_file.exists()
     assert plugin_marker.exists()
+
+
+def test_reporter_on_failed_validation_writes_reports_but_not_hcl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Regression: failed runs used to leave no artifacts at all. Now the quarantine report
+    and review notes are always written, while unvalidated HCL is never written."""
+    monkeypatch.setattr(reporter_module, "LLMClient", _FakeLLMClient)
+
+    output_dir = tmp_path / "artifacts"
+    state = {
+        "config": {"output": {"base_dir": str(output_dir)}},
+        "hcl_output": {"aws-migration/main.tf": 'resource "aws_vpc" "main" {}'},
+        "validation_result": {"passed": False, "errors": ["terraform validate failed: boom"]},
+        "messages": [],
+        "quarantine_queue": [
+            {
+                "compute_unit_id": "cu-1",
+                "compute_unit_name": "app-1",
+                "reasons": ["validation_failed"],
+                "stage": "validator",
+            }
+        ],
+        "status": "failed",
+    }
+
+    updated = reporter(state)  # type: ignore[arg-type]
+
+    assert updated["status"] == "failed"
+    assert not (output_dir / "aws-migration").exists()
+    assert (output_dir / "review_notes.md").exists()
+    assert (output_dir / "quarantine_report.json").exists()
+    assert any("skipped writing" in message for message in updated["messages"])
+
+
+def test_reporter_treats_missing_validation_result_as_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(reporter_module, "LLMClient", _FakeLLMClient)
+
+    output_dir = tmp_path / "artifacts"
+    state = {
+        "config": {"output": {"base_dir": str(output_dir)}},
+        "hcl_output": {"aws-migration/main.tf": 'resource "aws_vpc" "main" {}'},
+        "messages": [],
+        "quarantine_queue": [],
+        "status": "running",
+    }
+
+    updated = reporter(state)  # type: ignore[arg-type]
+
+    assert updated["status"] == "failed"
+    assert not (output_dir / "aws-migration" / "main.tf").exists()
+
+
+def test_reporter_dry_run_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(reporter_module, "LLMClient", _FakeLLMClient)
+
+    output_dir = tmp_path / "artifacts"
+    state = {
+        "config": {"output": {"base_dir": str(output_dir), "dry_run": True}},
+        "hcl_output": {"aws-migration/main.tf": 'resource "aws_vpc" "main" {}'},
+        "validation_result": {"passed": True},
+        "messages": [],
+        "quarantine_queue": [],
+        "status": "running",
+    }
+
+    updated = reporter(state)  # type: ignore[arg-type]
+
+    assert updated["status"] == "succeeded"
+    assert updated["review_notes"]
+    assert not output_dir.exists()
+    assert any("dry-run" in message for message in updated["messages"])
+
+
+def test_reporter_rejects_traversal_in_hcl_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(reporter_module, "LLMClient", _FakeLLMClient)
+
+    state = {
+        "config": {"output": {"base_dir": str(tmp_path / "artifacts")}},
+        "hcl_output": {"aws-migration/../../escape.tf": "# nope"},
+        "validation_result": {"passed": True},
+        "messages": [],
+        "quarantine_queue": [],
+        "status": "running",
+    }
+
+    with pytest.raises(ValueError, match="unsafe HCL output path"):
+        reporter(state)  # type: ignore[arg-type]

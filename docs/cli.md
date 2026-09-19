@@ -24,9 +24,15 @@ Optional options:
 
 Flags:
 
-- --dry-run
+- --dry-run (runs the full pipeline, including validation, but writes no files)
 - --skip-validation (disables terraform validate, tflint, OPA)
 - --skip-opa
+- --no-mcp (disables Terraform MCP documentation retrieval; no docker required)
+
+Exit status:
+
+- 0 when the final status is succeeded
+- 1 otherwise; the first validation errors are printed to stderr
 
 Example:
 
@@ -79,6 +85,7 @@ Before graph execution, terragen injects overrides into runtime config:
 - target_cloud from --cloud.
 - llm.provider and llm.model from CLI values.
 - llm.base_url when provided.
-- output.base_dir from --output-dir.
+- output.base_dir from --output-dir; output.dry_run from --dry-run.
+- mcp.enabled=false from --no-mcp.
 - validation skip flags from --skip-validation and --skip-opa.
 - required_tags.Environment and required_tags.Owner from CLI.

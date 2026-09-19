@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from langgraph.graph import END, START, StateGraph
 
 from agent.nodes.blocker_parser import blocker_parser
@@ -16,18 +14,13 @@ from agent.nodes.validator import validator
 from agent.state import MigrationState
 
 
-def _validator_route(state: MigrationState) -> Literal["reporter", "__end__"]:
-    validation_result = state.get("validation_result", {})
-    passed = bool(validation_result.get("passed")) if isinstance(validation_result, dict) else False
-
-    if passed:
-        return "reporter"
-
-    return "__end__"
-
-
 def build_graph() -> StateGraph:
-    """Create and compile the LangGraph for the vmware-migration-agent pipeline."""
+    """Create and compile the LangGraph for the vmware-migration-agent pipeline.
+
+    The reporter always runs, including after a failed validation, so that the
+    quarantine report and review notes are written for every run. The reporter
+    decides what is safe to write based on validation_result and status.
+    """
     workflow = StateGraph(MigrationState)
 
     workflow.add_node("ingest", ingest)
@@ -48,16 +41,7 @@ def build_graph() -> StateGraph:
     workflow.add_edge("sizer", "mcp_client")
     workflow.add_edge("mcp_client", "hcl_generator")
     workflow.add_edge("hcl_generator", "validator")
-
-    workflow.add_conditional_edges(
-        "validator",
-        _validator_route,
-        {
-            "reporter": "reporter",
-            "__end__": END,
-        },
-    )
-
+    workflow.add_edge("validator", "reporter")
     workflow.add_edge("reporter", END)
 
     return workflow.compile()

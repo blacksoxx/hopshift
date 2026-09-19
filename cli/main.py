@@ -12,7 +12,7 @@ SUPPORTED_PROVIDERS = ["anthropic", "openai", "google"]
 SUPPORTED_CLOUDS    = ["aws", "azure", "gcp", "openstack"]
 
 PROVIDER_DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-5",
+    "anthropic": "claude-opus-5",
     "openai":    "gpt-4o",
     "google":    "gemini-2.0-flash",
 }
@@ -90,9 +90,13 @@ def cli():
               is_flag=True,
               default=False,
               help="Skip only OPA policy evaluation. Terraform validate and tflint still run.")
+@click.option("--no-mcp",
+              is_flag=True,
+              default=False,
+              help="Disable Terraform MCP documentation retrieval for this run (no docker required).")
 def terragen(
     input_file, cloud, llm_provider, llm_model, llm_base_url, llm_api_key,
-    environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa
+    environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa, no_mcp
 ):
     """
     Convert a VMware discovery JSON to Terraform HCL for the target cloud.
@@ -140,6 +144,13 @@ def terragen(
     output_cfg = cfg.setdefault("output", {})
     if isinstance(output_cfg, dict):
         output_cfg["base_dir"] = str(output_dir)
+        if dry_run:
+            output_cfg["dry_run"] = True
+
+    if no_mcp:
+        mcp_cfg = cfg.setdefault("mcp", {})
+        if isinstance(mcp_cfg, dict):
+            mcp_cfg["enabled"] = False
 
     if skip_validation:
         validation_cfg = cfg.setdefault("validation", {})
@@ -183,7 +194,7 @@ def terragen(
     }
 
     if dry_run:
-        click.echo("dry-run requested; file writing behavior depends on node support.")
+        click.echo("dry-run requested; pipeline will run but no files will be written.")
 
     try:
         final_state = graph.invoke(initial_state)
@@ -191,7 +202,18 @@ def terragen(
         logger.exception("terragen: pipeline execution failed")
         raise
 
-    click.echo(f"Migration finished with status: {final_state.get('status', 'unknown')}")
+    status = str(final_state.get("status", "unknown"))
+    click.echo(f"Migration finished with status: {status}")
+
+    if status != "succeeded":
+        validation_result = final_state.get("validation_result", {})
+        errors = validation_result.get("errors", []) if isinstance(validation_result, dict) else []
+        if errors:
+            click.echo("Validation errors:", err=True)
+            for error in list(errors)[:10]:
+                click.echo(f"  - {str(error).splitlines()[0][:300]}", err=True)
+        # Non-zero exit so CI pipelines fail when the migration did not succeed.
+        raise click.exceptions.Exit(1)
 
 
 @cli.command()
