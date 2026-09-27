@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from cim.blockers import HARD_BLOCKERS, blockers_for_vm
 from cim.schema import (
     CanonicalInfrastructureModel,
     ClusterSemantics,
@@ -17,12 +18,8 @@ from cim.schema import (
     TargetProvider,
 )
 
-SUPPORTED_BLOCKERS = {
-    "encrypted_vm_present",
-    "rdm_disk",
-    "shared_disk",
-    "vapp_config",
-}
+# Blockers that make a ComputeUnit `blocked` (anything else known marks it `needs_review`).
+SUPPORTED_BLOCKERS = set(HARD_BLOCKERS)
 
 
 def _to_target_provider(provider: TargetProvider | str) -> TargetProvider:
@@ -32,30 +29,17 @@ def _to_target_provider(provider: TargetProvider | str) -> TargetProvider:
 
 
 def _infer_blockers(vm: dict[str, Any]) -> list[str]:
-    blockers: list[str] = []
-
-    for blocker in vm.get("migration_blockers", []) or []:
-        value = str(blocker).strip()
-        if value and value not in blockers:
-            blockers.append(value)
-
-    if vm.get("is_encrypted") and "encrypted_vm_present" not in blockers:
-        blockers.append("encrypted_vm_present")
-    if vm.get("has_rdm_disks") and "rdm_disk" not in blockers:
-        blockers.append("rdm_disk")
-    if vm.get("has_shared_disks") and "shared_disk" not in blockers:
-        blockers.append("shared_disk")
-    if vm.get("vapp_config_present") and "vapp_config" not in blockers:
-        blockers.append("vapp_config")
-
-    return blockers
+    """Canonical blocker names from the explicit list and the VM-level flags (see cim.blockers)."""
+    return blockers_for_vm(vm)
 
 
 def _infer_migration_status(vm: dict[str, Any], blockers: list[str]) -> MigrationStatus:
-    has_known_blocker = any(blocker in SUPPORTED_BLOCKERS for blocker in blockers)
-    if has_known_blocker or vm.get("migration_blocked"):
+    has_hard_blocker = any(blocker in SUPPORTED_BLOCKERS for blocker in blockers)
+    if has_hard_blocker or vm.get("migration_blocked"):
         return MigrationStatus.BLOCKED
-    if vm.get("has_vtpm"):
+    if blockers or vm.get("has_vtpm"):
+        # Soft blockers (vTPM, vApp config, mounted ISO, ...) keep the VM in the pipeline
+        # but flag it for manual review.
         return MigrationStatus.NEEDS_REVIEW
     return MigrationStatus.READY
 

@@ -5,23 +5,9 @@ from typing import cast
 from loguru import logger
 
 from agent.state import JSONValue, MigrationState, QuarantineItem
+from cim.blockers import HARD_BLOCKERS, blockers_for_vm, normalize_blocker
 
-CANONICAL_HARD_BLOCKERS = {
-    "encrypted_vm_present",
-    "rdm_disk",
-    "shared_disk",
-    "vapp_config",
-}
-
-BLOCKER_NORMALIZATION = {
-    "encrypted_vm_present": "encrypted_vm_present",
-    "rdm_disk": "rdm_disk",
-    "rdm_disk_present": "rdm_disk",
-    "shared_disk": "shared_disk",
-    "shared_disk_present": "shared_disk",
-    "vapp_config": "vapp_config",
-    "vapp_config_present": "vapp_config",
-}
+CANONICAL_HARD_BLOCKERS = set(HARD_BLOCKERS)
 
 
 def blocker_parser(state: MigrationState) -> MigrationState:
@@ -100,8 +86,7 @@ def _resolve_hard_blockers(state: MigrationState) -> set[str]:
 
     normalized: set[str] = set()
     for item in configured:
-        key = str(item).strip().lower()
-        canonical = BLOCKER_NORMALIZATION.get(key)
+        canonical = normalize_blocker(item)
         if canonical:
             normalized.add(canonical)
 
@@ -109,26 +94,7 @@ def _resolve_hard_blockers(state: MigrationState) -> set[str]:
 
 
 def _extract_vm_blockers(vm: dict[str, JSONValue]) -> set[str]:
-    found: set[str] = set()
-
-    blockers = vm.get("migration_blockers", [])
-    if isinstance(blockers, list):
-        for blocker in blockers:
-            key = str(blocker).strip().lower()
-            canonical = BLOCKER_NORMALIZATION.get(key)
-            if canonical:
-                found.add(canonical)
-
-    if bool(vm.get("is_encrypted")):
-        found.add("encrypted_vm_present")
-    if bool(vm.get("has_rdm_disks")):
-        found.add("rdm_disk")
-    if bool(vm.get("has_shared_disks")):
-        found.add("shared_disk")
-    if bool(vm.get("vapp_config_present")):
-        found.add("vapp_config")
-
-    return found
+    return set(blockers_for_vm(cast(dict[str, object], vm)))
 
 
 def _make_quarantine_item(vm: dict[str, JSONValue], reasons: list[str]) -> QuarantineItem:

@@ -128,3 +128,19 @@ def test_sample_discovery_file_translates_to_one_ready_unit() -> None:
     assert unit.migration_status == MigrationStatus.READY
     assert unit.storage_volumes[0].is_shared is False
     assert unit.storage_volumes[0].size_gb == 25
+
+
+def test_blocker_spellings_are_normalized_and_deduplicated() -> None:
+    cim = _translate(_vm(has_rdm_disks=True, migration_blockers=["rdm_disk_present", "RDM_DISK"]))
+    unit = cim.compute_units[0]
+
+    assert unit.blockers == ["rdm_disk"]
+    assert unit.migration_status == MigrationStatus.BLOCKED
+
+
+def test_soft_blocker_marks_needs_review_not_blocked() -> None:
+    cim = _translate(_vm(vapp_config_present=True))
+    unit = cim.compute_units[0]
+
+    assert unit.blockers == ["vapp_config"]
+    assert unit.migration_status == MigrationStatus.NEEDS_REVIEW
