@@ -66,6 +66,7 @@ def _base_state() -> dict[str, object]:
     return {
         "sized_cim": _sample_cim(),
         "config": {
+            "generation": {"mode": "llm"},
             "pipeline": {"max_retries": 2},
             "validation": {"run_tflint": False, "run_opa": False},
             "required_tags": {

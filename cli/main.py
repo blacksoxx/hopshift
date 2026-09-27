@@ -10,6 +10,7 @@ from cim.schema import TargetProvider
 
 SUPPORTED_PROVIDERS = ["anthropic", "openai", "google"]
 SUPPORTED_CLOUDS    = ["aws", "azure", "gcp", "openstack"]
+GENERATION_MODES    = ["deterministic", "llm", "hybrid"]
 
 PROVIDER_DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
@@ -42,11 +43,19 @@ def cli():
               required=True,
               type=click.Choice(SUPPORTED_CLOUDS, case_sensitive=False),
               help="Target cloud provider.")
-# ── LLM provider + model ──────────────────────────────────────────────────────
+# ── Generation mode ───────────────────────────────────────────────────────────
+@click.option("--mode",
+              "generation_mode",
+              default=None,
+              type=click.Choice(GENERATION_MODES, case_sensitive=False),
+              help="HCL generation strategy. Defaults to generation.mode in config.yaml (deterministic). "
+                   "llm and hybrid require --llm-provider and an API key.")
+# ── LLM provider + model (llm/hybrid modes and review notes) ──────────────────
 @click.option("--llm-provider", "-p",
-              required=True,
+              required=False,
+              default=None,
               type=click.Choice(SUPPORTED_PROVIDERS, case_sensitive=False),
-              help="LLM provider to use for HCL generation.")
+              help="LLM provider. Required for --mode llm/hybrid; optional otherwise (used for review notes).")
 @click.option("--llm-model", "-m",
               default=None,
               help="Model name. Defaults to provider default if omitted.")
@@ -95,7 +104,7 @@ def cli():
               default=False,
               help="Disable Terraform MCP documentation retrieval for this run (no docker required).")
 def terragen(
-    input_file, cloud, llm_provider, llm_model, llm_base_url, llm_api_key,
+    input_file, cloud, generation_mode, llm_provider, llm_model, llm_base_url, llm_api_key,
     environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa, no_mcp
 ):
     """
@@ -123,9 +132,6 @@ def terragen(
           --llm-base-url https://my-instance.openai.azure.com/ \\
           -m my-gpt4o-deployment -e prod --owner sre
     """
-    provider_name = llm_provider.lower()
-    resolved_model = llm_model or PROVIDER_DEFAULT_MODELS[provider_name]
-
     from agent.graph import build_graph
     from agent.config_loader import load_config
 
@@ -134,10 +140,28 @@ def terragen(
     # Apply CLI overrides into runtime config consumed by nodes.
     cfg["target_cloud"] = cloud.lower()
 
+    generation_cfg = cfg.setdefault("generation", {})
+    if not isinstance(generation_cfg, dict):
+        generation_cfg = {}
+        cfg["generation"] = generation_cfg
+    if generation_mode:
+        generation_cfg["mode"] = generation_mode.lower()
+    mode = str(generation_cfg.get("mode") or "deterministic").lower()
+
     llm_cfg = cfg.setdefault("llm", {})
-    if isinstance(llm_cfg, dict):
+    if not isinstance(llm_cfg, dict):
+        llm_cfg = {}
+        cfg["llm"] = llm_cfg
+
+    provider_name = (llm_provider or str(llm_cfg.get("provider") or "")).lower()
+    if mode != "deterministic" and provider_name not in SUPPORTED_PROVIDERS:
+        raise click.UsageError(
+            f"--mode {mode} requires --llm-provider (anthropic|openai|google) or llm.provider in config.yaml"
+        )
+
+    if provider_name:
         llm_cfg["provider"] = provider_name
-        llm_cfg["model"] = resolved_model
+        llm_cfg["model"] = llm_model or PROVIDER_DEFAULT_MODELS.get(provider_name, llm_cfg.get("model"))
         if llm_base_url:
             llm_cfg["base_url"] = llm_base_url
 
@@ -163,7 +187,7 @@ def terragen(
         if isinstance(validation_cfg, dict):
             validation_cfg["run_opa"] = False
 
-    if llm_api_key:
+    if llm_api_key and provider_name:
         env_var = {
             "anthropic": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
@@ -205,6 +229,18 @@ def terragen(
     status = str(final_state.get("status", "unknown"))
     click.echo(f"Migration finished with status: {status}")
 
+    hcl_files = final_state.get("hcl_output") or {}
+    quarantined = final_state.get("quarantine_queue") or []
+    if status == "succeeded" and not hcl_files:
+        click.echo(
+            "No Terraform was generated: 0 migratable VMs ({} quarantined). See quarantine_report.json.".format(
+                len(quarantined)
+            ),
+            err=True,
+        )
+    elif status == "succeeded":
+        click.echo(f"Generated {len(hcl_files)} Terraform file(s); {len(quarantined)} VM(s) quarantined.")
+
     if status != "succeeded":
         validation_result = final_state.get("validation_result", {})
         errors = validation_result.get("errors", []) if isinstance(validation_result, dict) else []
@@ -213,6 +249,71 @@ def terragen(
             for error in list(errors)[:10]:
                 click.echo(f"  - {str(error).splitlines()[0][:300]}", err=True)
         # Non-zero exit so CI pipelines fail when the migration did not succeed.
+        raise click.exceptions.Exit(1)
+
+
+@cli.command(name="assess")
+@click.option("--input",
+              "input_file",
+              required=True,
+              type=click.Path(exists=True, path_type=Path),
+              help="Path to VMware discovery JSON input file.")
+@click.option("--cloud", "-c",
+              required=True,
+              type=click.Choice(SUPPORTED_CLOUDS, case_sensitive=False),
+              help="Target cloud provider.")
+@click.option("--output-dir", "-o",
+              default="output",
+              type=click.Path(path_type=Path),
+              show_default=True,
+              help="Directory to write assessment artifacts.")
+@click.option("--config", "config_file",
+              default="config.yaml",
+              type=click.Path(exists=True, path_type=Path),
+              show_default=True,
+              help="Path to config.yaml.")
+def assess(input_file, cloud, output_dir, config_file):
+    """Run the deterministic migration risk assessment (no LLM, no cloud access) and write reports.
+
+    Unlike terragen, blocked VMs are assessed rather than quarantined, so the report covers
+    the whole inventory.
+    """
+    from agent.graph import build_assess_graph
+    from agent.config_loader import load_config
+
+    cfg = load_config(config_file)
+    cfg["target_cloud"] = cloud.lower()
+
+    output_cfg = cfg.setdefault("output", {})
+    if isinstance(output_cfg, dict):
+        output_cfg["base_dir"] = str(output_dir)
+
+    discovery = json.loads(input_file.read_text())
+    graph = build_assess_graph()
+
+    initial_state = {
+        "discovery_data": discovery,
+        "config": cfg,
+        "target_provider": TargetProvider(cloud.lower()),
+        "quarantine_queue": [],
+        "messages": [],
+        "retry_count": 0,
+        "status": "pending",
+        "hcl_output": {},
+        "mcp_context": "",
+        "validation_result": {},
+        "review_notes": "",
+    }
+
+    try:
+        final_state = graph.invoke(initial_state)
+    except Exception:
+        logger.exception("assess: pipeline execution failed")
+        raise
+
+    status = str(final_state.get("status", "unknown"))
+    click.echo(f"Assessment finished with status: {status}")
+    if status != "succeeded":
         raise click.exceptions.Exit(1)
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
-from providers.common import safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_storage(
@@ -68,11 +68,11 @@ def _render_ebs_volume(
 
     lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}-{volume_ref}"')
-    lines.append(f'    Datastore = "{(volume.datastore or "").strip()}"')
+    lines.append(f'    Name = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
+    lines.append(f'    Datastore = {hcl_string((volume.datastore or "").strip())}')
     lines.append('    StorageEncrypted = "true"')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -107,8 +107,8 @@ def _volume_ref(compute_unit: ComputeUnit, volume: StorageVolume, index: int) ->
 
 def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

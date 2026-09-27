@@ -3,15 +3,19 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import safe_file_stem
 from providers.aws.sizing_table import get_instance_type
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_compute(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render one AWS compute HCL file per ComputeUnit."""
+    """Render one AWS compute HCL file per ComputeUnit.
+
+    Keys are logical paths (aws-migration/compute/<name>.tf); the deterministic assembler
+    decides the on-disk layout.
+    """
     tags = _build_required_tags(cim.source_vcenter, required_tags)
 
     output: dict[str, str] = {}
@@ -25,37 +29,43 @@ def render_compute(
 def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str:
     resource_name = _terraform_identifier(compute_unit.name)
     instance_type = get_instance_type(compute_unit.vcpus, compute_unit.ram_mb)
+    name_literal = hcl_string(compute_unit.name)
 
     lines: list[str] = []
     lines.append(f'resource "aws_instance" "{resource_name}" {{')
-    lines.append('  ami           = var.default_ami_id')
-    lines.append(f'  instance_type = "{instance_type}"')
-    lines.append(f'  subnet_id     = aws_subnet.{_subnet_ref(compute_unit)}.id')
+    lines.append(f'  # Image: the AMI imported for this VM (var.image_overrides[{name_literal}]) or the shared default.')
+    lines.append(f'  ami                    = lookup(var.image_overrides, {name_literal}, var.default_ami_id)')
+    lines.append(f'  instance_type          = "{instance_type}"')
+    lines.append(f'  subnet_id              = aws_subnet.{_subnet_ref(compute_unit)}.id')
     lines.append('  vpc_security_group_ids = [aws_security_group.compute_unit.id]')
 
     if compute_unit.cluster_ref:
         lines.append(
-            f'  placement_group = aws_placement_group.{_terraform_identifier(compute_unit.cluster_ref)}.name'
+            f'  placement_group        = aws_placement_group.{_terraform_identifier(compute_unit.cluster_ref)}.name'
         )
 
     if compute_unit.has_vtpm:
-        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review.')
+        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review (NitroTPM requires a UEFI AMI).')
 
     lines.append('')
+    lines.append('  root_block_device {')
+    lines.append('    encrypted = true')
+    lines.append('  }')
+    lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}"')
+    lines.append(f'    Name = {name_literal}')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

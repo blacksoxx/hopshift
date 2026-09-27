@@ -3,26 +3,23 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, DistributedSwitch
+from providers.common import hcl_string
 
 
 def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
-    """Render GCP networking HCL files from NetworkTopology."""
+    """Render GCP networking HCL files from NetworkTopology (logical keys under gcp-migration/networking/)."""
     switches = list(cim.network_topology.distributed_switches)
     if not switches:
         switches = [DistributedSwitch(name="default-dvs", port_groups=[])]
 
-    vpc_hcl = _render_vpc_file(cim, switches)
-    subnets_hcl = _render_subnets_file(switches)
-    security_hcl = _render_security_file(switches)
-
     return {
-        "gcp-migration/networking/vpc.tf": vpc_hcl,
-        "gcp-migration/networking/subnets.tf": subnets_hcl,
-        "gcp-migration/networking/security_groups.tf": security_hcl,
+        "gcp-migration/networking/vpc.tf": _render_vpc_file(switches),
+        "gcp-migration/networking/subnets.tf": _render_subnets_file(switches),
+        "gcp-migration/networking/security_groups.tf": _render_security_file(switches),
     }
 
 
-def _render_vpc_file(cim: CanonicalInfrastructureModel, switches: list[DistributedSwitch]) -> str:
+def _render_vpc_file(switches: list[DistributedSwitch]) -> str:
     lines: list[str] = []
 
     for switch in switches:
@@ -33,20 +30,9 @@ def _render_vpc_file(cim: CanonicalInfrastructureModel, switches: list[Distribut
         lines.append('  project                 = var.project_id')
         lines.append('  auto_create_subnetworks = false')
         lines.append('  routing_mode            = "REGIONAL"')
+        lines.append(f'  description             = {hcl_string(f"Migrated from VMware distributed switch {switch.name}")}')
         lines.append('}')
         lines.append('')
-
-        lines.append(f'resource "google_compute_network_peering_routes_config" "{network_ref}_routes" {{')
-        lines.append(f'  network              = google_compute_network.{network_ref}.name')
-        lines.append('  peering              = var.peering_name')
-        lines.append('  import_custom_routes = true')
-        lines.append('  export_custom_routes = true')
-        lines.append('}')
-        lines.append('')
-
-    lines.append('locals {')
-    lines.append(f'  source_vcenter = "{cim.source_vcenter}"')
-    lines.append('}')
 
     return "\n".join(lines).strip() + "\n"
 
@@ -63,6 +49,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             has_any_subnet = True
             subnet_ref = _terraform_identifier(port_group.name)
             cidr = _subnet_cidr(switch_index, subnet_index)
+            description = f"Migrated from VMware PortGroup {port_group.name}; vlan_id={port_group.vlan_id}"
 
             lines.append(f'resource "google_compute_subnetwork" "{subnet_ref}" {{')
             lines.append(f'  name          = "{_subnet_name(port_group.name)}"')
@@ -72,7 +59,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append(f'  ip_cidr_range = "{cidr}"')
             lines.append('  private_ip_google_access = true')
             lines.append('')
-            lines.append('  description = "Migrated from VMware PortGroup; vlan_id=' + port_group.vlan_id + '"')
+            lines.append(f'  description = {hcl_string(description)}')
             lines.append('}')
             lines.append('')
 
@@ -111,9 +98,10 @@ def _render_security_file(switches: list[DistributedSwitch]) -> str:
         if network_ref in seen_networks:
             continue
         seen_networks.add(network_ref)
+        network_name = _network_name(switch.name)
 
         lines.append(f'resource "google_compute_firewall" "{network_ref}_allow_ssh_internal" {{')
-        lines.append(f'  name    = "{network_ref}-allow-ssh-internal"')
+        lines.append(f'  name    = "{_firewall_name(network_name, "allow-ssh-internal")}"')
         lines.append('  project = var.project_id')
         lines.append(f'  network = google_compute_network.{network_ref}.name')
         lines.append('  direction = "INGRESS"')
@@ -127,7 +115,7 @@ def _render_security_file(switches: list[DistributedSwitch]) -> str:
         lines.append('')
 
         lines.append(f'resource "google_compute_firewall" "{network_ref}_egress_internal" {{')
-        lines.append(f'  name    = "{network_ref}-egress-internal"')
+        lines.append(f'  name    = "{_firewall_name(network_name, "egress-internal")}"')
         lines.append('  project = var.project_id')
         lines.append(f'  network = google_compute_network.{network_ref}.name')
         lines.append('  direction = "EGRESS"')
@@ -164,7 +152,7 @@ def _network_name(value: str) -> str:
     if not normalized[0].isalpha():
         normalized = f"n-{normalized}"
 
-    return normalized[:63]
+    return normalized[:63].rstrip("-")
 
 
 def _subnet_name(value: str) -> str:
@@ -176,7 +164,14 @@ def _subnet_name(value: str) -> str:
     if not normalized[0].isalpha():
         normalized = f"s-{normalized}"
 
-    return normalized[:63]
+    return normalized[:63].rstrip("-")
+
+
+def _firewall_name(network_name: str, suffix: str) -> str:
+    # Keep the suffix intact and trim the network part so the total stays within 63 chars.
+    budget = 63 - len(suffix) - 1
+    prefix = network_name[:budget].rstrip("-")
+    return f"{prefix}-{suffix}"
 
 
 def _subnet_cidr(switch_index: int, subnet_index: int) -> str:

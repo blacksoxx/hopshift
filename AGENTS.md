@@ -10,8 +10,10 @@ deployable Terraform HCL for a target cloud provider (AWS, Azure, GCP, or OpenSt
 Runs as a CLI tool inside a GitLab CI/CD pipeline.
 
 ## Core constraint
-This is a data transformation pipeline, not a chatbot. LLM calls happen in exactly
-two places: HCL generation and report writing. All other logic is deterministic Python.
+This is a data transformation pipeline, not a chatbot. Default HCL generation is
+deterministic (templates in `providers/` driven by the CIM; `generation.mode: deterministic`).
+LLM calls are optional and happen in at most two places: HCL generation in `llm`/`hybrid`
+mode and review-note writing. All other logic is deterministic Python.
 When in doubt about whether something should use an LLM — it should not.
 
 ## The transformation pipeline
@@ -69,6 +71,6 @@ between the VMware world and the cloud provider world. Never bypass it.
 - Every node function has a unit test in `tests/nodes/`
 - CIM translation has property-based tests (hypothesis) in `tests/cim/`
 - Sizing lookup has parametrized tests covering edge cases (exact match, ceiling, max)
-- OPA policies have rego unit tests in `validation/policies/tests/`
+- OPA policies evaluate parsed HCL (see `validation/hcl_parser.py`); rego unit tests belong in `validation/policies/tests/` (pending)
 - Integration test uses the sample `discovery.json` at repo root
 - No tests write to `output/` — use `tmp_path` pytest fixture

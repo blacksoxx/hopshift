@@ -11,6 +11,8 @@ from loguru import logger
 
 ALLOWED_TARGET_CLOUDS = {"aws", "azure", "gcp", "openstack"}
 ALLOWED_LLM_PROVIDERS = {"anthropic", "openai", "google"}
+ALLOWED_GENERATION_MODES = {"deterministic", "llm", "hybrid"}
+DEFAULT_GENERATION_MODE = "deterministic"
 ALLOWED_LOG_LEVELS = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
@@ -114,6 +116,10 @@ def _apply_environment_overrides(config: dict[str, object]) -> None:
     if target_cloud and target_cloud.strip():
         config["target_cloud"] = target_cloud.strip().lower()
 
+    generation_mode = os.getenv("VMWARE_MIGRATION_AGENT_GENERATION_MODE")
+    if generation_mode and generation_mode.strip():
+        _ensure_mapping(config, "generation")["mode"] = generation_mode.strip().lower()
+
     llm_section = _ensure_mapping(config, "llm")
 
     if llm_provider and llm_provider.strip():
@@ -143,10 +149,18 @@ def _validate_config(config: dict[str, object]) -> None:
             "target_cloud must be one of: aws, azure, gcp, openstack"
         )
 
+    generation = _ensure_mapping(config, "generation")
+    mode = str(generation.get("mode", DEFAULT_GENERATION_MODE)).strip().lower() or DEFAULT_GENERATION_MODE
+    if mode not in ALLOWED_GENERATION_MODES:
+        raise ConfigLoadError("generation.mode must be one of: deterministic, llm, hybrid")
+    generation["mode"] = mode
+
     llm = _ensure_mapping(config, "llm")
     provider = str(llm.get("provider", "")).strip().lower()
-    if provider not in ALLOWED_LLM_PROVIDERS:
+    if provider and provider not in ALLOWED_LLM_PROVIDERS:
         raise ConfigLoadError("llm.provider must be one of: anthropic, openai, google")
+    if mode != "deterministic" and not provider:
+        raise ConfigLoadError("llm.provider is required when generation.mode is llm or hybrid")
 
     temperature_hcl = _as_float(llm.get("temperature_hcl"), default=0.0)
     temperature_report = _as_float(llm.get("temperature_report"), default=0.2)

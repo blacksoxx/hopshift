@@ -2,30 +2,36 @@ from __future__ import annotations
 
 import re
 
-from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import safe_file_stem
+from cim.schema import CanonicalInfrastructureModel, ClusterSemantics, ComputeUnit
 from providers.azure.sizing_table import get_instance_type
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_compute(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render one Azure compute HCL file per ComputeUnit."""
+    """Render one Azure compute HCL file per ComputeUnit (logical key azure-migration/compute/<name>.tf)."""
     tags = _build_required_tags(cim.source_vcenter, required_tags)
+    semantics = {cluster.name: cluster.semantics for cluster in cim.clusters}
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
         path = f"azure-migration/compute/{safe_file_stem(compute_unit.name)}.tf"
-        output[path] = _render_compute_unit(compute_unit, tags)
+        output[path] = _render_compute_unit(compute_unit, tags, semantics)
 
     return output
 
 
-def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str:
+def _render_compute_unit(
+    compute_unit: ComputeUnit,
+    tags: dict[str, str],
+    semantics: dict[str, ClusterSemantics],
+) -> str:
     resource_name = _terraform_identifier(compute_unit.name)
     vm_size = get_instance_type(compute_unit.vcpus, compute_unit.ram_mb)
     nic_ref = _nic_ref(compute_unit)
+    name_literal = hcl_string(compute_unit.name)
 
     lines: list[str] = []
 
@@ -41,9 +47,9 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     lines.append('  }')
     lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}"')
+    lines.append(f'    Name = {name_literal}')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
     lines.append('')
@@ -55,6 +61,14 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     lines.append(f'  size                = "{vm_size}"')
     lines.append('  admin_username      = var.admin_username')
     lines.append(f'  network_interface_ids = [azurerm_network_interface.{nic_ref}.id]')
+
+    if compute_unit.cluster_ref:
+        cluster_ref = _terraform_identifier(compute_unit.cluster_ref)
+        if semantics.get(compute_unit.cluster_ref) == ClusterSemantics.AFFINITY:
+            lines.append(f'  proximity_placement_group_id = azurerm_proximity_placement_group.{cluster_ref}.id')
+        else:
+            lines.append(f'  availability_set_id = azurerm_availability_set.{cluster_ref}.id')
+
     lines.append('')
     lines.append('  admin_ssh_key {')
     lines.append('    username   = var.admin_username')
@@ -66,32 +80,39 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     lines.append('    storage_account_type = "StandardSSD_LRS"')
     lines.append('  }')
     lines.append('')
-    lines.append('  source_image_reference {')
-    lines.append('    publisher = "Canonical"')
-    lines.append('    offer     = "0001-com-ubuntu-server-jammy"')
-    lines.append('    sku       = "22_04-lts"')
-    lines.append('    version   = "latest"')
+    lines.append(f'  # Image: the managed image migrated for this VM (var.image_overrides[{name_literal}]),')
+    lines.append('  # otherwise a marketplace reference so the configuration stays plan-able.')
+    lines.append(f'  source_image_id = lookup(var.image_overrides, {name_literal}, null)')
+    lines.append('')
+    lines.append('  dynamic "source_image_reference" {')
+    lines.append(f'    for_each = lookup(var.image_overrides, {name_literal}, "") == "" ? [1] : []')
+    lines.append('    content {')
+    lines.append('      publisher = "Canonical"')
+    lines.append('      offer     = "0001-com-ubuntu-server-jammy"')
+    lines.append('      sku       = "22_04-lts"')
+    lines.append('      version   = "latest"')
+    lines.append('    }')
     lines.append('  }')
 
     if compute_unit.has_vtpm:
         lines.append('')
-        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review.')
+        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review (consider vtpm_enabled with a Trusted Launch image).')
 
     lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}"')
+    lines.append(f'    Name = {name_literal}')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

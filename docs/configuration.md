@@ -2,6 +2,17 @@
 
 Runtime configuration is loaded from config.yaml and then selectively overridden by CLI flags.
 
+## generation
+
+- mode: deterministic | llm | hybrid (default deterministic)
+
+Behavior:
+
+- deterministic renders Terraform from the templates in providers/ (networking, compute, storage, placement, runtime). No LLM, no MCP, no API key. Output is a flat root module per provider and is identical for identical input.
+- llm keeps the original LLM generation loop (requires llm.* and, when mcp.enabled, docker).
+- hybrid renders deterministically first and only falls back to the LLM loop when the deterministic output fails validation; the deterministic errors are the first feedback round.
+- Override per run with `terragen --mode` or the VMWARE_MIGRATION_AGENT_GENERATION_MODE environment variable.
+
 ## llm
 
 - provider: anthropic | openai | google
@@ -41,6 +52,7 @@ Notes:
 - opa_bin
 - opa_server_url
 - policies_dir
+- terraform_plugin_cache_dir (Terraform provider cache shared across validation runs; empty disables it)
 
 Behavior:
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
-from providers.common import safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_storage(
@@ -65,8 +65,8 @@ def _render_managed_disk(
     lines.append('  create_option        = "Empty"')
     lines.append(f"  disk_size_gb         = {int(volume.size_gb)}")
 
-    # Enforce encryption-at-rest for all generated managed disks.
-    lines.append('  encryption_settings_enabled = true')
+    # Managed disks are always encrypted at rest with platform-managed keys (azurerm 4.x removed
+    # encryption_settings_enabled). Customer-managed keys can be added via disk_encryption_set_id.
 
     if volume.is_shared:
         lines.append('  # TODO: StorageVolume marked shared; validate shared disk semantics manually.')
@@ -76,11 +76,11 @@ def _render_managed_disk(
 
     lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}-{disk_ref}"')
-    lines.append(f'    Datastore = "{(volume.datastore or "").strip()}"')
+    lines.append(f'    Name = {hcl_string(f"{compute_unit.name}-{disk_ref}")}')
+    lines.append(f'    Datastore = {hcl_string((volume.datastore or "").strip())}')
     lines.append('    StorageEncrypted = "true"')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -94,8 +94,8 @@ def _disk_ref(compute_unit: ComputeUnit, volume: StorageVolume, index: int) -> s
 
 def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

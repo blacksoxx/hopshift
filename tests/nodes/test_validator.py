@@ -77,7 +77,7 @@ def test_validator_runs_terraform_inside_provider_root(monkeypatch) -> None:
 
     observed_cwds: list[str] = []
 
-    def _fake_run_command(command: list[str], cwd) -> tf_runner.CommandResult:
+    def _fake_run_command(command: list[str], cwd, env=None) -> tf_runner.CommandResult:
         observed_cwds.append(str(cwd))
         return tf_runner.CommandResult(returncode=0, stdout="ok", stderr="")
 

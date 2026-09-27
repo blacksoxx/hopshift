@@ -10,9 +10,10 @@ from loguru import logger
 from cim.schema import CanonicalInfrastructureModel
 from agent.llm_client import LLMClient
 from agent.prompts import build_hcl_system_prompt, build_hcl_user_prompt
+from agent.generation.deterministic import DeterministicRenderError, render_deterministic
 from agent.state import MigrationState
 from providers.common import safe_file_stem
-from validation.opa_client import evaluate_policies
+from validation.opa_client import evaluate_policies, resolve_policies_dir
 from validation.paths import UnsafePathError, ensure_safe_relative_path
 from validation.tf_runner import validate_hcl
 
@@ -55,6 +56,17 @@ def hcl_generator(state: MigrationState) -> MigrationState:
         config = {}
 
     provider = str(sized_cim.target_provider.value)
+    mode = generation_mode(config)
+
+    if mode in {"deterministic", "hybrid"}:
+        deterministic_state = _run_deterministic(next_state, sized_cim=sized_cim, provider=provider, config=config)
+        deterministic_result = cast(dict[str, object], deterministic_state.get("validation_result", {}))
+        if mode == "deterministic" or bool(deterministic_result.get("passed")):
+            return deterministic_state
+        # hybrid: the deterministic errors become the first round of feedback for the LLM loop.
+        next_state = deterministic_state
+        logger.warning("hcl_generator: deterministic render failed validation; falling back to LLM generation (hybrid mode)")
+
     documentation_context = str(next_state.get("mcp_context") or "")
     if not documentation_context.strip():
         if _get_bool(_get_mapping(config, "mcp"), "enabled", True):
@@ -248,6 +260,105 @@ def hcl_generator(state: MigrationState) -> MigrationState:
     return next_state
 
 
+GENERATION_MODES = ("deterministic", "llm", "hybrid")
+DEFAULT_GENERATION_MODE = "deterministic"
+
+
+def generation_mode(config: dict[str, object]) -> str:
+    """Resolve generation.mode from config; unknown values fall back to deterministic."""
+    generation_cfg = _get_mapping(config, "generation")
+    mode = _get_str(generation_cfg, "mode", DEFAULT_GENERATION_MODE).lower()
+    return mode if mode in GENERATION_MODES else DEFAULT_GENERATION_MODE
+
+
+def _run_deterministic(
+    state: MigrationState,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    config: dict[str, object],
+) -> MigrationState:
+    """Render HCL from provider templates, apply the same guards as the LLM path, validate once."""
+    next_state = cast(MigrationState, dict(state))
+    messages = list(next_state.get("messages", []))
+    required_tags = _resolve_required_tags(config, sized_cim, next_state.get("discovery_data"))
+
+    try:
+        hcl_output = render_deterministic(provider=provider, cim=sized_cim, required_tags=required_tags)
+        _validate_output_paths(provider=provider, hcl_output=hcl_output)
+        _enforce_security_guards(provider=provider, hcl_output=hcl_output)
+        _ensure_runnable_hcl(provider=provider, hcl_output=hcl_output)
+    except (HCLGenerationError, DeterministicRenderError, ValueError) as exc:
+        error = f"hcl_generator: deterministic render failed: {exc}"
+        messages.append(error)
+        next_state["retry_count"] = 0
+        next_state["hcl_output"] = {}
+        next_state["validation_result"] = {
+            "passed": False,
+            "terraform_validate_passed": False,
+            "tflint_passed": False,
+            "opa_passed": False,
+            "errors": [error],
+            "warnings": [],
+        }
+        next_state["messages"] = messages
+        next_state["status"] = "running"
+        logger.error(error)
+        return next_state
+
+    validation = _deterministic_validate_hcl(config=config, hcl_output=hcl_output)
+    messages.append(
+        "hcl_generator: deterministic render files={} provider={} passed={}".format(
+            len(hcl_output), provider, validation["passed"]
+        )
+    )
+
+    next_state["retry_count"] = 0
+    next_state["hcl_output"] = hcl_output
+    next_state["validation_result"] = cast(dict[str, object], validation)
+    next_state["messages"] = messages
+    next_state["status"] = "running"
+
+    logger.info(
+        "hcl_generator: deterministic render produced {} files for provider {} (validation passed={})",
+        len(hcl_output),
+        provider,
+        validation["passed"],
+    )
+    return next_state
+
+
+_TAG_TEMPLATE = re.compile(r"^\{(?P<key>[a-z_]+)\}$")
+
+
+def _resolve_required_tags(
+    config: dict[str, object],
+    cim: CanonicalInfrastructureModel,
+    discovery_data: object,
+) -> dict[str, str]:
+    """Fill the {placeholder} templates from config.required_tags with run data.
+
+    {source_vcenter} comes from the CIM and {generated_at} from the discovery metadata so the
+    output is identical for identical input. Tags whose template cannot be resolved are dropped.
+    """
+    metadata = discovery_data.get("metadata", {}) if isinstance(discovery_data, dict) else {}
+    values = {
+        "source_vcenter": cim.source_vcenter,
+        "generated_at": str(metadata.get("generated_at") or "") if isinstance(metadata, dict) else "",
+    }
+
+    resolved: dict[str, str] = {}
+    for key, raw_value in _required_tags(config).items():
+        match = _TAG_TEMPLATE.match(raw_value.strip())
+        if match is None:
+            resolved[key] = raw_value
+            continue
+        substitution = values.get(match.group("key"))
+        if substitution:
+            resolved[key] = substitution
+        # unresolved placeholders ({environment} without a CLI value, empty generated_at) are dropped
+    return resolved
+
+
 def _deterministic_validate_hcl(
     config: dict[str, object],
     hcl_output: dict[str, str],
@@ -272,6 +383,7 @@ def _deterministic_validate_hcl(
         terraform_bin=terraform_bin,
         tflint_bin=tflint_bin,
         run_tflint=run_tflint,
+        plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
     )
 
     opa_passed = True
@@ -282,7 +394,7 @@ def _deterministic_validate_hcl(
         opa_mode = _get_str(validation_cfg, "opa_mode", "binary")
         opa_bin = _get_str(validation_cfg, "opa_bin", "opa")
         opa_server_url = _get_str(validation_cfg, "opa_server_url", "")
-        policies_dir = Path(_get_str(validation_cfg, "policies_dir", "validation/policies")).resolve()
+        policies_dir = resolve_policies_dir(_get_str(validation_cfg, "policies_dir", "validation/policies"))
 
         opa_result = evaluate_policies(
             hcl_output=hcl_output,
@@ -508,20 +620,14 @@ def _validate_output_paths(provider: str, hcl_output: dict[str, str]) -> None:
         f"{root_dir}/placement/",
         f"{root_dir}/modules/",
     }
-    allowed_files = {
-        f"{root_dir}/main.tf",
-        f"{root_dir}/providers.tf",
-        f"{root_dir}/locals.tf",
-        f"{root_dir}/variables.tf",
-    }
-
     for raw_path in hcl_output:
         try:
             path = ensure_safe_relative_path(raw_path).as_posix()
         except UnsafePathError as exc:
             raise HCLGenerationError(f"hcl_generator: unsafe output path: {exc}") from exc
 
-        if path not in allowed_files and not any(path.startswith(root) for root in allowed_roots):
+        is_root_module_file = path.startswith(f"{root_dir}/") and "/" not in path[len(root_dir) + 1 :]
+        if not is_root_module_file and not any(path.startswith(root) for root in allowed_roots):
             raise HCLGenerationError(
                 "hcl_generator: invalid output path outside required structure: "
                 f"{raw_path}"

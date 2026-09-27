@@ -8,7 +8,7 @@ Last refreshed: 2026-04-20
 
 - Purpose: Transform VMware discovery JSON into deployable Terraform HCL.
 - Runtime shape: Deterministic LangGraph pipeline with limited LLM use.
-- LLM scope: HCL generation and review-note writing only.
+- LLM scope: optional. Default generation is deterministic templates from the CIM; the LLM is used for review notes and, in llm/hybrid modes, HCL generation.
 - Core contract: CIM (Canonical Infrastructure Model) is the system boundary between VMware input and provider output.
 
 ## Current Pipeline
@@ -92,6 +92,7 @@ Notes:
 - [configuration.md](configuration.md): Runtime config contract and CLI override behavior.
 - [cim-and-translation.md](cim-and-translation.md): CIM models and VMware-to-CIM translation rules.
 - [output-and-validation.md](output-and-validation.md): Output layout, quarantine/report artifacts, validation gates.
+- [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
 
 ## Command Line Overview
 
@@ -99,7 +100,8 @@ Primary command group: `vma`
 
 Core commands:
 
-- `terragen`: Run the full migration pipeline from discovery JSON to Terraform output.
+- `terragen`: Run the full migration pipeline from discovery JSON to Terraform output (deterministic by default; `--mode llm|hybrid` for LLM generation).
+- `assess`: Deterministic per-resource risk assessment of the whole inventory, written as JSON and markdown.
 - `report`: Read generated artifacts from an existing output directory.
 - `mcp-check`: Validate Terraform MCP connectivity before generation runs.
 

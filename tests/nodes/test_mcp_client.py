@@ -53,6 +53,7 @@ def _base_state() -> dict[str, object]:
         "messages": [],
         "status": "pending",
         "config": {
+            "generation": {"mode": "llm"},
             "mcp": {
                 "enabled": True,
                 "tool_timeout_seconds": 5,

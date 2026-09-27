@@ -27,7 +27,7 @@ def test_validate_hcl_runs_commands_in_detected_module_dir(
 ) -> None:
     command_cwds: list[str] = []
 
-    def _fake_run_command(command: list[str], cwd: Path) -> tf_runner.CommandResult:
+    def _fake_run_command(command: list[str], cwd: Path, env=None) -> tf_runner.CommandResult:
         command_cwds.append(str(cwd))
         return tf_runner.CommandResult(returncode=0, stdout="ok", stderr="")
 
@@ -50,7 +50,7 @@ def test_validate_hcl_runs_commands_in_detected_module_dir(
 def test_validate_hcl_can_skip_terraform_validate_but_still_run_tflint(monkeypatch) -> None:
     commands: list[list[str]] = []
 
-    def _fake_run_command(command: list[str], cwd: Path) -> tf_runner.CommandResult:
+    def _fake_run_command(command: list[str], cwd: Path, env=None) -> tf_runner.CommandResult:
         commands.append(command)
         return tf_runner.CommandResult(returncode=0, stdout="ok", stderr="")
 

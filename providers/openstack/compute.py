@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem
 from providers.openstack.sizing_table import get_instance_type
 
 
@@ -11,7 +11,7 @@ def render_compute(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render one OpenStack compute HCL file per ComputeUnit."""
+    """Render one OpenStack compute HCL file per ComputeUnit (logical key openstack-migration/compute/<name>.tf)."""
     metadata = _build_required_metadata(cim.source_vcenter, required_tags)
     port_group_to_network_ref, default_network_ref = _build_network_ref_lookup(cim)
 
@@ -23,11 +23,7 @@ def render_compute(
             port_group_to_network_ref=port_group_to_network_ref,
             default_network_ref=default_network_ref,
         )
-        output[path] = _render_compute_unit(
-            compute_unit,
-            metadata,
-            network_ref=network_ref,
-        )
+        output[path] = _render_compute_unit(compute_unit, metadata, network_ref=network_ref)
 
     return output
 
@@ -39,12 +35,14 @@ def _render_compute_unit(
 ) -> str:
     resource_name = _terraform_identifier(compute_unit.name)
     flavor_name = get_instance_type(compute_unit.vcpus, compute_unit.ram_mb)
+    name_literal = hcl_string(compute_unit.name)
 
     lines: list[str] = []
     lines.append(f'resource "openstack_compute_instance_v2" "{resource_name}" {{')
-    lines.append(f'  name            = "{compute_unit.name}"')
+    lines.append(f'  name            = {name_literal}')
     lines.append(f'  flavor_name     = "{flavor_name}"')
-    lines.append('  image_name      = var.default_image_name')
+    lines.append(f'  # Image: the Glance image migrated for this VM (var.image_overrides[{name_literal}]) or the default.')
+    lines.append(f'  image_name      = lookup(var.image_overrides, {name_literal}, var.default_image_name)')
     lines.append('  key_pair        = var.key_pair_name')
     lines.append('  security_groups = [openstack_networking_secgroup_v2.compute_unit.name]')
     lines.append('')
@@ -53,22 +51,25 @@ def _render_compute_unit(
     lines.append('  }')
 
     if compute_unit.cluster_ref:
+        cluster_ref = _terraform_identifier(compute_unit.cluster_ref)
         lines.append('')
-        lines.append('  # ClusterSemantics placement should be applied using server groups as needed.')
+        lines.append('  scheduler_hints {')
+        lines.append(f'    group = openstack_compute_servergroup_v2.{cluster_ref}.id')
+        lines.append('  }')
 
     if compute_unit.has_vtpm:
         lines.append('')
-        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review.')
+        lines.append('  # TODO: ComputeUnit has vTPM and needs manual review (requires a flavor/image with vTPM traits).')
 
     lines.append('')
     lines.append('  metadata = {')
-    lines.append(f'    Name = "{compute_unit.name}"')
+    lines.append(f'    Name = {name_literal}')
     for key, value in metadata.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def _build_required_metadata(
@@ -76,8 +77,8 @@ def _build_required_metadata(
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

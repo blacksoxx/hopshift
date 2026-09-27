@@ -19,3 +19,39 @@ def safe_file_stem(name: object, fallback: str = "resource") -> str:
     if not text:
         return fallback
     return text[:_MAX_STEM_LENGTH]
+
+
+_BARE_EXPRESSION = re.compile(r"^(?:var|local|module|data)\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+|\[[^\]]+\])*$")
+
+
+def is_bare_expression(value: object) -> bool:
+    """True when value is a Terraform reference such as var.owner that must not be quoted."""
+    return bool(_BARE_EXPRESSION.match(str(value).strip()))
+
+
+def hcl_string(value: object) -> str:
+    """Render value as a safe HCL string literal.
+
+    Escapes backslashes, quotes and newlines, and neutralizes `${` / `%{` so a VM name or
+    annotation coming from discovery can never open a template expression.
+    """
+    text = str(value)
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    text = text.replace("${", "$${").replace("%{", "%%{")
+    return f'"{text}"'
+
+
+def hcl_value(value: object) -> str:
+    """Render a tag/metadata value: bare Terraform references stay bare, everything else is quoted."""
+    if is_bare_expression(value):
+        return str(value).strip()
+    return hcl_string(value)
+
+
+def hcl_map_key(value: object, fallback: str = "key") -> str:
+    """Render a map key: identifiers stay bare, anything else becomes a quoted string."""
+    text = str(value).strip()
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_-]*$", text):
+        return text
+    return hcl_string(text) if text else fallback

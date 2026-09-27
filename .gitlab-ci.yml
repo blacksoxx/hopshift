@@ -11,6 +11,8 @@ variables:
   ENVIRONMENT: "ci"
   OWNER: "platform-team"
   DOCKER_CLI_VERSION: "27.3.1"
+  # deterministic | llm | hybrid  (llm/hybrid need LLM_API_KEY and, if mcp.enabled, docker)
+  GENERATION_MODE: "deterministic"
 
 cache:
   paths:
@@ -85,11 +87,11 @@ migrate:run:
     - docker --version
   script:
     - |
-      if [ -z "$LLM_API_KEY" ]; then
-        echo "LLM_API_KEY is not set. Configure it as a protected CI variable." >&2
+      if [ "$GENERATION_MODE" != "deterministic" ] && [ -z "$LLM_API_KEY" ]; then
+        echo "LLM_API_KEY is not set but GENERATION_MODE=$GENERATION_MODE needs it. Configure it as a protected CI variable." >&2
         exit 1
       fi
-    - python -m cli.main terragen --input discovery.json -c "$TARGET_CLOUD" -p "$LLM_PROVIDER" -e "$ENVIRONMENT" --owner "$OWNER" --config config.yaml --output-dir output
+    - python -m cli.main terragen --input tests/fixtures/discovery_multi_vm.json -c "$TARGET_CLOUD" --mode "$GENERATION_MODE" -p "$LLM_PROVIDER" -e "$ENVIRONMENT" --owner "$OWNER" --config config.yaml --output-dir output
   artifacts:
     when: always
     expire_in: 1 week

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
-from providers.common import safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_storage(
@@ -55,7 +55,7 @@ def _render_volume(
     lines: list[str] = []
 
     lines.append(f'resource "openstack_blockstorage_volume_v3" "{volume_ref}" {{')
-    lines.append(f'  name        = "{compute_unit.name}-{volume_ref}"')
+    lines.append(f'  name        = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
     lines.append(f'  size        = {int(volume.size_gb)}')
     lines.append('  volume_type = var.encrypted_volume_type')
     lines.append('')
@@ -68,11 +68,11 @@ def _render_volume(
 
     lines.append('')
     lines.append('  metadata = {')
-    lines.append(f'    Name = "{compute_unit.name}-{volume_ref}"')
-    lines.append(f'    Datastore = "{(volume.datastore or "").strip()}"')
+    lines.append(f'    Name = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
+    lines.append(f'    Datastore = {hcl_string((volume.datastore or "").strip())}')
     lines.append('    StorageEncrypted = "true"')
     for key, value in metadata.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -84,8 +84,8 @@ def _build_required_metadata(
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
+        "Environment": "var.environment",
+        "Owner": "var.owner",
         "MigratedFrom": "vmware-vcenter",
         "SourceVCenter": source_vcenter,
     }

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, DistributedSwitch
+from providers.common import hcl_string
 
 
 def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
@@ -36,11 +37,11 @@ def _render_vnet_file(cim: CanonicalInfrastructureModel, switches: list[Distribu
         lines.append(f'  address_space       = ["{cidr}"]')
         lines.append('')
         lines.append('  tags = {')
-        lines.append(f'    Name = "{switch.name}"')
-        lines.append('    Environment = "${var.environment}"')
-        lines.append('    Owner = "${var.owner}"')
+        lines.append(f'    Name = {hcl_string(switch.name)}')
+        lines.append('    Environment = var.environment')
+        lines.append('    Owner = var.owner')
         lines.append('    MigratedFrom = "vmware-vcenter"')
-        lines.append(f'    SourceVCenter = "{cim.source_vcenter}"')
+        lines.append(f'    SourceVCenter = {hcl_string(cim.source_vcenter)}')
         lines.append('  }')
         lines.append('}')
         lines.append('')
@@ -62,7 +63,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             cidr = _subnet_cidr(switch_index, subnet_index)
 
             lines.append(f'resource "azurerm_subnet" "{subnet_ref}" {{')
-            lines.append(f'  name                 = "{port_group.name}"')
+            lines.append(f'  name                 = {hcl_string(port_group.name)}')
             lines.append('  resource_group_name  = var.resource_group_name')
             lines.append(f'  virtual_network_name = azurerm_virtual_network.{vnet_ref}.name')
             lines.append(f'  address_prefixes     = ["{cidr}"]')
@@ -113,8 +114,8 @@ def _render_security_groups_file(switches: list[DistributedSwitch]) -> str:
     lines.append('')
     lines.append('  tags = {')
     lines.append('    Name = "compute-unit-nsg"')
-    lines.append('    Environment = "${var.environment}"')
-    lines.append('    Owner = "${var.owner}"')
+    lines.append('    Environment = var.environment')
+    lines.append('    Owner = var.owner')
     lines.append('    MigratedFrom = "vmware-vcenter"')
     lines.append('  }')
     lines.append('}')

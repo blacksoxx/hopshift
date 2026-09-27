@@ -1,7 +1,16 @@
 # vmware-migration-agent — runtime configuration
 # All agent behaviour is controlled from here. No hardcoded values in source code.
 
-# ─── LLM ────────────────────────────────────────────────────────────────────
+# ─── GENERATION ─────────────────────────────────────────────────────────────
+generation:
+  # deterministic: render Terraform from the provider templates in providers/ (no LLM, no MCP,
+  #                no API key). Output is reproducible and diffable between runs.
+  # llm:           the LLM writes the HCL from the CIM (requires llm.* and, if enabled, MCP).
+  # hybrid:        deterministic first; if its output fails validation the LLM loop runs with
+  #                the deterministic errors as feedback.
+  mode: deterministic
+
+# ─── LLM (used by llm/hybrid generation and for review notes) ────────────────
 llm:
   # provider: anthropic | openai | google
   provider: anthropic
@@ -63,6 +72,10 @@ validation:
   # Path to .rego policy bundle
   policies_dir: validation/policies
 
+  # Terraform provider plugin cache shared across validation runs (avoids re-downloading
+  # providers on every attempt). Empty disables the cache.
+  terraform_plugin_cache_dir: ~/.cache/vmware-migration-agent/terraform-plugins
+
 # ─── MCP DOCUMENTATION CONTEXT ───────────────────────────────────────────────
 mcp:
   # true: retrieve Terraform Registry docs via the MCP server (requires the docker CLI and a daemon).
@@ -79,16 +92,23 @@ mcp:
 output:
   base_dir: output/
 
-  # Terraform files are written under {provider}-migration/{resource_type}/{name}.tf at repo root.
-  # Example: aws-migration/networking/vpc.tf
+  # Deterministic mode writes one flat Terraform root module per provider:
+  #   {provider}-migration/providers.tf, variables.tf,
+  #   {provider}-migration/{resource_type}_{name}.tf   (e.g. aws-migration/networking_vpc.tf,
+  #                                                     aws-migration/compute_web-01.tf)
   # resource_type values: networking | compute | storage | placement
-  structure: "{provider}-migration/{resource_type}/{name}.tf"
+  # (llm mode keeps its own module layout; this value is informational.)
+  structure: "{provider}-migration/{resource_type}_{name}.tf"
 
   write_quarantine_report: true
   quarantine_report_filename: quarantine_report.json
 
   write_review_notes: true
   review_notes_filename: review_notes.md
+
+  # Written by the `assess` command
+  assessment_report_json_filename: assessment_report.json
+  assessment_report_markdown_filename: assessment_report.md
 
   # Overwrite existing files in output/ (set false to protect manual edits)
   overwrite: true

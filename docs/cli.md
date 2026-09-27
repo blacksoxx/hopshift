@@ -10,9 +10,13 @@ Required options:
 
 - --input
 - --cloud (aws|azure|gcp|openstack)
-- --llm-provider (anthropic|openai|google)
 - --environment
 - --owner
+
+Mode:
+
+- --mode (deterministic|llm|hybrid); defaults to generation.mode in config.yaml (deterministic).
+- --llm-provider (anthropic|openai|google) is required for llm and hybrid modes and optional otherwise (used for review notes when set).
 
 Optional options:
 
@@ -38,6 +42,14 @@ Example:
 
 ```bash
 vma terragen --input discovery.json --cloud aws --llm-provider anthropic --environment prod --owner platform-team
+```
+
+## Command: assess
+
+Runs the deterministic risk assessment over the whole inventory (blocked VMs are assessed, not quarantined) and writes assessment_report.json and assessment_report.md plus a terminal table. No LLM, no cloud access, no docker.
+
+```bash
+vma assess --input discovery.json --cloud aws --output-dir output
 ```
 
 ## Command: report

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, DistributedSwitch
+from providers.common import hcl_string
 
 
 def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
@@ -35,11 +36,11 @@ def _render_vpc_file(cim: CanonicalInfrastructureModel, switches: list[Distribut
         lines.append('  enable_dns_hostnames = true')
         lines.append('')
         lines.append('  tags = {')
-        lines.append(f'    Name = "{switch.name}"')
-        lines.append('    Environment = "${var.environment}"')
-        lines.append('    Owner = "${var.owner}"')
+        lines.append(f'    Name = {hcl_string(switch.name)}')
+        lines.append('    Environment = var.environment')
+        lines.append('    Owner = var.owner')
         lines.append('    MigratedFrom = "vmware-vcenter"')
-        lines.append(f'    SourceVCenter = "{cim.source_vcenter}"')
+        lines.append(f'    SourceVCenter = {hcl_string(cim.source_vcenter)}')
         lines.append('  }')
         lines.append('}')
         lines.append('')
@@ -68,10 +69,10 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append(f'  cidr_block = "{cidr}"')
             lines.append('')
             lines.append('  tags = {')
-            lines.append(f'    Name = "{port_group.name}"')
-            lines.append(f'    VlanId = "{port_group.vlan_id}"')
-            lines.append('    Environment = "${var.environment}"')
-            lines.append('    Owner = "${var.owner}"')
+            lines.append(f'    Name = {hcl_string(port_group.name)}')
+            lines.append(f'    VlanId = {hcl_string(port_group.vlan_id)}')
+            lines.append('    Environment = var.environment')
+            lines.append('    Owner = var.owner')
             lines.append('    MigratedFrom = "vmware-vcenter"')
             lines.append('  }')
             lines.append('}')
@@ -86,8 +87,8 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
         lines.append('  tags = {')
         lines.append('    Name = "default"')
         lines.append('    VlanId = ""')
-        lines.append('    Environment = "${var.environment}"')
-        lines.append('    Owner = "${var.owner}"')
+        lines.append('    Environment = var.environment')
+        lines.append('    Owner = var.owner')
         lines.append('    MigratedFrom = "vmware-vcenter"')
         lines.append('  }')
         lines.append('}')
@@ -121,8 +122,8 @@ def _render_security_groups_file(switches: list[DistributedSwitch]) -> str:
         '',
         '  tags = {',
         '    Name = "compute-unit-sg"',
-        '    Environment = "${var.environment}"',
-        '    Owner = "${var.owner}"',
+        '    Environment = var.environment',
+        '    Owner = var.owner',
         '    MigratedFrom = "vmware-vcenter"',
         '  }',
         '}',

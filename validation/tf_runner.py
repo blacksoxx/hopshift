@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -40,6 +41,7 @@ def validate_hcl(
     tflint_bin: str = "tflint",
     run_tflint: bool = True,
     run_terraform_validate: bool = True,
+    plugin_cache_dir: str | None = None,
 ) -> TFValidationResult:
     """Validate generated HCL with terraform init/validate and optionally tflint.
 
@@ -54,6 +56,7 @@ def validate_hcl(
         )
 
     result = TFValidationResult(tflint_passed=not run_tflint)
+    env = _build_environment(plugin_cache_dir)
 
     with tempfile.TemporaryDirectory(prefix="vmware-migration-agent-tf-") as temp_dir:
         workspace = Path(temp_dir)
@@ -67,6 +70,7 @@ def validate_hcl(
             init_result = _run_command(
                 [terraform_bin, "init", "-backend=false", "-input=false", "-no-color"],
                 cwd=terraform_cwd,
+                env=env,
             )
             if init_result.returncode != 0:
                 result.errors.append(f"terraform init failed: {init_result.output}")
@@ -80,6 +84,7 @@ def validate_hcl(
             validate_result = _run_command(
                 [terraform_bin, "validate", "-no-color"],
                 cwd=terraform_cwd,
+                env=env,
             )
             if validate_result.returncode != 0:
                 result.errors.append(f"terraform validate failed: {validate_result.output}")
@@ -92,7 +97,12 @@ def validate_hcl(
                 result.terraform_validate_passed = True
 
         if run_tflint:
-            tflint_result = _run_command([tflint_bin, "--no-color"], cwd=terraform_cwd)
+            # Warnings (style, deprecations) are reported by tflint but only errors fail the gate.
+            tflint_result = _run_command(
+                [tflint_bin, "--no-color", "--minimum-failure-severity=error"],
+                cwd=terraform_cwd,
+                env=env,
+            )
             if tflint_result.returncode != 0:
                 result.errors.append(f"tflint failed: {tflint_result.output}")
                 logger.error(
@@ -138,7 +148,23 @@ def _resolve_terraform_workdir(workspace: Path, hcl_output: dict[str, str]) -> P
     return workspace
 
 
-def _run_command(command: list[str], cwd: Path) -> CommandResult:
+def _build_environment(plugin_cache_dir: str | None) -> dict[str, str]:
+    """Return the subprocess environment, enabling the Terraform plugin cache when configured.
+
+    Without a cache every validation run downloads the provider again (tens of MB per attempt).
+    """
+    env = os.environ.copy()
+    if plugin_cache_dir and not env.get("TF_PLUGIN_CACHE_DIR"):
+        cache_path = Path(plugin_cache_dir).expanduser()
+        try:
+            cache_path.mkdir(parents=True, exist_ok=True)
+            env["TF_PLUGIN_CACHE_DIR"] = str(cache_path)
+        except OSError as exc:
+            logger.warning("tf_runner: cannot create terraform plugin cache dir {}: {}", cache_path, exc)
+    return env
+
+
+def _run_command(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> CommandResult:
     try:
         completed = subprocess.run(
             command,
@@ -147,6 +173,7 @@ def _run_command(command: list[str], cwd: Path) -> CommandResult:
             capture_output=True,
             check=False,
             timeout=180,
+            env=env,
         )
     except FileNotFoundError:
         return CommandResult(

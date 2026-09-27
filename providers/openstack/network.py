@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, DistributedSwitch
+from providers.common import hcl_string
 
 
 def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
@@ -28,13 +29,13 @@ def _render_networks_file(cim: CanonicalInfrastructureModel, switches: list[Dist
     for switch in switches:
         network_ref = _terraform_identifier(switch.name)
         lines.append(f'resource "openstack_networking_network_v2" "{network_ref}" {{')
-        lines.append(f'  name           = "{switch.name}"')
+        lines.append(f'  name           = {hcl_string(switch.name)}')
         lines.append('  admin_state_up = true')
         lines.append('  shared         = false')
         lines.append('')
         lines.append('  tags = [')
         lines.append('    "MigratedFrom=vmware-vcenter",')
-        lines.append(f'    "SourceVCenter={cim.source_vcenter}",')
+        lines.append(f'    {hcl_string("SourceVCenter=" + cim.source_vcenter)},')
         lines.append('    "Environment=${var.environment}",')
         lines.append('    "Owner=${var.owner}"')
         lines.append('  ]')
@@ -58,7 +59,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             cidr = _subnet_cidr(switch_index, subnet_index)
 
             lines.append(f'resource "openstack_networking_subnet_v2" "{subnet_ref}" {{')
-            lines.append(f'  name            = "{port_group.name}"')
+            lines.append(f'  name            = {hcl_string(port_group.name)}')
             lines.append(f'  network_id      = openstack_networking_network_v2.{network_ref}.id')
             lines.append('  ip_version      = 4')
             lines.append(f'  cidr            = "{cidr}"')
@@ -66,7 +67,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append('  dns_nameservers = ["8.8.8.8", "8.8.4.4"]')
             lines.append('')
             lines.append('  # VLAN tag from PortGroup is preserved in description for traceability.')
-            lines.append(f'  description = "vlan_id={port_group.vlan_id}"')
+            lines.append(f'  description = {hcl_string("vlan_id=" + port_group.vlan_id)}')
             lines.append('}')
             lines.append('')
 
@@ -128,7 +129,7 @@ def _render_security_groups_file(switches: list[DistributedSwitch]) -> str:
         subnet_ref = _first_subnet_ref_for_switch(switch)
 
         lines.append(f'resource "openstack_networking_router_v2" "{router_ref}" {{')
-        lines.append(f'  name                = "{switch.name}-router"')
+        lines.append(f'  name                = {hcl_string(switch.name + "-router")}')
         lines.append('  admin_state_up      = true')
         lines.append('  external_network_id = var.external_network_id')
         lines.append('}')

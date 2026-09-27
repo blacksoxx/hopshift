@@ -6,7 +6,7 @@ from typing import cast
 from loguru import logger
 
 from agent.state import MigrationState, QuarantineItem
-from validation.opa_client import evaluate_policies
+from validation.opa_client import evaluate_policies, resolve_policies_dir
 from validation.tf_runner import validate_hcl
 
 
@@ -79,7 +79,7 @@ def validator(state: MigrationState) -> MigrationState:
     opa_bin = _get_str(validation_cfg, "opa_bin", "opa")
     opa_mode = _get_str(validation_cfg, "opa_mode", "binary")
     opa_server_url = _get_str(validation_cfg, "opa_server_url", "")
-    policies_dir = Path(_get_str(validation_cfg, "policies_dir", "validation/policies")).resolve()
+    policies_dir = resolve_policies_dir(_get_str(validation_cfg, "policies_dir", "validation/policies"))
 
     tf_errors: list[str] = []
     tf_warnings: list[str] = []
@@ -91,6 +91,7 @@ def validator(state: MigrationState) -> MigrationState:
             tflint_bin=tflint_bin,
             run_tflint=run_tflint,
             run_terraform_validate=run_tf_validate,
+            plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
         )
         tf_validate_passed = tf_result.terraform_validate_passed
         tflint_passed = tf_result.tflint_passed
