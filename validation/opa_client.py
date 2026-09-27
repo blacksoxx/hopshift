@@ -10,6 +10,28 @@ from urllib import request as url_request
 
 from loguru import logger
 
+from validation.hcl_parser import parse_hcl_files
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def resolve_policies_dir(raw: str | Path) -> Path:
+    """Resolve the policy bundle path relative to the CWD first, then to the repo root.
+
+    The CLI is often run from another directory in CI; the default `validation/policies`
+    must still be found.
+    """
+    candidate = Path(str(raw)).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    cwd_relative = candidate.resolve()
+    if cwd_relative.exists():
+        return cwd_relative
+    repo_relative = (_REPO_ROOT / candidate).resolve()
+    if repo_relative.exists():
+        return repo_relative
+    return cwd_relative
+
 
 @dataclass
 class OPAEvaluationResult:
@@ -142,11 +164,12 @@ def evaluate_policies(
         timeout_seconds=timeout_seconds,
     )
 
-    input_data = {
-        "generated_files": hcl_output,
-    }
+    # Policies evaluate the parsed structure (input.resources, input.data_sources, ...);
+    # the raw files stay available as input.generated_files for ad-hoc rules.
+    input_data: dict[str, object] = {"generated_files": hcl_output}
+    input_data.update(parse_hcl_files(hcl_output))
 
-    result = client.evaluate(input_data=input_data, policies_dir=policies_dir)
+    result = client.evaluate(input_data=input_data, policies_dir=resolve_policies_dir(policies_dir))
     deny_preview = "; ".join(result.deny_messages[:3]) if result.deny_messages else "none"
     logger.info(
         "opa_client: evaluation mode={} passed={} deny_messages={} deny_preview={}",
