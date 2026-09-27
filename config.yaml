@@ -31,8 +31,22 @@ llm:
   # Report/review notes can be slightly more natural
   temperature_report: 0.2
 
-  max_tokens: 8192
-  timeout_seconds: 120
+  # Output budget per call. Batched generation keeps each response far below this.
+  max_tokens: 16000
+  timeout_seconds: 300
+
+  # Anthropic reasoning depth: low | medium | high | xhigh | max (omit = API default, high).
+  # effort: medium
+
+  # Transient failures (rate limits, 5xx, network, timeouts): SDK-level retries plus an outer
+  # loop with jittered exponential backoff. Refusals and truncation are never retried blindly.
+  sdk_max_retries: 2
+  retry_attempts: 3
+  retry_backoff_seconds: 2
+
+  # Anthropic server-side refusal fallbacks: a declined request is re-run on Anthropic's
+  # recommended fallback model inside the same call. Set false to receive the refusal instead.
+  enable_fallbacks: true
 
 # ─── TARGET CLOUD ────────────────────────────────────────────────────────────
 # aws | azure | gcp | openstack
@@ -40,8 +54,10 @@ target_cloud: aws
 
 # ─── PIPELINE BEHAVIOUR ──────────────────────────────────────────────────────
 pipeline:
-  # How many ComputeUnits to process per LangGraph batch execution
-  batch_size: 50
+  # llm/hybrid modes: ComputeUnits per generation call. Estates larger than this are
+  # generated as one shared call (networking/placement) plus one call per batch.
+  # Halved automatically when a response is truncated.
+  batch_size: 10
 
   # Max LLM retry attempts per resource before quarantining
   max_retries: 3

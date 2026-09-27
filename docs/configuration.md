@@ -19,8 +19,18 @@ Behavior:
 - models: per-provider defaults
 - temperature_hcl: must stay 0.0 (sent to openai/google only; Claude 5-family models reject sampling parameters)
 - temperature_report: report generation temperature (same caveat)
-- max_tokens
-- timeout_seconds
+- max_tokens (output budget per call, default 16000)
+- timeout_seconds (default 300)
+- effort: low | medium | high | xhigh | max (Anthropic reasoning depth; omit for the API default)
+- sdk_max_retries, retry_attempts, retry_backoff_seconds: transient-error retries (rate limits, 5xx, network, timeouts) with jittered exponential backoff
+- enable_fallbacks: Anthropic server-side refusal fallbacks (default true); a declined request is re-run on Anthropic's recommended fallback model inside the same call
+
+Behavior of the llm/hybrid generation path:
+
+- HCL is requested as schema-constrained JSON ({"files": [{"path", "content"}]}) via structured outputs, so parsing never depends on the model formatting text correctly.
+- The prompt is split into a stable, cacheable prefix (requirements, full CIM, documentation) and a volatile part (batch scope, attempt, validation feedback) so retries and batches hit the prompt cache.
+- Estates larger than pipeline.batch_size ComputeUnits are generated in batches: one call for main/networking/placement, then one call per batch for compute/storage, each told which resources already exist. A truncated response halves the batch size for the next attempt.
+- Refusals and truncation become validation feedback for the next attempt instead of crashing the run; token usage per call and per run is recorded in the run messages.
 
 Notes:
 

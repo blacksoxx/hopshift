@@ -688,3 +688,98 @@ def test_hcl_generator_feeds_back_traversal_paths_instead_of_crashing(monkeypatc
     assert updated["validation_result"]["passed"] is False
     assert updated["hcl_output"] == {}
     assert any("unsafe output path" in message for message in updated["messages"])
+
+
+# ── batched, structured LLM generation ───────────────────────────────────────
+
+
+def test_parse_hcl_output_accepts_structured_files_shape() -> None:
+    parsed = hcl_module._parse_hcl_output(
+        {"files": [{"path": "aws-migration/main.tf", "content": "x"}, {"path": "aws-migration/compute/a.tf", "content": "y"}]}
+    )
+    assert parsed == {"aws-migration/main.tf": "x", "aws-migration/compute/a.tf": "y"}
+
+
+def test_parse_hcl_output_rejects_duplicate_paths() -> None:
+    with pytest.raises(hcl_module.HCLGenerationError, match="duplicate"):
+        hcl_module._parse_hcl_output({"files": [{"path": "a.tf", "content": "1"}, {"path": "a.tf", "content": "2"}]})
+
+
+def test_llm_generation_batches_large_estates(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    class _StructuredLLM:
+        last_usage = None
+
+        def __init__(self, config: dict[str, object]) -> None:
+            self.config = config
+
+        def generate_structured(self, prompt, json_schema, system_prompt=None, stable_prefix=None, schema_name="x"):
+            assert json_schema is hcl_module.HCL_FILES_SCHEMA
+            assert "CIM JSON" in (stable_prefix or "")
+            if "ONLY the shared files" in prompt:
+                calls.append(("shared", None))
+                return {"files": [
+                    {"path": "aws-migration/networking/vpc.tf", "content": 'resource "aws_vpc" "main" {}\nresource "aws_subnet" "main" {}\nresource "aws_security_group" "main" {}'},
+                ]}
+            ids = prompt.split("ComputeUnit ids: ")[1].split(".")[0].split(", ")
+            calls.append(("compute", ids))
+            assert "aws_vpc.main" in prompt  # existing resources are passed to compute batches
+            return {"files": [{"path": f"aws-migration/compute/{unit_id}.tf", "content": f'resource "aws_instance" "{unit_id.replace("-", "_")}" {{}}'} for unit_id in ids]}
+
+        def usage_summary(self) -> str:
+            return "calls=3"
+
+    def _always_pass(config, hcl_output):
+        return {"passed": True, "terraform_validate_passed": True, "tflint_passed": True, "opa_passed": True, "errors": [], "warnings": []}
+
+    monkeypatch.setattr(hcl_module, "LLMClient", _StructuredLLM)
+    monkeypatch.setattr(hcl_module, "_deterministic_validate_hcl", _always_pass)
+
+    state = _base_state()
+    cim = state["sized_cim"]
+    cim.compute_units = [
+        ComputeUnit(id=f"cu-{index}", name=f"app-{index}", vcpus=2, ram_mb=4096) for index in range(1, 6)
+    ]
+    state["config"]["pipeline"]["batch_size"] = 2  # type: ignore[index]
+
+    updated = hcl_module.hcl_generator(state)  # type: ignore[arg-type]
+
+    assert updated["validation_result"]["passed"] is True
+    assert [scope for scope, _ in calls] == ["shared", "compute", "compute", "compute"]
+    assert [ids for _, ids in calls][1:] == [["cu-1", "cu-2"], ["cu-3", "cu-4"], ["cu-5"]]
+    assert any("llm usage total" in message for message in updated["messages"])
+
+
+def test_llm_truncation_halves_batch_and_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.llm_client import LLMTruncatedError
+
+    seen_batches: list[int] = []
+
+    class _TruncatingLLM:
+        last_usage = None
+        attempts = 0
+
+        def __init__(self, config: dict[str, object]) -> None:
+            pass
+
+        def generate_structured(self, prompt, json_schema, system_prompt=None, stable_prefix=None, schema_name="x"):
+            _TruncatingLLM.attempts += 1
+            if _TruncatingLLM.attempts == 1:
+                raise LLMTruncatedError("hit max_tokens")
+            return {"files": [
+                {"path": "aws-migration/networking/vpc.tf", "content": 'resource "aws_vpc" "main" {}\nresource "aws_subnet" "main" {}\nresource "aws_security_group" "main" {}'},
+                {"path": "aws-migration/compute/app.tf", "content": 'resource "aws_instance" "app" {}'},
+            ]}
+
+    def _always_pass(config, hcl_output):
+        return {"passed": True, "terraform_validate_passed": True, "tflint_passed": True, "opa_passed": True, "errors": [], "warnings": []}
+
+    monkeypatch.setattr(hcl_module, "LLMClient", _TruncatingLLM)
+    monkeypatch.setattr(hcl_module, "_deterministic_validate_hcl", _always_pass)
+
+    updated = hcl_module.hcl_generator(_base_state())  # type: ignore[arg-type]
+
+    assert updated["validation_result"]["passed"] is True
+    assert updated["retry_count"] == 1
+    assert any("batch_size reduced" in message for message in updated["messages"])

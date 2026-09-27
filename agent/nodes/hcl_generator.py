@@ -8,8 +8,15 @@ from typing import cast
 from loguru import logger
 
 from cim.schema import CanonicalInfrastructureModel
-from agent.llm_client import LLMClient
-from agent.prompts import build_hcl_system_prompt, build_hcl_user_prompt
+from agent.llm_client import LLMClient, LLMRefusalError, LLMTruncatedError
+from agent.prompts import (
+    HCL_FILES_SCHEMA,
+    SCOPE_ALL,
+    SCOPE_COMPUTE,
+    SCOPE_SHARED,
+    build_hcl_prompt_parts,
+    build_hcl_system_prompt,
+)
 from agent.generation.deterministic import DeterministicRenderError, render_deterministic
 from agent.state import MigrationState
 from providers.common import safe_file_stem
@@ -89,24 +96,24 @@ def hcl_generator(state: MigrationState) -> MigrationState:
         "warnings": [],
     }
 
+    required_tags = _resolve_required_tags(config, sized_cim, next_state.get("discovery_data"))
+    batch_size = _get_int(_get_mapping(config, "pipeline"), "batch_size", DEFAULT_LLM_BATCH_SIZE)
+    if batch_size <= 0:
+        batch_size = DEFAULT_LLM_BATCH_SIZE
+
     for attempt in range(0, max_retries + 1):
-        prompt = build_hcl_user_prompt(
-            provider=provider,
-            cim_json=sized_cim.model_dump_json(indent=2),
-            documentation_context=documentation_context,
-            validation_feedback=validation_feedback,
-            retry_count=attempt,
-            required_tags=_required_tags(config),
-            source_vcenter=sized_cim.source_vcenter,
-        )
-
-        raw_response = llm_client.generate_hcl(
-            prompt=prompt,
-            system_prompt=build_hcl_system_prompt(provider),
-        )
-
         try:
-            hcl_output = _parse_hcl_output(raw_response)
+            hcl_output = _llm_generate_files(
+                llm_client=llm_client,
+                sized_cim=sized_cim,
+                provider=provider,
+                documentation_context=documentation_context,
+                validation_feedback=validation_feedback,
+                attempt=attempt,
+                required_tags=required_tags,
+                batch_size=batch_size,
+                messages=messages,
+            )
             _validate_output_paths(provider=provider, hcl_output=hcl_output)
             _enforce_security_guards(provider=provider, hcl_output=hcl_output)
             hcl_output = _synthesize_root_main_tf(provider=provider, hcl_output=hcl_output)
@@ -122,6 +129,20 @@ def hcl_generator(state: MigrationState) -> MigrationState:
                 required_tags=_required_tags(config),
             )
             _ensure_runnable_hcl(provider=provider, hcl_output=hcl_output)
+        except LLMTruncatedError as exc:
+            # The model ran out of output tokens: halve the batch so each response is smaller.
+            batch_size = max(1, batch_size // 2)
+            validation_feedback = f"errors:\n- {str(exc)}\n- Keep each file minimal; avoid long comments."
+            last_validation = _failed_validation([str(exc)])
+            messages.append(f"hcl_generator: attempt={attempt} truncated output; batch_size reduced to {batch_size}")
+            logger.warning("hcl_generator: attempt {} truncated for provider {}: {}", attempt, provider, str(exc))
+            continue
+        except LLMRefusalError as exc:
+            validation_feedback = f"errors:\n- {str(exc)}"
+            last_validation = _failed_validation([str(exc)])
+            messages.append(f"hcl_generator: attempt={attempt} request declined by the model: {str(exc)}")
+            logger.warning("hcl_generator: attempt {} refused for provider {}: {}", attempt, provider, str(exc))
+            continue
         except (HCLGenerationError, ValueError) as exc:
             validation_feedback = f"errors:\n- {str(exc)}"
             last_validation = {
@@ -161,6 +182,7 @@ def hcl_generator(state: MigrationState) -> MigrationState:
                     provider,
                 )
             )
+            _append_usage_message(llm_client, messages)
             next_state["retry_count"] = attempt
             next_state["hcl_output"] = hcl_output
             next_state["validation_result"] = cast(dict[str, object], deterministic_validation)
@@ -183,10 +205,12 @@ def hcl_generator(state: MigrationState) -> MigrationState:
             )
         )
 
+    _append_usage_message(llm_client, messages)
+
     fallback_output = _build_provider_fallback_hcl(
         provider=provider,
         sized_cim=sized_cim,
-        required_tags=_required_tags(config),
+        required_tags=required_tags,
     )
 
     if fallback_output:
@@ -262,6 +286,128 @@ def hcl_generator(state: MigrationState) -> MigrationState:
 
 GENERATION_MODES = ("deterministic", "llm", "hybrid")
 DEFAULT_GENERATION_MODE = "deterministic"
+DEFAULT_LLM_BATCH_SIZE = 10
+
+_RESOURCE_ADDRESS = re.compile(r'(?m)^\s*resource\s+"([A-Za-z0-9_]+)"\s+"([A-Za-z0-9_-]+)"')
+
+
+def _llm_generate_files(
+    llm_client: object,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    documentation_context: str,
+    validation_feedback: str,
+    attempt: int,
+    required_tags: dict[str, str],
+    batch_size: int,
+    messages: list[str],
+) -> dict[str, str]:
+    """Generate the file map with one call for small estates, or in batches for large ones.
+
+    Batching: one call for the shared files (main, networking, placement), then one call per
+    `batch_size` ComputeUnits for compute/storage, each told which resources already exist so
+    it references instead of redefining them. Keeps every response well under max_tokens.
+    """
+    units = list(sized_cim.compute_units)
+    if len(units) <= batch_size:
+        return _llm_call(
+            llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+            required_tags, scope=SCOPE_ALL, compute_unit_ids=None, existing_resources=[], messages=messages,
+        )
+
+    files = _llm_call(
+        llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+        required_tags, scope=SCOPE_SHARED, compute_unit_ids=None, existing_resources=[], messages=messages,
+    )
+    existing = _resource_addresses(files)
+
+    for start in range(0, len(units), batch_size):
+        batch_ids = [unit.id for unit in units[start : start + batch_size]]
+        batch_files = _llm_call(
+            llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+            required_tags, scope=SCOPE_COMPUTE, compute_unit_ids=batch_ids, existing_resources=existing, messages=messages,
+        )
+        for path, content in batch_files.items():
+            if path in files:
+                raise HCLGenerationError(f"hcl_generator: batch for {batch_ids[0]}.. re-emitted existing file {path}")
+            files[path] = content
+        existing = existing + _resource_addresses(batch_files)
+
+    return files
+
+
+def _llm_call(
+    llm_client: object,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    documentation_context: str,
+    validation_feedback: str,
+    attempt: int,
+    required_tags: dict[str, str],
+    scope: str,
+    compute_unit_ids: list[str] | None,
+    existing_resources: list[str],
+    messages: list[str],
+) -> dict[str, str]:
+    stable, volatile = build_hcl_prompt_parts(
+        provider=provider,
+        cim_json=sized_cim.model_dump_json(indent=2),
+        documentation_context=documentation_context,
+        validation_feedback=validation_feedback,
+        retry_count=attempt,
+        required_tags=required_tags,
+        source_vcenter=sized_cim.source_vcenter,
+        scope=scope,
+        compute_unit_ids=compute_unit_ids,
+        existing_resources=existing_resources,
+    )
+    system_prompt = build_hcl_system_prompt(provider)
+
+    generate_structured = getattr(llm_client, "generate_structured", None)
+    if callable(generate_structured):
+        payload: object = generate_structured(
+            prompt=volatile,
+            json_schema=HCL_FILES_SCHEMA,
+            system_prompt=system_prompt,
+            stable_prefix=stable,
+            schema_name="terraform_files",
+        )
+    else:
+        # Minimal clients (tests, custom shims) only expose text generation.
+        payload = llm_client.generate_hcl(prompt=f"{stable}\n{volatile}", system_prompt=system_prompt)  # type: ignore[attr-defined]
+
+    last_usage = getattr(llm_client, "last_usage", None)
+    if last_usage is not None and getattr(last_usage, "calls", 0):
+        messages.append(f"hcl_generator: llm call scope={scope} attempt={attempt} {last_usage.summary()}")
+
+    return _parse_hcl_output(payload)
+
+
+def _resource_addresses(files: dict[str, str]) -> list[str]:
+    addresses: list[str] = []
+    for content in files.values():
+        for resource_type, name in _RESOURCE_ADDRESS.findall(content):
+            address = f"{resource_type}.{name}"
+            if address not in addresses:
+                addresses.append(address)
+    return addresses
+
+
+def _append_usage_message(llm_client: object, messages: list[str]) -> None:
+    summary = getattr(llm_client, "usage_summary", None)
+    if callable(summary):
+        messages.append(f"hcl_generator: llm usage total {summary()}")
+
+
+def _failed_validation(errors: list[str]) -> dict[str, object]:
+    return {
+        "passed": False,
+        "terraform_validate_passed": False,
+        "tflint_passed": False,
+        "opa_passed": False,
+        "errors": list(errors),
+        "warnings": [],
+    }
 
 
 def generation_mode(config: dict[str, object]) -> str:
@@ -542,28 +688,44 @@ def _required_tags(config: dict[str, object]) -> dict[str, str]:
     return normalized
 
 
-def _parse_hcl_output(raw_response: str) -> dict[str, str]:
-    payload = raw_response.strip()
-    if not payload:
-        raise HCLGenerationError("hcl_generator: empty LLM response")
-
+def _parse_hcl_output(raw_response: object) -> dict[str, str]:
+    """Accept {"files": [{path, content}]} (structured output), a path->content map, or raw text."""
     parsed: object
-    try:
-        parsed = json.loads(payload)
-    except json.JSONDecodeError:
-        extracted = _extract_first_json_object(payload)
-        if extracted is None:
-            raise HCLGenerationError("hcl_generator: response is not valid JSON")
-        parsed = extracted
+    if isinstance(raw_response, (dict, list)):
+        parsed = raw_response
+    else:
+        payload = str(raw_response).strip()
+        if not payload:
+            raise HCLGenerationError("hcl_generator: empty LLM response")
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            extracted = _extract_first_json_object(payload)
+            if extracted is None:
+                raise HCLGenerationError("hcl_generator: response is not valid JSON")
+            parsed = extracted
 
     if not isinstance(parsed, dict):
         raise HCLGenerationError("hcl_generator: top-level JSON must be an object")
 
+    entries: list[tuple[object, object]]
+    files = parsed.get("files")
+    if isinstance(files, list) and (files or len(parsed) == 1):
+        entries = []
+        for item in files:
+            if not isinstance(item, dict):
+                raise HCLGenerationError("hcl_generator: every entry in 'files' must be an object")
+            entries.append((item.get("path", ""), item.get("content", "")))
+    else:
+        entries = list(parsed.items())
+
     output: dict[str, str] = {}
-    for key, value in parsed.items():
+    for key, value in entries:
         path = str(key).strip().replace("\\", "/")
         content = str(value).strip()
         if path and content:
+            if path in output:
+                raise HCLGenerationError(f"hcl_generator: duplicate file path in response: {path}")
             output[path] = content
 
     if not output:

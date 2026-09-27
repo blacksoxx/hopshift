@@ -12,6 +12,7 @@ from loguru import logger
 ALLOWED_TARGET_CLOUDS = {"aws", "azure", "gcp", "openstack"}
 ALLOWED_LLM_PROVIDERS = {"anthropic", "openai", "google"}
 ALLOWED_GENERATION_MODES = {"deterministic", "llm", "hybrid"}
+ALLOWED_EFFORT_LEVELS = {"low", "medium", "high", "xhigh", "max"}
 DEFAULT_GENERATION_MODE = "deterministic"
 ALLOWED_LOG_LEVELS = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
@@ -161,6 +162,10 @@ def _validate_config(config: dict[str, object]) -> None:
         raise ConfigLoadError("llm.provider must be one of: anthropic, openai, google")
     if mode != "deterministic" and not provider:
         raise ConfigLoadError("llm.provider is required when generation.mode is llm or hybrid")
+
+    effort = llm.get("effort")
+    if isinstance(effort, str) and effort.strip() and effort.strip().lower() not in ALLOWED_EFFORT_LEVELS:
+        raise ConfigLoadError("llm.effort must be one of: low, medium, high, xhigh, max")
 
     temperature_hcl = _as_float(llm.get("temperature_hcl"), default=0.0)
     temperature_report = _as_float(llm.get("temperature_report"), default=0.2)

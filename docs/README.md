@@ -93,6 +93,7 @@ Notes:
 - [cim-and-translation.md](cim-and-translation.md): CIM models and VMware-to-CIM translation rules.
 - [output-and-validation.md](output-and-validation.md): Output layout, quarantine/report artifacts, validation gates.
 - [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
+- [ai-usage.md](ai-usage.md): Where the LLM is used today, where it is planned, and what is deliberately rule-based.
 
 ## Command Line Overview
 
