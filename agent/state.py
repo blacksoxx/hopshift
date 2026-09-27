@@ -31,7 +31,35 @@ class ValidationResult(TypedDict, total=False):
     warnings: list[str]
 
 
-class MigrationState(TypedDict):
+class AssessmentResource(TypedDict):
+    resource_type: str
+    resource_id: str
+    resource_name: str
+    risk_level: Literal["safe", "caution", "elevated", "critical"]
+    risk_score: int
+    safe_to_migrate: bool
+    reasons: list[str]
+    missing_data: list[str]
+    recommendations: list[str]
+
+
+class AssessmentSummary(TypedDict):
+    total_resources: int
+    safe: int
+    caution: int
+    elevated: int
+    critical: int
+
+
+class AssessmentResult(TypedDict):
+    generated_at: str
+    source_vcenter: str
+    target_provider: str
+    summary: AssessmentSummary
+    resources: list[AssessmentResource]
+
+
+class MigrationState(TypedDict, total=False):
     discovery_data: dict[str, JSONValue]
     config: dict[str, JSONValue]
     target_provider: TargetProvider
@@ -42,6 +70,7 @@ class MigrationState(TypedDict):
     hcl_output: dict[str, str]
     validation_result: ValidationResult
     review_notes: str
+    assessment_result: AssessmentResult
 
     quarantine_queue: list[QuarantineItem]
     messages: list[str]
