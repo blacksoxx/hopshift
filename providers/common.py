@@ -49,6 +49,27 @@ def hcl_value(value: object) -> str:
     return hcl_string(value)
 
 
+def source_context_comments(compute_unit: object) -> list[str]:
+    """HCL comment lines describing the source VM (guest OS, firmware, power state, architecture)."""
+    parts: list[str] = []
+    guest_os = getattr(compute_unit, "guest_os", None)
+    if guest_os:
+        parts.append(f"guest OS: {guest_os}")
+    firmware = getattr(compute_unit, "firmware", None)
+    if firmware:
+        parts.append(f"firmware: {firmware}")
+    power_state = getattr(compute_unit, "power_state", None)
+    if power_state:
+        parts.append(f"power: {power_state}")
+    architecture = getattr(compute_unit, "architecture", None)
+    if architecture is not None and getattr(architecture, "value", "unknown") != "unknown":
+        parts.append(f"arch: {architecture.value}")
+    if not parts:
+        return []
+    safe = "; ".join(parts).replace("\n", " ").replace("\r", " ")
+    return [f"  # Source VM: {safe}"]
+
+
 def hcl_map_key(value: object, fallback: str = "key") -> str:
     """Render a map key: identifiers stay bare, anything else becomes a quoted string."""
     text = str(value).strip()

@@ -11,7 +11,7 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render GCP storage HCL files for ComputeUnit StorageVolume resources."""
-    labels = _build_required_labels(cim.source_vcenter, required_tags)
+    labels = _build_required_labels(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
@@ -111,14 +111,14 @@ def _disk_name(value: str) -> str:
 
 
 def _build_required_labels(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
         "environment": "var.environment",
         "owner": "var.owner",
-        "migrated_from": "vmware-vcenter",
-        "source_vcenter": source_vcenter,
+        "migrated_from": cim.migrated_from,
+        "source_vcenter": cim.source_vcenter,
     }
 
     if not required_tags:

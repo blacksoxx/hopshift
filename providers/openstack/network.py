@@ -34,7 +34,7 @@ def _render_networks_file(cim: CanonicalInfrastructureModel, switches: list[Dist
         lines.append('  shared         = false')
         lines.append('')
         lines.append('  tags = [')
-        lines.append('    "MigratedFrom=vmware-vcenter",')
+        lines.append(f'    {hcl_string("MigratedFrom=" + cim.migrated_from)},')
         lines.append(f'    {hcl_string("SourceVCenter=" + cim.source_vcenter)},')
         lines.append('    "Environment=${var.environment}",')
         lines.append('    "Owner=${var.owner}"')

@@ -11,7 +11,7 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render OpenStack storage HCL files for ComputeUnit StorageVolume resources."""
-    metadata = _build_required_metadata(cim.source_vcenter, required_tags)
+    metadata = _build_required_metadata(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
@@ -80,14 +80,14 @@ def _render_volume(
 
 
 def _build_required_metadata(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

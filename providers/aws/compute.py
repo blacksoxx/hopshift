@@ -4,7 +4,7 @@ import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
 from providers.aws.sizing_table import get_instance_type
-from providers.common import hcl_string, hcl_value, safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem, source_context_comments as _source_context_comments
 
 
 def render_compute(
@@ -16,7 +16,7 @@ def render_compute(
     Keys are logical paths (aws-migration/compute/<name>.tf); the deterministic assembler
     decides the on-disk layout.
     """
-    tags = _build_required_tags(cim.source_vcenter, required_tags)
+    tags = _build_required_tags(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
@@ -33,8 +33,10 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
 
     lines: list[str] = []
     lines.append(f'resource "aws_instance" "{resource_name}" {{')
-    lines.append(f'  # Image: the AMI imported for this VM (var.image_overrides[{name_literal}]) or the shared default.')
-    lines.append(f'  ami                    = lookup(var.image_overrides, {name_literal}, var.default_ami_id)')
+    lines.extend(_source_context_comments(compute_unit))
+    default_image = hcl_string(compute_unit.image_ref) if compute_unit.image_ref else "var.default_ami_id"
+    lines.append(f'  # Image: the AMI imported for this VM (var.image_overrides[{name_literal}]) or the fallback.')
+    lines.append(f'  ami                    = lookup(var.image_overrides, {name_literal}, {default_image})')
     lines.append(f'  instance_type          = "{instance_type}"')
     lines.append(f'  subnet_id              = aws_subnet.{_subnet_ref(compute_unit)}.id')
     lines.append('  vpc_security_group_ids = [aws_security_group.compute_unit.id]')
@@ -62,12 +64,12 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     return "\n".join(lines) + "\n"
 
 
-def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
+def _build_required_tags(cim: CanonicalInfrastructureModel, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

@@ -5,7 +5,7 @@ from typing import cast
 from loguru import logger
 
 from agent.state import MigrationState
-from cim.vmware_translator import translate_vmware_discovery_to_cim
+from cim.translators import resolve_translator
 
 
 def cim_mapper(state: MigrationState) -> MigrationState:
@@ -20,14 +20,14 @@ def cim_mapper(state: MigrationState) -> MigrationState:
     if target_provider is None:
         raise ValueError("cim_mapper: target_provider is required")
 
-    cim = translate_vmware_discovery_to_cim(
-        discovery_data=discovery_data,
-        target_provider=target_provider,
-    )
+    schema_name, translator = resolve_translator(discovery_data)
+    cim = translator(discovery_data, target_provider)
 
     messages = list(next_state.get("messages", []))
     messages.append(
-        "cim_mapper: compute_units={} clusters={} switches={}".format(
+        "cim_mapper: schema={} platform={} compute_units={} clusters={} switches={}".format(
+            schema_name,
+            cim.source.platform.value,
             len(cim.compute_units),
             len(cim.clusters),
             len(cim.network_topology.distributed_switches),

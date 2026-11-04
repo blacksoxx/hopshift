@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import hcl_string, hcl_value, safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem, source_context_comments as _source_context_comments
 from providers.openstack.sizing_table import get_instance_type
 
 
@@ -12,7 +12,7 @@ def render_compute(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render one OpenStack compute HCL file per ComputeUnit (logical key openstack-migration/compute/<name>.tf)."""
-    metadata = _build_required_metadata(cim.source_vcenter, required_tags)
+    metadata = _build_required_metadata(cim, required_tags)
     port_group_to_network_ref, default_network_ref = _build_network_ref_lookup(cim)
 
     output: dict[str, str] = {}
@@ -39,10 +39,11 @@ def _render_compute_unit(
 
     lines: list[str] = []
     lines.append(f'resource "openstack_compute_instance_v2" "{resource_name}" {{')
+    lines.extend(_source_context_comments(compute_unit))
     lines.append(f'  name            = {name_literal}')
     lines.append(f'  flavor_name     = "{flavor_name}"')
     lines.append(f'  # Image: the Glance image migrated for this VM (var.image_overrides[{name_literal}]) or the default.')
-    lines.append(f'  image_name      = lookup(var.image_overrides, {name_literal}, var.default_image_name)')
+    lines.append(f'  image_name      = lookup(var.image_overrides, {name_literal}, {hcl_string(compute_unit.image_ref) if compute_unit.image_ref else "var.default_image_name"})')
     lines.append('  key_pair        = var.key_pair_name')
     lines.append('  security_groups = [openstack_networking_secgroup_v2.compute_unit.name]')
     lines.append('')
@@ -73,14 +74,14 @@ def _render_compute_unit(
 
 
 def _build_required_metadata(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

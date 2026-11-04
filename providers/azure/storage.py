@@ -11,7 +11,7 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render Azure storage HCL files for ComputeUnit StorageVolume resources."""
-    tags = _build_required_tags(cim.source_vcenter, required_tags)
+    tags = _build_required_tags(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
@@ -92,12 +92,12 @@ def _disk_ref(compute_unit: ComputeUnit, volume: StorageVolume, index: int) -> s
     return _terraform_identifier("_".join(part for part in parts if part))
 
 
-def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
+def _build_required_tags(cim: CanonicalInfrastructureModel, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

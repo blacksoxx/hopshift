@@ -5,7 +5,7 @@ from collections import defaultdict
 from importlib import import_module
 from typing import Callable, cast
 
-from cim.schema import CanonicalInfrastructureModel
+from cim.schema import SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS, CanonicalInfrastructureModel
 from providers.common import is_bare_expression, safe_file_stem
 
 # Renderers emit logical keys like "<root>/<resource_type>/<name>.tf". Terraform only loads .tf
@@ -43,6 +43,7 @@ def render_deterministic(
         raise DeterministicRenderError(f"deterministic: unsupported provider '{provider}'")
 
     _ensure_unique_compute_unit_names(cim)
+    _ensure_supported_architecture(cim)
 
     # Environment/Owner are emitted as var.environment / var.owner on every resource so operators
     # can override them at plan time; the literal values from the CLI become the variable defaults
@@ -94,6 +95,18 @@ def _flatten(provider: str, logical: dict[str, str]) -> dict[str, str]:
         sources[flat_key] = key
 
     return flat
+
+
+def _ensure_supported_architecture(cim: CanonicalInfrastructureModel) -> None:
+    """The four supported clouds run x86_64 instances; a Power or Z guest must not be sized onto one."""
+    unsupported = sorted(
+        {f"{unit.name} ({unit.architecture.value})" for unit in cim.compute_units
+         if unit.architecture not in SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS}
+    )
+    if unsupported:
+        raise DeterministicRenderError(
+            f"deterministic: {cim.target_provider.value} cannot host non-x86 ComputeUnits: {', '.join(unsupported)}"
+        )
 
 
 def _ensure_unique_compute_unit_names(cim: CanonicalInfrastructureModel) -> None:

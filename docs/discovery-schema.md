@@ -79,6 +79,12 @@ Fields present in the real samples but currently ignored: `guest_os`, `guest_os_
 
 ## Proposed 1.1.0 additions
 
+Status of consumption by the agent: the per-VM fields below that already exist in the 1.0.0 output
+(`guest_os`, `guest_os_id`, `firmware`, `power_state`, `is_template`, `snapshot_count`, `all_ip_addresses`,
+`tags`, `custom_attributes`, `annotation`, reservations, `cores_per_socket`) are now read into CIM 1.1.
+The new top-level `clusters[]` (with `drs_rules`) and `distributed_switches[]` collections and the
+per-NIC `switch_name` are also consumed when present, so the playbook can adopt them incrementally.
+
 Backward compatible: every new field is optional; consumers treat absence as "unknown".
 
 Per VM:

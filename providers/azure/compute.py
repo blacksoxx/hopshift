@@ -4,7 +4,7 @@ import re
 
 from cim.schema import CanonicalInfrastructureModel, ClusterSemantics, ComputeUnit
 from providers.azure.sizing_table import get_instance_type
-from providers.common import hcl_string, hcl_value, safe_file_stem
+from providers.common import hcl_string, hcl_value, safe_file_stem, source_context_comments as _source_context_comments
 
 
 def render_compute(
@@ -12,7 +12,7 @@ def render_compute(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render one Azure compute HCL file per ComputeUnit (logical key azure-migration/compute/<name>.tf)."""
-    tags = _build_required_tags(cim.source_vcenter, required_tags)
+    tags = _build_required_tags(cim, required_tags)
     semantics = {cluster.name: cluster.semantics for cluster in cim.clusters}
 
     output: dict[str, str] = {}
@@ -55,6 +55,7 @@ def _render_compute_unit(
     lines.append('')
 
     lines.append(f'resource "azurerm_linux_virtual_machine" "{resource_name}" {{')
+    lines.extend(_source_context_comments(compute_unit))
     lines.append('  name                = "${var.name_prefix}-' + resource_name + '"')
     lines.append('  location            = var.location')
     lines.append('  resource_group_name = var.resource_group_name')
@@ -82,10 +83,12 @@ def _render_compute_unit(
     lines.append('')
     lines.append(f'  # Image: the managed image migrated for this VM (var.image_overrides[{name_literal}]),')
     lines.append('  # otherwise a marketplace reference so the configuration stays plan-able.')
-    lines.append(f'  source_image_id = lookup(var.image_overrides, {name_literal}, null)')
+    default_image = hcl_string(compute_unit.image_ref) if compute_unit.image_ref else "null"
+    default_image_text = hcl_string(compute_unit.image_ref) if compute_unit.image_ref else '""'
+    lines.append(f'  source_image_id = lookup(var.image_overrides, {name_literal}, {default_image})')
     lines.append('')
     lines.append('  dynamic "source_image_reference" {')
-    lines.append(f'    for_each = lookup(var.image_overrides, {name_literal}, "") == "" ? [1] : []')
+    lines.append(f'    for_each = lookup(var.image_overrides, {name_literal}, {default_image_text}) == "" ? [1] : []')
     lines.append('    content {')
     lines.append('      publisher = "Canonical"')
     lines.append('      offer     = "0001-com-ubuntu-server-jammy"')
@@ -109,12 +112,12 @@ def _render_compute_unit(
     return "\n".join(lines) + "\n"
 
 
-def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
+def _build_required_tags(cim: CanonicalInfrastructureModel, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

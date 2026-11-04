@@ -17,7 +17,7 @@ def render_placement(
     if not clusters:
         return {path: "# No DRS clusters discovered; no placement groups required.\n"}
 
-    tags = _build_required_tags(cim.source_vcenter, required_tags)
+    tags = _build_required_tags(cim, required_tags)
     lines: list[str] = []
     for name, semantics in clusters:
         strategy = "cluster" if semantics == ClusterSemantics.AFFINITY else "spread"
@@ -47,12 +47,12 @@ def _clusters(cim: CanonicalInfrastructureModel) -> list[tuple[str, ClusterSeman
     return sorted(semantics.items())
 
 
-def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
+def _build_required_tags(cim: CanonicalInfrastructureModel, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
         "Environment": "var.environment",
         "Owner": "var.owner",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
     if not required_tags:
         return defaults

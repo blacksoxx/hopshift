@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import hcl_string, is_bare_expression, safe_file_stem
+from providers.common import hcl_string, is_bare_expression, safe_file_stem, source_context_comments as _source_context_comments
 from providers.gcp.sizing_table import get_instance_type
 
 
@@ -12,7 +12,7 @@ def render_compute(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render one GCP compute HCL file per ComputeUnit (logical key gcp-migration/compute/<name>.tf)."""
-    labels = _build_required_labels(cim.source_vcenter, required_tags)
+    labels = _build_required_labels(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
@@ -30,6 +30,7 @@ def _render_compute_unit(compute_unit: ComputeUnit, labels: dict[str, str]) -> s
 
     lines: list[str] = []
     lines.append(f'resource "google_compute_instance" "{resource_name}" {{')
+    lines.extend(_source_context_comments(compute_unit))
     lines.append(f'  name         = "{_gcp_resource_name(compute_unit.name)}"')
     lines.append('  project      = var.project_id')
     lines.append('  zone         = var.zone')
@@ -43,7 +44,7 @@ def _render_compute_unit(compute_unit: ComputeUnit, labels: dict[str, str]) -> s
     lines.append('  boot_disk {')
     lines.append('    initialize_params {')
     lines.append(f'      # Image: the image migrated for this VM (var.image_overrides[{name_literal}]) or the default family.')
-    lines.append(f'      image = lookup(var.image_overrides, {name_literal}, var.default_image)')
+    lines.append(f'      image = lookup(var.image_overrides, {name_literal}, {hcl_string(compute_unit.image_ref) if compute_unit.image_ref else "var.default_image"})')
     lines.append('      size  = 20')
     lines.append('      type  = "pd-balanced"')
     lines.append('    }')
@@ -69,14 +70,14 @@ def _render_compute_unit(compute_unit: ComputeUnit, labels: dict[str, str]) -> s
 
 
 def _build_required_labels(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
         "environment": "var.environment",
         "owner": "var.owner",
-        "migrated_from": "vmware-vcenter",
-        "source_vcenter": source_vcenter,
+        "migrated_from": cim.migrated_from,
+        "source_vcenter": cim.source_vcenter,
     }
 
     if not required_tags:

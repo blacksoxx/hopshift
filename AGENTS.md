@@ -23,7 +23,8 @@ The CIM (Canonical Infrastructure Model) is the central artifact. It is the cont
 between the VMware world and the cloud provider world. Never bypass it.
 
 ## Key files to read before coding
-- `cim/schema.py`             — understand all data models before touching any node
+- `cim/schema.py`             — understand all data models before touching any node (CIM 1.1; regenerate cim.schema.json with `python -m cim.schema_export`)
+- `cim/translators/`          — one translator per source hypervisor, selected by discovery schema_name
 - `agent/state.py`            — understand MigrationState before touching the graph
 - `agent/graph.py`            — understand the full node graph before adding nodes
 - `providers/base.py`         — understand the ProviderModule interface before adding a provider
@@ -58,7 +59,14 @@ between the VMware world and the cloud provider world. Never bypass it.
 2. Add the translation logic to `cim/vmware_translator.py`
 3. Add a new file per provider in each `providers/{provider}/` subpackage
 4. Add an OPA policy if the resource has security implications
-5. Update `cim.schema.json` — bump patch version
+5. Regenerate `cim/cim.schema.json` with `python -m cim.schema_export`
+
+## How to add a new source hypervisor
+1. Write `cim/translators/<platform>.py` producing the CIM; set `source.platform` and each
+   ComputeUnit's `architecture`
+2. Register it in `cim/translators/__init__.py` under the collector's `metadata.schema_name`
+3. Extend `cim/blockers.py` with the platform's flag-to-blocker table if its flags differ
+4. Add a fixture under `tests/fixtures/` and a translator test; renderers and policies need no change
 
 ## How to add a new cloud provider
 1. Create `providers/{name}/` with compute.py, network.py, storage.py, sizing_table.py

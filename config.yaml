@@ -147,12 +147,16 @@ vsphere:
     - encrypted_vm_present
     - rdm_disk_present
     - shared_disk_present
+    - vm_template
+    - unsupported_architecture
 
   # VMware blockers that cause needs_review (HCL generated with TODO comments)
   soft_blockers:
     - vtpm_present
     - mounted_iso_present
     - vapp_config_present
+    - snapshots_present
+    - powered_off
 
 # ─── TAGGING ─────────────────────────────────────────────────────────────────
 # These tags are injected into every generated resource
