@@ -94,6 +94,7 @@ Notes:
 - [output-and-validation.md](output-and-validation.md): Output layout, quarantine/report artifacts, validation gates.
 - [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
 - [ai-usage.md](ai-usage.md): Where the LLM is used today, where it is planned, and what is deliberately rule-based.
+- [runtime-and-api.md](runtime-and-api.md): Run service layer (pause points, state patching, re-run, events) and the HTTP API.
 
 ## Command Line Overview
 

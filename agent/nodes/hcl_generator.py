@@ -22,7 +22,7 @@ from agent.state import MigrationState
 from providers.common import safe_file_stem
 from validation.opa_client import evaluate_policies, resolve_policies_dir
 from validation.paths import UnsafePathError, ensure_safe_relative_path
-from validation.tf_runner import validate_hcl
+from validation.tf_runner import TFValidationResult, validate_hcl
 
 
 class HCLGenerationError(Exception):
@@ -521,16 +521,22 @@ def _deterministic_validate_hcl(
             run_tflint = False
 
     run_opa = _get_bool(validation_cfg, "run_opa", True)
+    run_terraform_validate = _get_bool(validation_cfg, "run_terraform_validate", True)
     terraform_bin = _get_str(validation_cfg, "terraform_bin", "terraform")
     tflint_bin = _get_str(validation_cfg, "tflint_bin", "tflint")
 
-    tf_result = validate_hcl(
-        hcl_output=hcl_output,
-        terraform_bin=terraform_bin,
-        tflint_bin=tflint_bin,
-        run_tflint=run_tflint,
-        plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
-    )
+    if run_terraform_validate or run_tflint:
+        tf_result = validate_hcl(
+            hcl_output=hcl_output,
+            terraform_bin=terraform_bin,
+            tflint_bin=tflint_bin,
+            run_tflint=run_tflint,
+            run_terraform_validate=run_terraform_validate,
+            plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
+        )
+    else:
+        tf_result = TFValidationResult(terraform_validate_passed=True, tflint_passed=True)
+        tf_result.warnings.append("hcl_generator: terraform validate and tflint skipped by config")
 
     opa_passed = True
     opa_errors: list[str] = []

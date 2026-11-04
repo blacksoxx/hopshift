@@ -52,6 +52,14 @@ Runs the deterministic risk assessment over the whole inventory (blocked VMs are
 vma assess --input discovery.json --cloud aws --output-dir output
 ```
 
+## Command: serve
+
+Starts the HTTP API over the run service layer (see runtime-and-api.md). Requires `pip install '.[api]'`.
+
+```bash
+vma serve --host 127.0.0.1 --port 8080
+```
+
 ## Command: report
 
 Reads existing artifacts from an output directory.

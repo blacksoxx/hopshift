@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 from langgraph.graph import END, START, StateGraph
 
 from agent.nodes.assess_reporter import assess_reporter
@@ -16,12 +19,32 @@ from agent.nodes.validator import validator
 from agent.state import MigrationState
 
 
-def build_graph() -> StateGraph:
+NODE_ORDER: tuple[str, ...] = (
+    "ingest",
+    "blocker_parser",
+    "enricher",
+    "cim_mapper",
+    "sizer",
+    "mcp_client",
+    "hcl_generator",
+    "validator",
+    "reporter",
+)
+
+
+def build_graph(
+    checkpointer: Any | None = None,
+    interrupt_before: Iterable[str] | None = None,
+) -> StateGraph:
     """Create and compile the LangGraph for the vmware-migration-agent pipeline.
 
     The reporter always runs, including after a failed validation, so that the
     quarantine report and review notes are written for every run. The reporter
     decides what is safe to write based on validation_result and status.
+
+    `checkpointer` and `interrupt_before` are used by agent.runtime to pause a run
+    before a node (for example before hcl_generator so an operator can review the
+    CIM) and to resume or re-run it later.
     """
     workflow = StateGraph(MigrationState)
 
@@ -46,7 +69,8 @@ def build_graph() -> StateGraph:
     workflow.add_edge("validator", "reporter")
     workflow.add_edge("reporter", END)
 
-    return workflow.compile()
+    pause_points = [node for node in (interrupt_before or []) if node in NODE_ORDER]
+    return workflow.compile(checkpointer=checkpointer, interrupt_before=pause_points)
 
 
 def build_assess_graph() -> StateGraph:

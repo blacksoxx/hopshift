@@ -104,6 +104,19 @@ mcp:
     image: "hashicorp/terraform-mcp-server:1.3.0@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
     toolsets: "registry"
 
+# ─── RUNTIME (service layer used by the API/UI) ──────────────────────────────
+runtime:
+  # One folder per run: run.json, discovery.json, events.jsonl, artifacts/
+  runs_dir: output/runs
+  # LangGraph checkpoint database (pause / resume / re-run); empty = in-memory only
+  checkpoint_db: output/runs/checkpoints.sqlite
+  # Default pause points for runs created through the runtime (not the CLI):
+  #   review_cim      pause before hcl_generator so the CIM can be reviewed/edited
+  #   approve_output  pause before reporter so files are only written after approval
+  default_pause_points:
+    - review_cim
+    - approve_output
+
 # ─── OUTPUT ──────────────────────────────────────────────────────────────────
 output:
   base_dir: output/

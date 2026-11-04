@@ -134,59 +134,29 @@ def terragen(
     """
     from agent.graph import build_graph
     from agent.config_loader import load_config
+    from agent.runtime import RunError, RunOptions, build_run_config, initial_state as build_initial_state
 
-    cfg = load_config(config_file)
+    base_cfg = load_config(config_file)
 
-    # Apply CLI overrides into runtime config consumed by nodes.
-    cfg["target_cloud"] = cloud.lower()
+    options = RunOptions(
+        cloud=cloud.lower(),
+        environment=environment,
+        owner=owner,
+        mode=generation_mode,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_base_url=llm_base_url,
+        skip_validation=skip_validation,
+        skip_opa=skip_opa,
+        no_mcp=no_mcp,
+        dry_run=dry_run,
+    )
+    try:
+        cfg = build_run_config(base_cfg, options, output_dir)
+    except RunError as exc:
+        raise click.UsageError(str(exc)) from exc
 
-    generation_cfg = cfg.setdefault("generation", {})
-    if not isinstance(generation_cfg, dict):
-        generation_cfg = {}
-        cfg["generation"] = generation_cfg
-    if generation_mode:
-        generation_cfg["mode"] = generation_mode.lower()
-    mode = str(generation_cfg.get("mode") or "deterministic").lower()
-
-    llm_cfg = cfg.setdefault("llm", {})
-    if not isinstance(llm_cfg, dict):
-        llm_cfg = {}
-        cfg["llm"] = llm_cfg
-
-    provider_name = (llm_provider or str(llm_cfg.get("provider") or "")).lower()
-    if mode != "deterministic" and provider_name not in SUPPORTED_PROVIDERS:
-        raise click.UsageError(
-            f"--mode {mode} requires --llm-provider (anthropic|openai|google) or llm.provider in config.yaml"
-        )
-
-    if provider_name:
-        llm_cfg["provider"] = provider_name
-        llm_cfg["model"] = llm_model or PROVIDER_DEFAULT_MODELS.get(provider_name, llm_cfg.get("model"))
-        if llm_base_url:
-            llm_cfg["base_url"] = llm_base_url
-
-    output_cfg = cfg.setdefault("output", {})
-    if isinstance(output_cfg, dict):
-        output_cfg["base_dir"] = str(output_dir)
-        if dry_run:
-            output_cfg["dry_run"] = True
-
-    if no_mcp:
-        mcp_cfg = cfg.setdefault("mcp", {})
-        if isinstance(mcp_cfg, dict):
-            mcp_cfg["enabled"] = False
-
-    if skip_validation:
-        validation_cfg = cfg.setdefault("validation", {})
-        if isinstance(validation_cfg, dict):
-            validation_cfg["run_terraform_validate"] = False
-            validation_cfg["run_tflint"] = False
-            validation_cfg["run_opa"] = False
-    elif skip_opa:
-        validation_cfg = cfg.setdefault("validation", {})
-        if isinstance(validation_cfg, dict):
-            validation_cfg["run_opa"] = False
-
+    provider_name = str(cfg.get("llm", {}).get("provider") or "").lower()
     if llm_api_key and provider_name:
         env_var = {
             "anthropic": "ANTHROPIC_API_KEY",
@@ -195,27 +165,9 @@ def terragen(
         }[provider_name]
         os.environ[env_var] = llm_api_key
 
-    required_tags = cfg.setdefault("required_tags", {})
-    if isinstance(required_tags, dict):
-        required_tags["Environment"] = environment
-        required_tags["Owner"] = owner
-
     discovery = json.loads(input_file.read_text())
     graph = build_graph()
-
-    initial_state = {
-        "discovery_data": discovery,
-        "config": cfg,
-        "target_provider": TargetProvider(cloud.lower()),
-        "quarantine_queue": [],
-        "messages": [],
-        "retry_count": 0,
-        "status": "pending",
-        "hcl_output": {},
-        "mcp_context": "",
-        "validation_result": {},
-        "review_notes": "",
-    }
+    initial_state = build_initial_state(discovery, cfg, cloud)
 
     if dry_run:
         click.echo("dry-run requested; pipeline will run but no files will be written.")
@@ -315,6 +267,30 @@ def assess(input_file, cloud, output_dir, config_file):
     click.echo(f"Assessment finished with status: {status}")
     if status != "succeeded":
         raise click.exceptions.Exit(1)
+
+
+@cli.command(name="serve")
+@click.option("--config", "config_file",
+              default="config.yaml",
+              type=click.Path(exists=True, path_type=Path),
+              show_default=True,
+              help="Path to config.yaml.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
+@click.option("--port", default=8080, type=int, show_default=True, help="Bind port.")
+def serve(config_file, host, port):
+    """Start the HTTP API (runs, pause/approve, state editing, artifacts, assess)."""
+    try:
+        import uvicorn
+        from api.app import create_app
+    except ImportError as exc:  # pragma: no cover - depends on the optional extra
+        raise click.ClickException("the API requires the 'api' extra: pip install '.[api]'") from exc
+
+    from agent.config_loader import load_config
+    from agent.runtime import MigrationRuntime
+
+    application = create_app(runtime=MigrationRuntime(load_config(config_file)))
+    click.echo(f"Serving vmware-migration-agent API on http://{host}:{port} (docs at /docs)")
+    uvicorn.run(application, host=host, port=port, log_level="info")
 
 
 @cli.command()

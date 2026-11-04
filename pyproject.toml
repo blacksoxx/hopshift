@@ -22,12 +22,20 @@ dependencies = [
   "rich>=13.0",
   # <8: python-hcl2 8.x ships a stray top-level package named `cli` that shadows ours.
   "python-hcl2>=4.3,<8",
+  "langgraph-checkpoint-sqlite>=2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
   "hypothesis>=6.0",
+  "fastapi>=0.115",
+  "python-multipart>=0.0.9",
+]
+api = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
 ]
 
 [tool.pytest.ini_options]
