@@ -61,6 +61,11 @@ between the VMware world and the cloud provider world. Never bypass it.
 4. Add an OPA policy if the resource has security implications
 5. Regenerate `cim/cim.schema.json` with `python -m cim.schema_export`
 
+## Runtime, API and UI
+- `agent/runtime.py` is the service layer (runs, pause points, state patching, re-run); the CLI and
+  `api/app.py` (FastAPI, routes under `/api`) both use it. The React UI lives in `ui/` and is served
+  from `ui/dist` by the API. UI tests: `npm test` (Vitest) and `npm run e2e` (Playwright).
+
 ## How to add a new source hypervisor
 1. Write `cim/translators/<platform>.py` producing the CIM; set `source.platform` and each
    ComputeUnit's `architecture`

@@ -42,3 +42,10 @@ output/
 .idea/
 .DS_Store
 Thumbs.db
+
+# ─── UI (Vite / Playwright) ──────────────────────────────────────────────────
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+ui/.vite/

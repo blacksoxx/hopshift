@@ -40,6 +40,19 @@ verify:security-policies-present:
     - test -f validation/policies/encryption_at_rest.rego
     - test -f validation/policies/tags_required.rego
 
+ui-tests:
+  image: node:22
+  stage: test
+  script:
+    - cd ui
+    - npm ci --no-audit --no-fund
+    - npm run build
+    - npm test
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - ui/dist/
+
 unit-tests:
   extends: .default_python_job
   stage: test

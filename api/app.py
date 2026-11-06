@@ -12,8 +12,9 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Iterator
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent.config_loader import load_config
@@ -62,8 +63,17 @@ class AssessBody(BaseModel):
     cloud: str
 
 
-def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path = "config.yaml") -> FastAPI:
+UI_DIST = Path(__file__).resolve().parents[1] / "ui" / "dist"
+
+
+def create_app(
+    runtime: MigrationRuntime | None = None,
+    config_path: str | Path = "config.yaml",
+    ui_dir: Path | str | None = None,
+) -> FastAPI:
+    """Build the application. API routes live under /api; the built UI (ui/dist) is served at /."""
     app = FastAPI(title="vmware-migration-agent", version="0.2.0")
+    router = APIRouter(prefix="/api")
     app.state.runtime = runtime or MigrationRuntime(load_config(config_path))
     app.state.executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="vma-run")
     app.state.futures: dict[str, Future[Any]] = {}
@@ -88,11 +98,11 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
 
     # ── meta ──────────────────────────────────────────────────────────────────
 
-    @app.get("/health")
+    @router.get("/health")
     def health() -> dict[str, Any]:
         return {"ok": True, "runs_dir": str(rt().store.root)}
 
-    @app.get("/meta")
+    @router.get("/meta")
     def meta() -> dict[str, Any]:
         return {
             "clouds": [provider.value for provider in TargetProvider],
@@ -102,17 +112,17 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
             "default_pause_points": rt().default_pause_points,
         }
 
-    @app.get("/config")
+    @router.get("/config")
     def config() -> dict[str, Any]:
         return _jsonable(rt().base_config)
 
     # ── runs ──────────────────────────────────────────────────────────────────
 
-    @app.get("/runs")
+    @router.get("/runs")
     def list_runs() -> list[dict[str, Any]]:
         return [record.to_dict() for record in rt().list_runs()]
 
-    @app.post("/runs", status_code=201)
+    @router.post("/runs", status_code=201)
     def create_run(body: CreateRunBody) -> dict[str, Any]:
         record = rt().create_run(body.discovery, body.options.to_options(), input_filename=body.input_filename)
         if body.start:
@@ -120,7 +130,7 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
             record.status = "running"
         return record.to_dict()
 
-    @app.get("/runs/{run_id}")
+    @router.get("/runs/{run_id}")
     def get_run(run_id: str) -> dict[str, Any]:
         record = rt().get_run(run_id)
         payload = record.to_dict()
@@ -128,7 +138,7 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
         payload["executing"] = bool(future is not None and not future.done())
         return payload
 
-    @app.post("/runs/{run_id}/start", status_code=202)
+    @router.post("/runs/{run_id}/start", status_code=202)
     def start_run(run_id: str) -> dict[str, Any]:
         record = rt().get_run(run_id)
         if record.status != "created":
@@ -136,7 +146,7 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
         submit(run_id, rt().start, run_id)
         return {"run_id": run_id, "status": "running"}
 
-    @app.post("/runs/{run_id}/resume", status_code=202)
+    @router.post("/runs/{run_id}/resume", status_code=202)
     def resume_run(run_id: str) -> dict[str, Any]:
         record = rt().get_run(run_id)
         if record.status != "paused":
@@ -144,7 +154,7 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
         submit(run_id, rt().resume, run_id)
         return {"run_id": run_id, "status": "running", "resumed_from": record.pause_point}
 
-    @app.post("/runs/{run_id}/rerun", status_code=202)
+    @router.post("/runs/{run_id}/rerun", status_code=202)
     def rerun(run_id: str, body: RerunBody) -> dict[str, Any]:
         record = rt().get_run(run_id)
         if record.status in {"running", "created"}:
@@ -154,19 +164,19 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
         submit(run_id, rt().rerun_from, run_id, body.node)
         return {"run_id": run_id, "status": "running", "from_node": body.node}
 
-    @app.get("/runs/{run_id}/state")
+    @router.get("/runs/{run_id}/state")
     def get_state(run_id: str) -> dict[str, Any]:
         return rt().get_state(run_id)
 
-    @app.patch("/runs/{run_id}/state")
+    @router.patch("/runs/{run_id}/state")
     def patch_state(run_id: str, body: PatchStateBody) -> dict[str, Any]:
         return rt().patch_state(run_id, body.values).to_dict()
 
-    @app.get("/runs/{run_id}/events")
+    @router.get("/runs/{run_id}/events")
     def events(run_id: str, since: int = 0) -> list[dict[str, Any]]:
         return rt().events(run_id, since=since)
 
-    @app.get("/runs/{run_id}/events/stream")
+    @router.get("/runs/{run_id}/events/stream")
     def stream_events(run_id: str, since: int = 0) -> StreamingResponse:
         rt().get_run(run_id)  # 404 early
 
@@ -191,11 +201,11 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
-    @app.get("/runs/{run_id}/artifacts")
+    @router.get("/runs/{run_id}/artifacts")
     def artifacts(run_id: str) -> list[dict[str, Any]]:
         return rt().artifacts(run_id)
 
-    @app.get("/runs/{run_id}/artifacts/{path:path}", response_class=PlainTextResponse)
+    @router.get("/runs/{run_id}/artifacts/{path:path}", response_class=PlainTextResponse)
     def artifact(run_id: str, path: str) -> str:
         try:
             return rt().read_artifact(run_id, path)
@@ -204,7 +214,7 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
 
     # ── assessment (synchronous, no cloud or LLM access) ──────────────────────
 
-    @app.post("/assess")
+    @router.post("/assess")
     def assess(body: AssessBody) -> dict[str, Any]:
         from agent.graph import build_assess_graph
         from agent.runtime import build_run_config
@@ -215,6 +225,13 @@ def create_app(runtime: MigrationRuntime | None = None, config_path: str | Path 
         state = initial_state(body.discovery, cfg, body.cloud)
         final = build_assess_graph().invoke(state)
         return _jsonable(final.get("assessment_result", {}))
+
+    app.include_router(router)
+
+    static_dir = Path(ui_dir) if ui_dir is not None else UI_DIST
+    if static_dir.is_dir():
+        # Mounted last so /api/* wins; html=True serves index.html for / (the UI uses hash routes).
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="ui")
 
     return app
 

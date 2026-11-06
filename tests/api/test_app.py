@@ -44,7 +44,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def _wait(client: TestClient, run_id: str, until: set[str], timeout: float = 30.0) -> dict[str, object]:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        payload = client.get(f"/runs/{run_id}").json()
+        payload = client.get(f"/api/runs/{run_id}").json()
         if payload["status"] in until and not payload["executing"]:
             return payload
         time.sleep(0.1)
@@ -56,8 +56,8 @@ def _discovery() -> dict[str, object]:
 
 
 def test_meta_and_health(client: TestClient) -> None:
-    assert client.get("/health").json()["ok"] is True
-    meta = client.get("/meta").json()
+    assert client.get("/api/health").json()["ok"] is True
+    meta = client.get("/api/meta").json()
     assert meta["clouds"] == ["aws", "azure", "gcp", "openstack"]
     assert meta["pause_points"]["review_cim"] == "hcl_generator"
     assert meta["nodes"][0] == "ingest"
@@ -65,7 +65,7 @@ def test_meta_and_health(client: TestClient) -> None:
 
 def test_full_run_lifecycle_over_http(client: TestClient) -> None:
     created = client.post(
-        "/runs",
+        "/api/runs",
         json={"discovery": _discovery(), "options": {"cloud": "aws", "environment": "dev", "owner": "platform"}, "start": True},
     )
     assert created.status_code == 201
@@ -74,52 +74,52 @@ def test_full_run_lifecycle_over_http(client: TestClient) -> None:
     paused = _wait(client, run_id, {"paused"})
     assert paused["pause_point"] == "review_cim"
 
-    state = client.get(f"/runs/{run_id}/state").json()
+    state = client.get(f"/api/runs/{run_id}/state").json()
     assert state["next"] == ["hcl_generator"]
     cim = state["values"]["sized_cim"]
     cim["compute_units"][0]["name"] = "web-01-edited"
 
-    patched = client.patch(f"/runs/{run_id}/state", json={"values": {"sized_cim": cim}})
+    patched = client.patch(f"/api/runs/{run_id}/state", json={"values": {"sized_cim": cim}})
     assert patched.status_code == 200
 
-    resumed = client.post(f"/runs/{run_id}/resume")
+    resumed = client.post(f"/api/runs/{run_id}/resume")
     assert resumed.status_code == 202 and resumed.json()["resumed_from"] == "review_cim"
 
     done = _wait(client, run_id, {"succeeded", "failed", "error"})
     assert done["status"] == "succeeded", done
 
-    artifacts = {item["path"] for item in client.get(f"/runs/{run_id}/artifacts").json()}
+    artifacts = {item["path"] for item in client.get(f"/api/runs/{run_id}/artifacts").json()}
     assert "aws-migration/compute_web-01-edited.tf" in artifacts
-    content = client.get(f"/runs/{run_id}/artifacts/aws-migration/compute_web-01-edited.tf").text
+    content = client.get(f"/api/runs/{run_id}/artifacts/aws-migration/compute_web-01-edited.tf").text
     assert 'resource "aws_instance" "web_01_edited"' in content
 
-    events = client.get(f"/runs/{run_id}/events").json()
+    events = client.get(f"/api/runs/{run_id}/events").json()
     assert events[0]["type"] == "start" and events[-1]["type"] == "end"
 
-    with client.stream("GET", f"/runs/{run_id}/events/stream") as response:
+    with client.stream("GET", f"/api/runs/{run_id}/events/stream") as response:
         body = "".join(response.iter_text())
     assert "event: done" in body and '"type": "end"' in body
 
-    listed = client.get("/runs").json()
+    listed = client.get("/api/runs").json()
     assert [run["run_id"] for run in listed] == [run_id]
 
 
 def test_lifecycle_errors_map_to_http_codes(client: TestClient) -> None:
-    assert client.get("/runs/nope").status_code == 404
-    assert client.get("/runs/nope/artifacts/x.tf").status_code == 404
+    assert client.get("/api/runs/nope").status_code == 404
+    assert client.get("/api/runs/nope/artifacts/x.tf").status_code == 404
 
-    bad = client.post("/runs", json={"discovery": {"x": 1}, "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
+    bad = client.post("/api/runs", json={"discovery": {"x": 1}, "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
     assert bad.status_code == 400 and "virtual_machines" in bad.text
 
-    created = client.post("/runs", json={"discovery": _discovery(), "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
+    created = client.post("/api/runs", json={"discovery": _discovery(), "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
     run_id = created.json()["run_id"]
-    assert client.post(f"/runs/{run_id}/resume").status_code == 400
-    assert client.patch(f"/runs/{run_id}/state", json={"values": {"sized_cim": {}}}).status_code == 400
-    assert client.post(f"/runs/{run_id}/rerun", json={"node": "sizer"}).status_code == 400
+    assert client.post(f"/api/runs/{run_id}/resume").status_code == 400
+    assert client.patch(f"/api/runs/{run_id}/state", json={"values": {"sized_cim": {}}}).status_code == 400
+    assert client.post(f"/api/runs/{run_id}/rerun", json={"node": "sizer"}).status_code == 400
 
 
 def test_assess_endpoint_runs_synchronously(client: TestClient) -> None:
-    response = client.post("/assess", json={"discovery": _discovery(), "cloud": "aws"})
+    response = client.post("/api/assess", json={"discovery": _discovery(), "cloud": "aws"})
 
     assert response.status_code == 200
     payload = response.json()

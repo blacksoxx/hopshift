@@ -95,6 +95,7 @@ Notes:
 - [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
 - [ai-usage.md](ai-usage.md): Where the LLM is used today, where it is planned, and what is deliberately rule-based.
 - [runtime-and-api.md](runtime-and-api.md): Run service layer (pause points, state patching, re-run, events) and the HTTP API.
+- [ui.md](ui.md): The web UI (runs, CIM review and editing, approvals, artifacts, assess) and how to build and test it.
 
 ## Command Line Overview
 

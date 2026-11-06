@@ -47,14 +47,14 @@ by that node.
 
 ## HTTP API
 
-Start with `vma serve` (needs the `api` extra: `pip install '.[api]'`). Interactive docs at `/docs`.
+Start with `vma serve` (needs the `api` extra: `pip install '.[api]'`). All routes are under `/api`; interactive docs at `/docs`. When `ui/dist` exists (see ui.md) it is served at `/`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health`, `/meta`, `/config` | liveness, enums for the UI, effective base config |
-| GET | `/runs` | list runs |
-| POST | `/runs` | create a run from `{discovery, options, input_filename?, start?}` |
-| GET | `/runs/{id}` | run record plus `executing` |
+| GET | `/api/health`, `/api/meta`, `/api/config` | liveness, enums for the UI, effective base config |
+| GET | `/api/runs` | list runs |
+| POST | `/api/runs` | create a run from `{discovery, options, input_filename?, start?}` |
+| GET | `/api/runs/{id}` | run record plus `executing` |
 | POST | `/runs/{id}/start` | start a created run (202) |
 | POST | `/runs/{id}/resume` | approve / continue a paused run (202) |
 | POST | `/runs/{id}/rerun` | `{node}`: fork from the checkpoint before that node (202) |
@@ -64,7 +64,7 @@ Start with `vma serve` (needs the `api` extra: `pip install '.[api]'`). Interact
 | GET | `/runs/{id}/events/stream` | server-sent events until the run pauses or ends |
 | GET | `/runs/{id}/artifacts` | list artifact files |
 | GET | `/runs/{id}/artifacts/{path}` | artifact content |
-| POST | `/assess` | synchronous risk assessment `{discovery, cloud}` |
+| POST | `/api/assess` | synchronous risk assessment `{discovery, cloud}` |
 
 `options` mirrors the CLI flags: `cloud`, `environment`, `owner`, `mode`, `llm_provider`,
 `llm_model`, `llm_base_url`, `skip_validation`, `skip_opa`, `no_mcp`, `dry_run`, `pause_points`.
