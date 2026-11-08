@@ -34,6 +34,19 @@ cd ui && npm run build     # type-checks, writes ui/dist
 vma serve                  # serves ui/dist at / and the API at /api
 ```
 
+## Run with Docker
+
+```bash
+docker compose up --build -d      # builds the UI and the agent image, serves on http://localhost:8080
+VMA_PORT=8088 docker compose up -d  # pick another host port if 8080 is taken
+docker compose logs -f agent      # follow the API log
+docker compose down               # stop; runs persist under ./output/runs
+```
+
+The image contains terraform, tflint, OPA and the docker CLI, so validation runs inside the
+container (the first run downloads Terraform providers). API keys are read from the host
+environment if set. The CLI is available too: `docker compose run --rm agent python -m cli.main terragen --help`.
+
 ## Tests
 
 - `npm test`: Vitest component and client tests (jsdom, API mocked).

@@ -1,6 +1,16 @@
+# ── Stage 1: build the web UI ──────────────────────────────────────────────────
+FROM node:22-alpine AS ui-build
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY ui/ ./
+RUN npm run build
+
+# ── Stage 2: agent + API, serving the built UI ─────────────────────────────────
 FROM python:3.12-slim
 
-ARG TARGETARCH=amd64
+# Populated by BuildKit for the build platform (amd64 on x86 hosts, arm64 on Apple Silicon).
+ARG TARGETARCH
 ARG TERRAFORM_VERSION=1.8.5
 ARG TFLINT_VERSION=0.53.0
 ARG OPA_VERSION=0.68.0
@@ -30,7 +40,8 @@ RUN curl -fsSL -o /usr/local/bin/opa \
     && chmod +x /usr/local/bin/opa
 
 # Docker CLI only (no daemon). mcp_client starts the Terraform MCP server with `docker run`,
-# so at runtime either mount /var/run/docker.sock, set DOCKER_HOST, or run terragen with --no-mcp.
+# so at runtime either mount /var/run/docker.sock, set DOCKER_HOST, or run with --no-mcp /
+# deterministic mode (the default), which never needs it.
 RUN case "${TARGETARCH}" in \
         amd64) DOCKER_ARCH="x86_64" ;; \
         arm64) DOCKER_ARCH="aarch64" ;; \
@@ -50,13 +61,21 @@ RUN terraform version \
 WORKDIR /app
 
 COPY . /app
+COPY --from=ui-build /ui/dist /app/ui/dist
 
 RUN pip install --upgrade pip \
-    && pip install .
+    && pip install ".[api]"
 
 RUN useradd --create-home --uid 10001 appuser \
-    && chown -R appuser:appuser /app
+    && mkdir -p /app/output/runs /home/appuser/.cache \
+    && chown -R appuser:appuser /app /home/appuser
 
 USER appuser
 
-CMD ["python", "-m", "cli.main"]
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
+
+# Default: API + UI. For the CLI: docker compose run --rm agent python -m cli.main terragen ...
+CMD ["python", "-m", "cli.main", "serve", "--host", "0.0.0.0", "--port", "8080"]

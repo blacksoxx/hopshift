@@ -6,7 +6,7 @@ import type { Meta, RunOptions } from "../types";
 
 const DEFAULTS: RunOptions = {
   cloud: "aws", environment: "dev", owner: "", mode: null, llm_provider: null, llm_model: null,
-  skip_validation: false, skip_opa: false, no_mcp: false, dry_run: false, pause_points: [],
+  skip_validation: false, skip_opa: false, no_mcp: false, dry_run: false, llm_review_notes: true, pause_points: [],
 };
 
 export function NewRunPage() {
@@ -106,6 +106,7 @@ export function NewRunPage() {
             <label><input type="checkbox" checked={options.skip_opa} onChange={(e) => update("skip_opa", e.target.checked)} /> skip OPA</label>
             <label><input type="checkbox" checked={options.no_mcp} onChange={(e) => update("no_mcp", e.target.checked)} /> no MCP</label>
             <label><input type="checkbox" checked={options.dry_run} onChange={(e) => update("dry_run", e.target.checked)} /> dry run</label>
+            <label><input type="checkbox" checked={options.llm_review_notes} onChange={(e) => update("llm_review_notes", e.target.checked)} /> AI review notes</label>
           </div>
         </div>
         <div className="field">

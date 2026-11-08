@@ -17,6 +17,7 @@ export function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rerunNode, setRerunNode] = useState("sizer");
+  const [streamGeneration, setStreamGeneration] = useState(0);
   const unsubscribe = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(async () => {
@@ -38,7 +39,8 @@ export function RunDetailPage() {
     void refresh();
   }, [refresh]);
 
-  // Live updates: subscribe while the run executes; the stream's done event triggers a refresh.
+  // Live updates while the run executes: server-sent events for the log, plus a status poll
+  // as a safety net so a dropped stream can never leave the page stuck on "running".
   const executing = run?.status === "running" || run?.executing === true;
   useEffect(() => {
     if (!executing) return;
@@ -47,11 +49,27 @@ export function RunDetailPage() {
       runId,
       events.length,
       (event) => setEvents((current) => [...current, event]),
-      () => void refresh(),
+      (status) => {
+        void refresh();
+        if (status === "disconnected") setTimeout(() => setStreamGeneration((n) => n + 1), 2000);
+      },
     );
     return () => unsubscribe.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [executing, runId]);
+  }, [executing, runId, streamGeneration]);
+
+  useEffect(() => {
+    if (!executing) return;
+    const timer = setInterval(() => {
+      api.getRun(runId)
+        .then((record) => {
+          const stillExecuting = record.status === "running" || record.executing === true;
+          if (!stillExecuting || record.status !== run?.status) void refresh();
+        })
+        .catch(() => undefined);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [executing, runId, run?.status, refresh]);
 
   async function act(action: () => Promise<unknown>, label: string) {
     try {

@@ -55,7 +55,7 @@ def test_build_run_config_applies_options_like_the_cli() -> None:
     assert cfg["generation"]["mode"] == "deterministic"
     assert cfg["validation"]["run_opa"] is False
     assert cfg["mcp"]["enabled"] is False
-    assert cfg["output"] == {"base_dir": "/tmp/out", "dry_run": True}
+    assert cfg["output"] == {"base_dir": "/tmp/out", "dry_run": True, "llm_review_notes": True}
     assert cfg["required_tags"]["Environment"] == "dev" and cfg["required_tags"]["Owner"] == "platform"
 
 
@@ -172,3 +172,14 @@ def test_node_failure_marks_run_error(runtime: MigrationRuntime, monkeypatch: py
     assert record.status == "error"
     assert "sizing table unavailable" in (record.error or "")
     assert runtime.events(record.run_id)[-1]["type"] == "error"
+
+
+def test_empty_pause_list_means_no_pauses_and_notes_can_be_disabled(runtime: MigrationRuntime) -> None:
+    record = runtime.create_run(_discovery(), _options(pause_points=[], llm_review_notes=False, dry_run=True))
+    assert record.options["pause_points"] == []
+
+    record = runtime.start(record.run_id)
+
+    assert record.status == "succeeded"
+    config = json.loads((Path(record.run_dir) / "config.json").read_text(encoding="utf-8"))
+    assert config["output"]["llm_review_notes"] is False

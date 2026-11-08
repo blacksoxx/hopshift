@@ -110,6 +110,11 @@ def _generate_review_notes(state: MigrationState, config: dict[str, object]) -> 
         "messages_tail": list(state.get("messages", []))[-20:],
     }
 
+    output_cfg = _get_mapping(config, "output")
+    if not _get_bool(output_cfg, "llm_review_notes", True):
+        logger.info("reporter: LLM review notes disabled by config; using deterministic notes")
+        return _fallback_review_notes(summary_payload)
+
     system_prompt = build_report_system_prompt()
     user_prompt = build_report_user_prompt(summary_payload)
 

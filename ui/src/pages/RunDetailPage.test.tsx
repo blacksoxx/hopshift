@@ -21,7 +21,7 @@ const NODES = ["ingest", "blocker_parser", "enricher", "cim_mapper", "sizer", "m
 function record(overrides: Partial<RunRecord> = {}): RunRecord {
   return {
     run_id: "r1", created_at: "2026-11-06T10:00:00+00:00", updated_at: "", status: "paused", cloud: "aws", mode: "deterministic",
-    options: { cloud: "aws", environment: "dev", owner: "o", skip_validation: true, skip_opa: false, no_mcp: true, dry_run: false, pause_points: ["review_cim"] },
+    options: { cloud: "aws", environment: "dev", owner: "o", skip_validation: true, skip_opa: false, no_mcp: true, dry_run: false, llm_review_notes: true, pause_points: ["review_cim"] },
     input_filename: "lab.json", run_dir: "", paused_before: "hcl_generator", pause_point: "review_cim", error: null, event_count: 5, executing: false,
     ...overrides,
   };

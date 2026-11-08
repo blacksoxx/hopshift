@@ -12,6 +12,7 @@ export interface RunOptions {
   skip_opa: boolean;
   no_mcp: boolean;
   dry_run: boolean;
+  llm_review_notes: boolean;
   pause_points: string[];
 }
 

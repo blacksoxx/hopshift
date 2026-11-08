@@ -263,3 +263,24 @@ def test_reporter_rejects_traversal_in_hcl_paths(
 
     with pytest.raises(ValueError, match="unsafe HCL output path"):
         reporter(state)  # type: ignore[arg-type]
+
+
+def test_reporter_skips_llm_when_review_notes_disabled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class _NeverCalled:
+        def __init__(self, config: dict[str, object]) -> None:
+            raise AssertionError("LLMClient must not be constructed when llm_review_notes is false")
+
+    monkeypatch.setattr(reporter_module, "LLMClient", _NeverCalled)
+    state = {
+        "config": {"output": {"base_dir": str(tmp_path / "out"), "llm_review_notes": False}},
+        "hcl_output": {"aws-migration/main.tf": 'resource "aws_vpc" "main" {}'},
+        "validation_result": {"passed": True},
+        "messages": [],
+        "quarantine_queue": [],
+        "status": "running",
+    }
+
+    updated = reporter(state)  # type: ignore[arg-type]
+
+    assert updated["status"] == "succeeded"
+    assert updated["review_notes"].startswith("# Migration Review Notes")

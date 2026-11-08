@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import sqlite3
 import threading
+import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -86,7 +88,9 @@ class RunOptions:
     skip_opa: bool = False
     no_mcp: bool = False
     dry_run: bool = False
-    pause_points: list[str] = field(default_factory=list)
+    llm_review_notes: bool = True
+    # None = use runtime.default_pause_points; [] = run straight through without pausing.
+    pause_points: list[str] | None = None
 
     def validate(self) -> None:
         if self.cloud.lower() not in SUPPORTED_CLOUDS:
@@ -95,7 +99,7 @@ class RunOptions:
             raise RunError(f"mode must be one of {', '.join(GENERATION_MODES)}")
         if self.llm_provider and self.llm_provider.lower() not in LLM_PROVIDERS:
             raise RunError(f"llm_provider must be one of {', '.join(LLM_PROVIDERS)}")
-        unknown = [name for name in self.pause_points if name not in PAUSE_POINTS]
+        unknown = [name for name in (self.pause_points or []) if name not in PAUSE_POINTS]
         if unknown:
             raise RunError(f"unknown pause points: {', '.join(unknown)}; known: {', '.join(PAUSE_POINTS)}")
         if not self.environment.strip() or not self.owner.strip():
@@ -155,6 +159,7 @@ def build_run_config(base_config: dict[str, Any], options: RunOptions, output_di
     output_cfg["base_dir"] = str(output_dir)
     if options.dry_run:
         output_cfg["dry_run"] = True
+    output_cfg["llm_review_notes"] = bool(options.llm_review_notes)
 
     if options.no_mcp:
         mcp_cfg = cfg.setdefault("mcp", {})
@@ -220,15 +225,23 @@ class RunStore:
     def save(self, record: RunRecord) -> None:
         record.updated_at = _now()
         with self._lock:
-            (self.run_dir(record.run_id) / "run.json").write_text(
-                json.dumps(record.to_dict(), indent=2, ensure_ascii=True), encoding="utf-8"
+            _atomic_write_text(
+                self.run_dir(record.run_id) / "run.json",
+                json.dumps(record.to_dict(), indent=2, ensure_ascii=True),
             )
 
     def load(self, run_id: str) -> RunRecord:
         path = self.run_dir(run_id) / "run.json"
         if not path.exists():
             raise RunError(f"unknown run: {run_id}")
-        return RunRecord(**json.loads(path.read_text(encoding="utf-8")))
+        last_error: Exception | None = None
+        for _ in range(3):  # writes are atomic; this only guards against an exotic partial read
+            try:
+                return RunRecord(**json.loads(path.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, TypeError) as exc:
+                last_error = exc
+                time.sleep(0.02)
+        raise RunError(f"run record for {run_id} is unreadable: {last_error}")
 
     def load_discovery(self, run_id: str) -> dict[str, Any]:
         return json.loads((self.run_dir(run_id) / "discovery.json").read_text(encoding="utf-8"))
@@ -256,7 +269,11 @@ class RunStore:
             for index, line in enumerate(handle):
                 if index < since or not line.strip():
                     continue
-                events.append(json.loads(line))
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    # A line still being appended by the executing thread; it is complete on the next read.
+                    break
         return events
 
     def artifacts(self, run_id: str) -> list[dict[str, Any]]:
@@ -313,7 +330,7 @@ class MigrationRuntime:
         run_dir = self.store.run_dir(run_id)
         cfg = build_run_config(self.base_config, options, run_dir / "artifacts")
 
-        if not options.pause_points and self.default_pause_points:
+        if options.pause_points is None:
             options.pause_points = list(self.default_pause_points)
 
         record = RunRecord(
@@ -496,7 +513,7 @@ class MigrationRuntime:
         return len(messages) if isinstance(messages, list) else 0
 
     def _graph(self, record: RunRecord) -> Any:
-        pause_nodes = [PAUSE_POINTS[name] for name in record.options.get("pause_points", []) if name in PAUSE_POINTS]
+        pause_nodes = [PAUSE_POINTS[name] for name in (record.options.get("pause_points") or []) if name in PAUSE_POINTS]
         return graph_module.build_graph(checkpointer=self._get_checkpointer(), interrupt_before=pause_nodes)
 
     def _get_checkpointer(self) -> Any:
@@ -566,6 +583,13 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     return value
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write via a temp file and rename so readers never observe a truncated file."""
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _now() -> str:

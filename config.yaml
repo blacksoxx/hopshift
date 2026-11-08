@@ -34,6 +34,8 @@ llm:
   # Output budget per call. Batched generation keeps each response far below this.
   max_tokens: 16000
   timeout_seconds: 300
+  # Review notes are optional prose with a deterministic fallback: short timeout, single attempt.
+  review_notes_timeout_seconds: 60
 
   # Anthropic reasoning depth: low | medium | high | xhigh | max (omit = API default, high).
   # effort: medium
@@ -144,6 +146,10 @@ output:
 
   # When true, no files are written at all (set by the terragen --dry-run flag)
   dry_run: false
+
+  # Write review notes with the LLM (deterministic text otherwise). Runs created through the
+  # API/UI can override this per run.
+  llm_review_notes: true
 
 # ─── VSPHERE MAPPING ─────────────────────────────────────────────────────────
 vsphere:

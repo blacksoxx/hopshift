@@ -22,7 +22,7 @@ describe("api client", () => {
 
     const record = await api.createRun(
       { virtual_machines: [] },
-      { cloud: "aws", environment: "dev", owner: "o", skip_validation: true, skip_opa: false, no_mcp: true, dry_run: false, pause_points: ["review_cim"] },
+      { cloud: "aws", environment: "dev", owner: "o", skip_validation: true, skip_opa: false, no_mcp: true, dry_run: false, llm_review_notes: true, pause_points: ["review_cim"] },
       "lab.json",
       true,
     );

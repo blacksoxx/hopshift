@@ -1,0 +1,24 @@
+services:
+  agent:
+    build:
+      context: .
+      # Pass TARGETARCH=arm64 on Apple Silicon if you build without BuildKit platform detection.
+    image: vmware-migration-agent:local
+    container_name: vmware-migration-agent
+    ports:
+      # Host port is configurable: VMA_PORT=8088 docker compose up -d
+      - "${VMA_PORT:-8080}:8080"
+    environment:
+      # Optional. Without a key the LLM-based review notes fall back to deterministic text;
+      # deterministic generation (the default) never calls a model.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    volumes:
+      # Runs, checkpoints and generated Terraform persist on the host under ./output
+      - ./output:/app/output
+      # Edit config.yaml on the host and restart the container to apply it
+      - ./config.yaml:/app/config.yaml:ro
+      # Only needed for llm/hybrid runs with mcp.enabled: true (Terraform docs via MCP)
+      # - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

@@ -37,7 +37,8 @@ class RunOptionsBody(BaseModel):
     skip_opa: bool = False
     no_mcp: bool = False
     dry_run: bool = False
-    pause_points: list[str] = Field(default_factory=list)
+    llm_review_notes: bool = True
+    pause_points: list[str] | None = None
 
     def to_options(self) -> RunOptions:
         return RunOptions(**self.model_dump())
@@ -195,7 +196,7 @@ def create_app(
                     yield f"event: done\ndata: {json.dumps({'status': record.status})}\n\n"
                     return
                 idle_ticks = idle_ticks + 1 if not batch else 0
-                if idle_ticks % 30 == 29:
+                if idle_ticks % 8 == 7:  # every ~4 s of silence
                     yield ": keep-alive\n\n"
                 time.sleep(0.5)
 

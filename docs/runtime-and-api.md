@@ -67,7 +67,8 @@ Start with `vma serve` (needs the `api` extra: `pip install '.[api]'`). All rout
 | POST | `/api/assess` | synchronous risk assessment `{discovery, cloud}` |
 
 `options` mirrors the CLI flags: `cloud`, `environment`, `owner`, `mode`, `llm_provider`,
-`llm_model`, `llm_base_url`, `skip_validation`, `skip_opa`, `no_mcp`, `dry_run`, `pause_points`.
+`llm_model`, `llm_base_url`, `skip_validation`, `skip_opa`, `no_mcp`, `dry_run`,
+`llm_review_notes` (default true), `pause_points` (omit for the configured defaults, `[]` for none).
 
 Errors: unknown run 404, lifecycle or validation problems 400, a second start on an executing
 run 409. Runs execute in a small thread pool; the API process must stay up for a run to progress.

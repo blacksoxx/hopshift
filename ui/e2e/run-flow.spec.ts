@@ -15,6 +15,7 @@ test("create a run, review the CIM, approve twice, inspect artifacts", async ({ 
   await page.locator("#owner").fill("playwright");
   await page.getByLabel("skip validation").check();
   await page.getByLabel("no MCP").check();
+  await page.getByLabel("AI review notes").uncheck(); // keep the flow offline and fast
   await page.getByTestId("start-run").click();
 
   await expect(page).toHaveURL(/#\/runs\/\d{8}T\d{6}Z-[0-9a-f]{8}$/);

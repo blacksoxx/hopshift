@@ -19,6 +19,13 @@ htmlcov/
 dist/
 build/
 
+# UI: dependencies and build output are produced inside the image
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+ui/.vite/
+
 # Local outputs, logs, secrets
 output/
 app-logs.txt

@@ -12,7 +12,7 @@ function event(type: RunEvent["type"], node: string | null = null): RunEvent {
 function run(status: RunRecord["status"], paused_before: string | null = null): RunRecord {
   return {
     run_id: "r1", created_at: "", updated_at: "", status, cloud: "aws", mode: "deterministic",
-    options: { cloud: "aws", environment: "dev", owner: "o", skip_validation: false, skip_opa: false, no_mcp: false, dry_run: false, pause_points: [] },
+    options: { cloud: "aws", environment: "dev", owner: "o", skip_validation: false, skip_opa: false, no_mcp: false, dry_run: false, llm_review_notes: true, pause_points: [] },
     input_filename: "d.json", run_dir: "", paused_before, pause_point: paused_before ? "review_cim" : null, error: null, event_count: 0,
   };
 }

@@ -48,6 +48,7 @@ class LLMSettings:
     api_key: str
     base_url: str | None
     effort: str | None = None
+    review_notes_timeout_seconds: int = 60
     retry_attempts: int = 3
     retry_backoff_seconds: float = 2.0
     sdk_max_retries: int = 2
@@ -179,7 +180,15 @@ class LLMClient:
         return self._generate(prompt=prompt, system_prompt=system_prompt, temperature=self.settings.temperature_hcl)
 
     def generate_review_notes(self, prompt: str, system_prompt: str | None = None) -> str:
-        return self._generate(prompt=prompt, system_prompt=system_prompt, temperature=self.settings.temperature_report)
+        """Review notes are optional prose with a deterministic fallback, so they get a short
+        timeout and no outer retries; a slow model must never hold a run hostage."""
+        return self._generate(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            temperature=self.settings.temperature_report,
+            timeout_seconds=self.settings.review_notes_timeout_seconds,
+            retry_attempts=1,
+        )
 
     def generate_structured(
         self,
@@ -220,26 +229,29 @@ class LLMClient:
         json_schema: dict[str, Any] | None = None,
         stable_prefix: str | None = None,
         schema_name: str = "response",
+        timeout_seconds: int | None = None,
+        retry_attempts: int | None = None,
     ) -> str:
         provider = self.settings.provider
+        timeout = timeout_seconds or self.settings.timeout_seconds
         if provider == LLMProvider.ANTHROPIC:
-            call: Callable[[], str] = lambda: self._generate_anthropic(prompt, system_prompt, json_schema, stable_prefix)
+            call: Callable[[], str] = lambda: self._generate_anthropic(prompt, system_prompt, json_schema, stable_prefix, timeout)
         elif provider == LLMProvider.OPENAI:
-            call = lambda: self._generate_openai(prompt, system_prompt, temperature, json_schema, stable_prefix, schema_name)
+            call = lambda: self._generate_openai(prompt, system_prompt, temperature, json_schema, stable_prefix, schema_name, timeout)
         elif provider == LLMProvider.GOOGLE:
             call = lambda: self._generate_google(prompt, system_prompt, temperature, json_schema, stable_prefix)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
-        return self._with_retries(call)
+        return self._with_retries(call, attempts=retry_attempts)
 
-    def _with_retries(self, call: Callable[[], str]) -> str:
+    def _with_retries(self, call: Callable[[], str], attempts: int | None = None) -> str:
         """Retry transient failures (rate limits, 5xx, network, timeouts) with jittered backoff.
 
         The SDKs already retry a couple of times internally; this outer loop covers longer
         outages. Refusals, truncation and 4xx errors are never retried here.
         """
-        attempts = max(1, self.settings.retry_attempts)
+        attempts = max(1, attempts if attempts is not None else self.settings.retry_attempts)
         last_exc: Exception | None = None
 
         for attempt in range(attempts):
@@ -272,6 +284,7 @@ class LLMClient:
         system_prompt: str | None,
         json_schema: dict[str, Any] | None,
         stable_prefix: str | None,
+        timeout_seconds: int,
     ) -> str:
         client = self._get_anthropic_client()
 
@@ -285,7 +298,7 @@ class LLMClient:
             "model": self.settings.model,
             "max_tokens": self.settings.max_tokens,
             "messages": [{"role": "user", "content": content}],
-            "timeout": self.settings.timeout_seconds,
+            "timeout": timeout_seconds,
         }
         if system_prompt and system_prompt.strip():
             request["system"] = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
@@ -361,8 +374,9 @@ class LLMClient:
         json_schema: dict[str, Any] | None,
         stable_prefix: str | None,
         schema_name: str,
+        timeout_seconds: int,
     ) -> str:
-        client = self._get_openai_client()
+        client = self._get_openai_client().with_options(timeout=timeout_seconds)
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -545,6 +559,7 @@ class LLMClient:
             api_key=api_key,
             base_url=base_url,
             effort=effort,
+            review_notes_timeout_seconds=_get_int(llm_section, "review_notes_timeout_seconds", 60),
             retry_attempts=_get_int(llm_section, "retry_attempts", 3),
             retry_backoff_seconds=_get_float(llm_section, "retry_backoff_seconds", 2.0),
             sdk_max_retries=_get_int(llm_section, "sdk_max_retries", 2),
