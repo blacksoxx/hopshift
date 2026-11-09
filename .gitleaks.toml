@@ -1,0 +1,16 @@
+# gitleaks configuration: extend the default rules, allow the documented test fixtures.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dummy credentials used by the unit tests and the end-to-end launcher"
+paths = [
+  '''tests/vma/test_connections\.py''',
+  '''tests/api/test_connections_api\.py''',
+  '''ui/e2e/serve\.py''',
+  '''\.github/workflows/ci\.yml''',
+]
+regexes = [
+  '''sp-secret-value''',
+  '''-----BEGIN PRIVATE KEY-----\\n(MIIE|abc)\\n''',
+]
