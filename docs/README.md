@@ -2,7 +2,7 @@
 
 Implementation-accurate documentation for the current codebase.
 
-Last refreshed: 2026-04-20
+Last refreshed: 2026-11-09
 
 ## At A Glance
 
@@ -87,6 +87,20 @@ Notes:
 
 ## Docs Map
 
+Platform:
+
+- [architecture.md](architecture.md): How the pipeline, the platform services, the API and the UI fit together; storage layout; threat model.
+- [setup.md](setup.md): Docker and local setup, configuration, first administrator, production checklist, operations.
+- [security.md](security.md): Accounts, MFA, single sign-on, API tokens, headers, retention, evidence for SOC 2 / HIPAA / CIS.
+- [compliance.md](compliance.md): Compliance-as-code on the generated Terraform: control matrix and report format.
+- [connections.md](connections.md): Cloud connections: providers, sign-in methods, fields, Terraform environment mapping.
+- [deployments.md](deployments.md): Terraform plan / apply / destroy with approval gates, state, LocalStack recipe.
+- [api.md](api.md): The HTTP API, endpoint by endpoint, with roles.
+- [ui.md](ui.md): The web UI: pages, shortcuts, building and testing.
+- [platform-plan.md](platform-plan.md): The build contract used for phase 3 (kept for reference).
+
+Core:
+
 - [pipeline.md](pipeline.md): Graph order, node responsibilities, routing, MigrationState.
 - [cli.md](cli.md): Commands, options, and practical examples.
 - [configuration.md](configuration.md): Runtime config contract and CLI override behavior.
@@ -94,8 +108,7 @@ Notes:
 - [output-and-validation.md](output-and-validation.md): Output layout, quarantine/report artifacts, validation gates.
 - [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
 - [ai-usage.md](ai-usage.md): Where the LLM is used today, where it is planned, and what is deliberately rule-based.
-- [runtime-and-api.md](runtime-and-api.md): Run service layer (pause points, state patching, re-run, events) and the HTTP API.
-- [ui.md](ui.md): The web UI (runs, CIM review and editing, approvals, artifacts, assess) and how to build and test it.
+- [runtime-and-api.md](runtime-and-api.md): Run service layer (pause points, state patching, re-run, events).
 
 ## Command Line Overview
 
