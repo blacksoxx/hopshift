@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import cast
 
 from loguru import logger
 
-from cim.schema import CanonicalInfrastructureModel
-from agent.llm_client import LLMClient
-from agent.prompts import build_hcl_system_prompt, build_hcl_user_prompt
+from agent.generation.deterministic import DeterministicRenderError, render_deterministic
+from agent.llm_client import LLMClient, LLMRefusalError, LLMTruncatedError
+from agent.prompts import (
+    HCL_FILES_SCHEMA,
+    SCOPE_ALL,
+    SCOPE_COMPUTE,
+    SCOPE_SHARED,
+    build_hcl_prompt_parts,
+    build_hcl_system_prompt,
+)
 from agent.state import MigrationState
-from validation.opa_client import evaluate_policies
-from validation.tf_runner import validate_hcl
+from cim.schema import CanonicalInfrastructureModel
+from providers.common import safe_file_stem
+from validation.opa_client import evaluate_policies, resolve_policies_dir
+from validation.paths import UnsafePathError, ensure_safe_relative_path
+from validation.tf_runner import TFValidationResult, validate_hcl
 
 
 class HCLGenerationError(Exception):
@@ -53,9 +63,22 @@ def hcl_generator(state: MigrationState) -> MigrationState:
         config = {}
 
     provider = str(sized_cim.target_provider.value)
+    mode = generation_mode(config)
+
+    if mode in {"deterministic", "hybrid"}:
+        deterministic_state = _run_deterministic(next_state, sized_cim=sized_cim, provider=provider, config=config)
+        deterministic_result = cast(dict[str, object], deterministic_state.get("validation_result", {}))
+        if mode == "deterministic" or bool(deterministic_result.get("passed")):
+            return deterministic_state
+        # hybrid: the deterministic errors become the first round of feedback for the LLM loop.
+        next_state = deterministic_state
+        logger.warning("hcl_generator: deterministic render failed validation; falling back to LLM generation (hybrid mode)")
+
     documentation_context = str(next_state.get("mcp_context") or "")
     if not documentation_context.strip():
-        raise HCLGenerationError("hcl_generator: MCP documentation context is required")
+        if _get_bool(_get_mapping(config, "mcp"), "enabled", True):
+            raise HCLGenerationError("hcl_generator: MCP documentation context is required")
+        documentation_context = "none (MCP documentation retrieval is disabled)"
 
     max_retries = _get_max_retries(config)
     validation_feedback = _build_validation_feedback(next_state)
@@ -73,26 +96,26 @@ def hcl_generator(state: MigrationState) -> MigrationState:
         "warnings": [],
     }
 
+    required_tags = _resolve_required_tags(config, sized_cim, next_state.get("discovery_data"))
+    batch_size = _get_int(_get_mapping(config, "pipeline"), "batch_size", DEFAULT_LLM_BATCH_SIZE)
+    if batch_size <= 0:
+        batch_size = DEFAULT_LLM_BATCH_SIZE
+
     for attempt in range(0, max_retries + 1):
-        prompt = build_hcl_user_prompt(
-            provider=provider,
-            cim_json=sized_cim.model_dump_json(indent=2),
-            documentation_context=documentation_context,
-            validation_feedback=validation_feedback,
-            retry_count=attempt,
-            required_tags=_required_tags(config),
-            source_vcenter=sized_cim.source_vcenter,
-        )
-
-        raw_response = llm_client.generate_hcl(
-            prompt=prompt,
-            system_prompt=build_hcl_system_prompt(provider),
-        )
-
         try:
-            hcl_output = _parse_hcl_output(raw_response)
+            hcl_output = _llm_generate_files(
+                llm_client=llm_client,
+                sized_cim=sized_cim,
+                provider=provider,
+                documentation_context=documentation_context,
+                validation_feedback=validation_feedback,
+                attempt=attempt,
+                required_tags=required_tags,
+                batch_size=batch_size,
+                messages=messages,
+            )
             _validate_output_paths(provider=provider, hcl_output=hcl_output)
-            _enforce_security_guards(hcl_output)
+            _enforce_security_guards(provider=provider, hcl_output=hcl_output)
             hcl_output = _synthesize_root_main_tf(provider=provider, hcl_output=hcl_output)
             hcl_output = _synthesize_provider_module_layout(
                 provider=provider,
@@ -106,7 +129,21 @@ def hcl_generator(state: MigrationState) -> MigrationState:
                 required_tags=_required_tags(config),
             )
             _ensure_runnable_hcl(provider=provider, hcl_output=hcl_output)
-        except HCLGenerationError as exc:
+        except LLMTruncatedError as exc:
+            # The model ran out of output tokens: halve the batch so each response is smaller.
+            batch_size = max(1, batch_size // 2)
+            validation_feedback = f"errors:\n- {str(exc)}\n- Keep each file minimal; avoid long comments."
+            last_validation = _failed_validation([str(exc)])
+            messages.append(f"hcl_generator: attempt={attempt} truncated output; batch_size reduced to {batch_size}")
+            logger.warning("hcl_generator: attempt {} truncated for provider {}: {}", attempt, provider, str(exc))
+            continue
+        except LLMRefusalError as exc:
+            validation_feedback = f"errors:\n- {str(exc)}"
+            last_validation = _failed_validation([str(exc)])
+            messages.append(f"hcl_generator: attempt={attempt} request declined by the model: {str(exc)}")
+            logger.warning("hcl_generator: attempt {} refused for provider {}: {}", attempt, provider, str(exc))
+            continue
+        except (HCLGenerationError, ValueError) as exc:
             validation_feedback = f"errors:\n- {str(exc)}"
             last_validation = {
                 "passed": False,
@@ -145,6 +182,7 @@ def hcl_generator(state: MigrationState) -> MigrationState:
                     provider,
                 )
             )
+            _append_usage_message(llm_client, messages)
             next_state["retry_count"] = attempt
             next_state["hcl_output"] = hcl_output
             next_state["validation_result"] = cast(dict[str, object], deterministic_validation)
@@ -167,10 +205,12 @@ def hcl_generator(state: MigrationState) -> MigrationState:
             )
         )
 
+    _append_usage_message(llm_client, messages)
+
     fallback_output = _build_provider_fallback_hcl(
         provider=provider,
         sized_cim=sized_cim,
-        required_tags=_required_tags(config),
+        required_tags=required_tags,
     )
 
     if fallback_output:
@@ -181,7 +221,7 @@ def hcl_generator(state: MigrationState) -> MigrationState:
         )
         try:
             _validate_output_paths(provider=provider, hcl_output=fallback_output)
-            _enforce_security_guards(fallback_output)
+            _enforce_security_guards(provider=provider, hcl_output=fallback_output)
             fallback_output = _synthesize_root_main_tf(provider=provider, hcl_output=fallback_output)
             fallback_output = _normalize_provider_specific_hcl(
                 provider=provider,
@@ -193,7 +233,7 @@ def hcl_generator(state: MigrationState) -> MigrationState:
                 required_tags=_required_tags(config),
             )
             _ensure_runnable_hcl(provider=provider, hcl_output=fallback_output)
-        except HCLGenerationError as exc:
+        except (HCLGenerationError, ValueError) as exc:
             messages.append(
                 "hcl_generator: deterministic fallback pre-validation failed: {}".format(str(exc))
             )
@@ -244,6 +284,227 @@ def hcl_generator(state: MigrationState) -> MigrationState:
     return next_state
 
 
+GENERATION_MODES = ("deterministic", "llm", "hybrid")
+DEFAULT_GENERATION_MODE = "deterministic"
+DEFAULT_LLM_BATCH_SIZE = 10
+
+_RESOURCE_ADDRESS = re.compile(r'(?m)^\s*resource\s+"([A-Za-z0-9_]+)"\s+"([A-Za-z0-9_-]+)"')
+
+
+def _llm_generate_files(
+    llm_client: object,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    documentation_context: str,
+    validation_feedback: str,
+    attempt: int,
+    required_tags: dict[str, str],
+    batch_size: int,
+    messages: list[str],
+) -> dict[str, str]:
+    """Generate the file map with one call for small estates, or in batches for large ones.
+
+    Batching: one call for the shared files (main, networking, placement), then one call per
+    `batch_size` ComputeUnits for compute/storage, each told which resources already exist so
+    it references instead of redefining them. Keeps every response well under max_tokens.
+    """
+    units = list(sized_cim.compute_units)
+    if len(units) <= batch_size:
+        return _llm_call(
+            llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+            required_tags, scope=SCOPE_ALL, compute_unit_ids=None, existing_resources=[], messages=messages,
+        )
+
+    files = _llm_call(
+        llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+        required_tags, scope=SCOPE_SHARED, compute_unit_ids=None, existing_resources=[], messages=messages,
+    )
+    existing = _resource_addresses(files)
+
+    for start in range(0, len(units), batch_size):
+        batch_ids = [unit.id for unit in units[start : start + batch_size]]
+        batch_files = _llm_call(
+            llm_client, sized_cim, provider, documentation_context, validation_feedback, attempt,
+            required_tags, scope=SCOPE_COMPUTE, compute_unit_ids=batch_ids, existing_resources=existing, messages=messages,
+        )
+        for path, content in batch_files.items():
+            if path in files:
+                raise HCLGenerationError(f"hcl_generator: batch for {batch_ids[0]}.. re-emitted existing file {path}")
+            files[path] = content
+        existing = existing + _resource_addresses(batch_files)
+
+    return files
+
+
+def _llm_call(
+    llm_client: object,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    documentation_context: str,
+    validation_feedback: str,
+    attempt: int,
+    required_tags: dict[str, str],
+    scope: str,
+    compute_unit_ids: list[str] | None,
+    existing_resources: list[str],
+    messages: list[str],
+) -> dict[str, str]:
+    stable, volatile = build_hcl_prompt_parts(
+        provider=provider,
+        cim_json=sized_cim.model_dump_json(indent=2),
+        documentation_context=documentation_context,
+        validation_feedback=validation_feedback,
+        retry_count=attempt,
+        required_tags=required_tags,
+        source_vcenter=sized_cim.source_vcenter,
+        scope=scope,
+        compute_unit_ids=compute_unit_ids,
+        existing_resources=existing_resources,
+    )
+    system_prompt = build_hcl_system_prompt(provider)
+
+    generate_structured = getattr(llm_client, "generate_structured", None)
+    if callable(generate_structured):
+        payload: object = generate_structured(
+            prompt=volatile,
+            json_schema=HCL_FILES_SCHEMA,
+            system_prompt=system_prompt,
+            stable_prefix=stable,
+            schema_name="terraform_files",
+        )
+    else:
+        # Minimal clients (tests, custom shims) only expose text generation.
+        payload = llm_client.generate_hcl(prompt=f"{stable}\n{volatile}", system_prompt=system_prompt)  # type: ignore[attr-defined]
+
+    last_usage = getattr(llm_client, "last_usage", None)
+    if last_usage is not None and getattr(last_usage, "calls", 0):
+        messages.append(f"hcl_generator: llm call scope={scope} attempt={attempt} {last_usage.summary()}")
+
+    return _parse_hcl_output(payload)
+
+
+def _resource_addresses(files: dict[str, str]) -> list[str]:
+    addresses: list[str] = []
+    for content in files.values():
+        for resource_type, name in _RESOURCE_ADDRESS.findall(content):
+            address = f"{resource_type}.{name}"
+            if address not in addresses:
+                addresses.append(address)
+    return addresses
+
+
+def _append_usage_message(llm_client: object, messages: list[str]) -> None:
+    summary = getattr(llm_client, "usage_summary", None)
+    if callable(summary):
+        messages.append(f"hcl_generator: llm usage total {summary()}")
+
+
+def _failed_validation(errors: list[str]) -> dict[str, object]:
+    return {
+        "passed": False,
+        "terraform_validate_passed": False,
+        "tflint_passed": False,
+        "opa_passed": False,
+        "errors": list(errors),
+        "warnings": [],
+    }
+
+
+def generation_mode(config: dict[str, object]) -> str:
+    """Resolve generation.mode from config; unknown values fall back to deterministic."""
+    generation_cfg = _get_mapping(config, "generation")
+    mode = _get_str(generation_cfg, "mode", DEFAULT_GENERATION_MODE).lower()
+    return mode if mode in GENERATION_MODES else DEFAULT_GENERATION_MODE
+
+
+def _run_deterministic(
+    state: MigrationState,
+    sized_cim: CanonicalInfrastructureModel,
+    provider: str,
+    config: dict[str, object],
+) -> MigrationState:
+    """Render HCL from provider templates, apply the same guards as the LLM path, validate once."""
+    next_state = cast(MigrationState, dict(state))
+    messages = list(next_state.get("messages", []))
+    required_tags = _resolve_required_tags(config, sized_cim, next_state.get("discovery_data"))
+
+    try:
+        hcl_output = render_deterministic(provider=provider, cim=sized_cim, required_tags=required_tags)
+        _validate_output_paths(provider=provider, hcl_output=hcl_output)
+        _enforce_security_guards(provider=provider, hcl_output=hcl_output)
+        _ensure_runnable_hcl(provider=provider, hcl_output=hcl_output)
+    except (HCLGenerationError, DeterministicRenderError, ValueError) as exc:
+        error = f"hcl_generator: deterministic render failed: {exc}"
+        messages.append(error)
+        next_state["retry_count"] = 0
+        next_state["hcl_output"] = {}
+        next_state["validation_result"] = {
+            "passed": False,
+            "terraform_validate_passed": False,
+            "tflint_passed": False,
+            "opa_passed": False,
+            "errors": [error],
+            "warnings": [],
+        }
+        next_state["messages"] = messages
+        next_state["status"] = "running"
+        logger.error(error)
+        return next_state
+
+    validation = _deterministic_validate_hcl(config=config, hcl_output=hcl_output)
+    messages.append(
+        "hcl_generator: deterministic render files={} provider={} passed={}".format(
+            len(hcl_output), provider, validation["passed"]
+        )
+    )
+
+    next_state["retry_count"] = 0
+    next_state["hcl_output"] = hcl_output
+    next_state["validation_result"] = cast(dict[str, object], validation)
+    next_state["messages"] = messages
+    next_state["status"] = "running"
+
+    logger.info(
+        "hcl_generator: deterministic render produced {} files for provider {} (validation passed={})",
+        len(hcl_output),
+        provider,
+        validation["passed"],
+    )
+    return next_state
+
+
+_TAG_TEMPLATE = re.compile(r"^\{(?P<key>[a-z_]+)\}$")
+
+
+def _resolve_required_tags(
+    config: dict[str, object],
+    cim: CanonicalInfrastructureModel,
+    discovery_data: object,
+) -> dict[str, str]:
+    """Fill the {placeholder} templates from config.required_tags with run data.
+
+    {source_vcenter} comes from the CIM and {generated_at} from the discovery metadata so the
+    output is identical for identical input. Tags whose template cannot be resolved are dropped.
+    """
+    metadata = discovery_data.get("metadata", {}) if isinstance(discovery_data, dict) else {}
+    values = {
+        "source_vcenter": cim.source_vcenter,
+        "generated_at": str(metadata.get("generated_at") or "") if isinstance(metadata, dict) else "",
+    }
+
+    resolved: dict[str, str] = {}
+    for key, raw_value in _required_tags(config).items():
+        match = _TAG_TEMPLATE.match(raw_value.strip())
+        if match is None:
+            resolved[key] = raw_value
+            continue
+        substitution = values.get(match.group("key"))
+        if substitution:
+            resolved[key] = substitution
+        # unresolved placeholders ({environment} without a CLI value, empty generated_at) are dropped
+    return resolved
+
+
 def _deterministic_validate_hcl(
     config: dict[str, object],
     hcl_output: dict[str, str],
@@ -260,15 +521,22 @@ def _deterministic_validate_hcl(
             run_tflint = False
 
     run_opa = _get_bool(validation_cfg, "run_opa", True)
+    run_terraform_validate = _get_bool(validation_cfg, "run_terraform_validate", True)
     terraform_bin = _get_str(validation_cfg, "terraform_bin", "terraform")
     tflint_bin = _get_str(validation_cfg, "tflint_bin", "tflint")
 
-    tf_result = validate_hcl(
-        hcl_output=hcl_output,
-        terraform_bin=terraform_bin,
-        tflint_bin=tflint_bin,
-        run_tflint=run_tflint,
-    )
+    if run_terraform_validate or run_tflint:
+        tf_result = validate_hcl(
+            hcl_output=hcl_output,
+            terraform_bin=terraform_bin,
+            tflint_bin=tflint_bin,
+            run_tflint=run_tflint,
+            run_terraform_validate=run_terraform_validate,
+            plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
+        )
+    else:
+        tf_result = TFValidationResult(terraform_validate_passed=True, tflint_passed=True)
+        tf_result.warnings.append("hcl_generator: terraform validate and tflint skipped by config")
 
     opa_passed = True
     opa_errors: list[str] = []
@@ -278,7 +546,7 @@ def _deterministic_validate_hcl(
         opa_mode = _get_str(validation_cfg, "opa_mode", "binary")
         opa_bin = _get_str(validation_cfg, "opa_bin", "opa")
         opa_server_url = _get_str(validation_cfg, "opa_server_url", "")
-        policies_dir = Path(_get_str(validation_cfg, "policies_dir", "validation/policies")).resolve()
+        policies_dir = resolve_policies_dir(_get_str(validation_cfg, "policies_dir", "validation/policies"))
 
         opa_result = evaluate_policies(
             hcl_output=hcl_output,
@@ -426,28 +694,44 @@ def _required_tags(config: dict[str, object]) -> dict[str, str]:
     return normalized
 
 
-def _parse_hcl_output(raw_response: str) -> dict[str, str]:
-    payload = raw_response.strip()
-    if not payload:
-        raise HCLGenerationError("hcl_generator: empty LLM response")
-
+def _parse_hcl_output(raw_response: object) -> dict[str, str]:
+    """Accept {"files": [{path, content}]} (structured output), a path->content map, or raw text."""
     parsed: object
-    try:
-        parsed = json.loads(payload)
-    except json.JSONDecodeError:
-        extracted = _extract_first_json_object(payload)
-        if extracted is None:
-            raise HCLGenerationError("hcl_generator: response is not valid JSON")
-        parsed = extracted
+    if isinstance(raw_response, (dict, list)):
+        parsed = raw_response
+    else:
+        payload = str(raw_response).strip()
+        if not payload:
+            raise HCLGenerationError("hcl_generator: empty LLM response")
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            extracted = _extract_first_json_object(payload)
+            if extracted is None:
+                raise HCLGenerationError("hcl_generator: response is not valid JSON")
+            parsed = extracted
 
     if not isinstance(parsed, dict):
         raise HCLGenerationError("hcl_generator: top-level JSON must be an object")
 
+    entries: list[tuple[object, object]]
+    files = parsed.get("files")
+    if isinstance(files, list) and (files or len(parsed) == 1):
+        entries = []
+        for item in files:
+            if not isinstance(item, dict):
+                raise HCLGenerationError("hcl_generator: every entry in 'files' must be an object")
+            entries.append((item.get("path", ""), item.get("content", "")))
+    else:
+        entries = list(parsed.items())
+
     output: dict[str, str] = {}
-    for key, value in parsed.items():
+    for key, value in entries:
         path = str(key).strip().replace("\\", "/")
         content = str(value).strip()
         if path and content:
+            if path in output:
+                raise HCLGenerationError(f"hcl_generator: duplicate file path in response: {path}")
             output[path] = content
 
     if not output:
@@ -504,16 +788,14 @@ def _validate_output_paths(provider: str, hcl_output: dict[str, str]) -> None:
         f"{root_dir}/placement/",
         f"{root_dir}/modules/",
     }
-    allowed_files = {
-        f"{root_dir}/main.tf",
-        f"{root_dir}/providers.tf",
-        f"{root_dir}/locals.tf",
-        f"{root_dir}/variables.tf",
-    }
-
     for raw_path in hcl_output:
-        path = raw_path.replace("\\", "/")
-        if path not in allowed_files and not any(path.startswith(root) for root in allowed_roots):
+        try:
+            path = ensure_safe_relative_path(raw_path).as_posix()
+        except UnsafePathError as exc:
+            raise HCLGenerationError(f"hcl_generator: unsafe output path: {exc}") from exc
+
+        is_root_module_file = path.startswith(f"{root_dir}/") and "/" not in path[len(root_dir) + 1 :]
+        if not is_root_module_file and not any(path.startswith(root) for root in allowed_roots):
             raise HCLGenerationError(
                 "hcl_generator: invalid output path outside required structure: "
                 f"{raw_path}"
@@ -540,7 +822,78 @@ def _is_openstack_hcl_output(hcl_output: dict[str, str]) -> bool:
     return any(path.replace("\\", "/").startswith("openstack-migration/") for path in hcl_output)
 
 
-def _enforce_security_guards(hcl_output: dict[str, str]) -> None:
+_DANGEROUS_CONSTRUCTS: list[tuple[str, re.Pattern[str]]] = [
+    # Provisioners run arbitrary commands on the operator machine or the created VM at apply time.
+    ("provisioner block", re.compile(r'(?<![A-Za-z0-9_"])provisioner\s+"', re.IGNORECASE)),
+    # These data sources execute programs or fetch remote content during terraform plan.
+    ("external/http data source", re.compile(r'\bdata\s+"(external|http)"', re.IGNORECASE)),
+    # null_resource is only useful with provisioners; local_file writes to the operator filesystem.
+    ("null_resource/local_file resource", re.compile(r'\bresource\s+"(null_resource|local_file|local_sensitive_file)"', re.IGNORECASE)),
+]
+
+_PROVIDER_SOURCE_ALLOWLIST: dict[str, set[str]] = {
+    "aws": {"hashicorp/aws"},
+    "azure": {"hashicorp/azurerm", "hashicorp/azuread"},
+    "gcp": {"hashicorp/google", "hashicorp/google-beta"},
+    "openstack": {"terraform-provider-openstack/openstack"},
+}
+_COMMON_PROVIDER_SOURCES: set[str] = {"hashicorp/random", "hashicorp/tls", "hashicorp/time"}
+# Negative lookbehind keeps `source_address_prefix = ...` and `image_source = ...` from matching.
+_SOURCE_ASSIGNMENT = re.compile(r'(?<![A-Za-z0-9_])source\s*=\s*"([^"]*)"')
+_PROVIDER_SOURCE_SHAPE = re.compile(r"^[a-z0-9_-]+/[a-z0-9_-]+$")
+
+
+def _enforce_dangerous_construct_guards(hcl_output: dict[str, str]) -> None:
+    for path, content in hcl_output.items():
+        for label, pattern in _DANGEROUS_CONSTRUCTS:
+            if pattern.search(content):
+                raise HCLGenerationError(
+                    f"hcl_generator: forbidden {label} in {path}; generated HCL must not execute code"
+                )
+
+
+def _enforce_source_allowlist(provider: str, hcl_output: dict[str, str]) -> None:
+    """Allow only local modules and the expected providers for the target cloud.
+
+    Any `source = "..."` assignment is either a module source (must be a local ./ path)
+    or a provider source inside required_providers (must be on the per-cloud allow-list).
+    Everything else (remote modules, git:: sources, unexpected providers) is rejected
+    because it can pull in provisioners or providers that execute code.
+    """
+    allowed_providers = _PROVIDER_SOURCE_ALLOWLIST.get(provider.strip().lower(), set()) | _COMMON_PROVIDER_SOURCES
+
+    for path, content in hcl_output.items():
+        for match in _SOURCE_ASSIGNMENT.finditer(content):
+            raw_source = match.group(1).strip()
+            source = raw_source.lower()
+
+            if source.startswith("./"):
+                if ".." in source.split("/"):
+                    raise HCLGenerationError(
+                        f"hcl_generator: module source escapes the output root in {path}: {raw_source}"
+                    )
+                continue
+
+            if source.startswith("registry.terraform.io/"):
+                source = source[len("registry.terraform.io/"):]
+
+            if _PROVIDER_SOURCE_SHAPE.match(source):
+                if source not in allowed_providers:
+                    raise HCLGenerationError(
+                        f"hcl_generator: provider source '{raw_source}' in {path} is not allowed for {provider}; "
+                        f"allowed: {', '.join(sorted(allowed_providers))}"
+                    )
+                continue
+
+            raise HCLGenerationError(
+                f"hcl_generator: remote or non-local source '{raw_source}' in {path} is not allowed"
+            )
+
+
+def _enforce_security_guards(provider: str, hcl_output: dict[str, str]) -> None:
+    _enforce_dangerous_construct_guards(hcl_output)
+    _enforce_source_allowlist(provider=provider, hcl_output=hcl_output)
+
     forbidden_patterns = [
         # AWS
         'acl = "public-read"',
@@ -1451,7 +1804,7 @@ def _build_deterministic_gcp_fallback_hcl(
 def _build_gcp_storage_placeholders(sized_cim: CanonicalInfrastructureModel) -> dict[str, str]:
     output: dict[str, str] = {}
     for compute_unit in sized_cim.compute_units:
-        output[f"gcp-migration/storage/{compute_unit.name}_disks.tf"] = "\n".join(
+        output[f"gcp-migration/storage/{safe_file_stem(compute_unit.name)}_disks.tf"] = "\n".join(
             [
                 f"# StorageVolume migration for ComputeUnit {compute_unit.name} requires project-specific disk policy.",
                 "# Disk resources are intentionally omitted in fallback mode.",

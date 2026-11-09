@@ -1,18 +1,19 @@
-import click
-from pathlib import Path
 import json
 import os
+from pathlib import Path
+
+import click
 from loguru import logger
 
 from agent.nodes.mcp_client import _MCPStdioClient
-
 from cim.schema import TargetProvider
 
 SUPPORTED_PROVIDERS = ["anthropic", "openai", "google"]
 SUPPORTED_CLOUDS    = ["aws", "azure", "gcp", "openstack"]
+GENERATION_MODES    = ["deterministic", "llm", "hybrid"]
 
 PROVIDER_DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-5",
+    "anthropic": "claude-opus-5",
     "openai":    "gpt-4o",
     "google":    "gemini-2.0-flash",
 }
@@ -42,11 +43,19 @@ def cli():
               required=True,
               type=click.Choice(SUPPORTED_CLOUDS, case_sensitive=False),
               help="Target cloud provider.")
-# ── LLM provider + model ──────────────────────────────────────────────────────
+# ── Generation mode ───────────────────────────────────────────────────────────
+@click.option("--mode",
+              "generation_mode",
+              default=None,
+              type=click.Choice(GENERATION_MODES, case_sensitive=False),
+              help="HCL generation strategy. Defaults to generation.mode in config.yaml (deterministic). "
+                   "llm and hybrid require --llm-provider and an API key.")
+# ── LLM provider + model (llm/hybrid modes and review notes) ──────────────────
 @click.option("--llm-provider", "-p",
-              required=True,
+              required=False,
+              default=None,
               type=click.Choice(SUPPORTED_PROVIDERS, case_sensitive=False),
-              help="LLM provider to use for HCL generation.")
+              help="LLM provider. Required for --mode llm/hybrid; optional otherwise (used for review notes).")
 @click.option("--llm-model", "-m",
               default=None,
               help="Model name. Defaults to provider default if omitted.")
@@ -90,9 +99,13 @@ def cli():
               is_flag=True,
               default=False,
               help="Skip only OPA policy evaluation. Terraform validate and tflint still run.")
+@click.option("--no-mcp",
+              is_flag=True,
+              default=False,
+              help="Disable Terraform MCP documentation retrieval for this run (no docker required).")
 def terragen(
-    input_file, cloud, llm_provider, llm_model, llm_base_url, llm_api_key,
-    environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa
+    input_file, cloud, generation_mode, llm_provider, llm_model, llm_base_url, llm_api_key,
+    environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa, no_mcp
 ):
     """
     Convert a VMware discovery JSON to Terraform HCL for the target cloud.
@@ -119,40 +132,33 @@ def terragen(
           --llm-base-url https://my-instance.openai.azure.com/ \\
           -m my-gpt4o-deployment -e prod --owner sre
     """
-    provider_name = llm_provider.lower()
-    resolved_model = llm_model or PROVIDER_DEFAULT_MODELS[provider_name]
-
-    from agent.graph import build_graph
     from agent.config_loader import load_config
+    from agent.graph import build_graph
+    from agent.runtime import RunError, RunOptions, build_run_config
+    from agent.runtime import initial_state as build_initial_state
 
-    cfg = load_config(config_file)
+    base_cfg = load_config(config_file)
 
-    # Apply CLI overrides into runtime config consumed by nodes.
-    cfg["target_cloud"] = cloud.lower()
+    options = RunOptions(
+        cloud=cloud.lower(),
+        environment=environment,
+        owner=owner,
+        mode=generation_mode,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_base_url=llm_base_url,
+        skip_validation=skip_validation,
+        skip_opa=skip_opa,
+        no_mcp=no_mcp,
+        dry_run=dry_run,
+    )
+    try:
+        cfg = build_run_config(base_cfg, options, output_dir)
+    except RunError as exc:
+        raise click.UsageError(str(exc)) from exc
 
-    llm_cfg = cfg.setdefault("llm", {})
-    if isinstance(llm_cfg, dict):
-        llm_cfg["provider"] = provider_name
-        llm_cfg["model"] = resolved_model
-        if llm_base_url:
-            llm_cfg["base_url"] = llm_base_url
-
-    output_cfg = cfg.setdefault("output", {})
-    if isinstance(output_cfg, dict):
-        output_cfg["base_dir"] = str(output_dir)
-
-    if skip_validation:
-        validation_cfg = cfg.setdefault("validation", {})
-        if isinstance(validation_cfg, dict):
-            validation_cfg["run_terraform_validate"] = False
-            validation_cfg["run_tflint"] = False
-            validation_cfg["run_opa"] = False
-    elif skip_opa:
-        validation_cfg = cfg.setdefault("validation", {})
-        if isinstance(validation_cfg, dict):
-            validation_cfg["run_opa"] = False
-
-    if llm_api_key:
+    provider_name = str(cfg.get("llm", {}).get("provider") or "").lower()
+    if llm_api_key and provider_name:
         env_var = {
             "anthropic": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
@@ -160,13 +166,83 @@ def terragen(
         }[provider_name]
         os.environ[env_var] = llm_api_key
 
-    required_tags = cfg.setdefault("required_tags", {})
-    if isinstance(required_tags, dict):
-        required_tags["Environment"] = environment
-        required_tags["Owner"] = owner
-
     discovery = json.loads(input_file.read_text())
     graph = build_graph()
+    initial_state = build_initial_state(discovery, cfg, cloud)
+
+    if dry_run:
+        click.echo("dry-run requested; pipeline will run but no files will be written.")
+
+    try:
+        final_state = graph.invoke(initial_state)
+    except Exception:
+        logger.exception("terragen: pipeline execution failed")
+        raise
+
+    status = str(final_state.get("status", "unknown"))
+    click.echo(f"Migration finished with status: {status}")
+
+    hcl_files = final_state.get("hcl_output") or {}
+    quarantined = final_state.get("quarantine_queue") or []
+    if status == "succeeded" and not hcl_files:
+        click.echo(
+            "No Terraform was generated: 0 migratable VMs ({} quarantined). See quarantine_report.json.".format(
+                len(quarantined)
+            ),
+            err=True,
+        )
+    elif status == "succeeded":
+        click.echo(f"Generated {len(hcl_files)} Terraform file(s); {len(quarantined)} VM(s) quarantined.")
+
+    if status != "succeeded":
+        validation_result = final_state.get("validation_result", {})
+        errors = validation_result.get("errors", []) if isinstance(validation_result, dict) else []
+        if errors:
+            click.echo("Validation errors:", err=True)
+            for error in list(errors)[:10]:
+                click.echo(f"  - {str(error).splitlines()[0][:300]}", err=True)
+        # Non-zero exit so CI pipelines fail when the migration did not succeed.
+        raise click.exceptions.Exit(1)
+
+
+@cli.command(name="assess")
+@click.option("--input",
+              "input_file",
+              required=True,
+              type=click.Path(exists=True, path_type=Path),
+              help="Path to VMware discovery JSON input file.")
+@click.option("--cloud", "-c",
+              required=True,
+              type=click.Choice(SUPPORTED_CLOUDS, case_sensitive=False),
+              help="Target cloud provider.")
+@click.option("--output-dir", "-o",
+              default="output",
+              type=click.Path(path_type=Path),
+              show_default=True,
+              help="Directory to write assessment artifacts.")
+@click.option("--config", "config_file",
+              default="config.yaml",
+              type=click.Path(exists=True, path_type=Path),
+              show_default=True,
+              help="Path to config.yaml.")
+def assess(input_file, cloud, output_dir, config_file):
+    """Run the deterministic migration risk assessment (no LLM, no cloud access) and write reports.
+
+    Unlike terragen, blocked VMs are assessed rather than quarantined, so the report covers
+    the whole inventory.
+    """
+    from agent.config_loader import load_config
+    from agent.graph import build_assess_graph
+
+    cfg = load_config(config_file)
+    cfg["target_cloud"] = cloud.lower()
+
+    output_cfg = cfg.setdefault("output", {})
+    if isinstance(output_cfg, dict):
+        output_cfg["base_dir"] = str(output_dir)
+
+    discovery = json.loads(input_file.read_text())
+    graph = build_assess_graph()
 
     initial_state = {
         "discovery_data": discovery,
@@ -182,16 +258,51 @@ def terragen(
         "review_notes": "",
     }
 
-    if dry_run:
-        click.echo("dry-run requested; file writing behavior depends on node support.")
-
     try:
         final_state = graph.invoke(initial_state)
     except Exception:
-        logger.exception("terragen: pipeline execution failed")
+        logger.exception("assess: pipeline execution failed")
         raise
 
-    click.echo(f"Migration finished with status: {final_state.get('status', 'unknown')}")
+    status = str(final_state.get("status", "unknown"))
+    click.echo(f"Assessment finished with status: {status}")
+    if status != "succeeded":
+        raise click.exceptions.Exit(1)
+
+
+@cli.command(name="serve")
+@click.option("--config", "config_file",
+              default="config.yaml",
+              type=click.Path(exists=True, path_type=Path),
+              show_default=True,
+              help="Path to config.yaml.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
+@click.option("--port", default=8080, type=int, show_default=True, help="Bind port.")
+@click.option("--ssl-certfile", default=None, type=click.Path(exists=True, path_type=str), help="Serve HTTPS with this certificate (PEM).")
+@click.option("--ssl-keyfile", default=None, type=click.Path(exists=True, path_type=str), help="Private key for --ssl-certfile.")
+@click.option("--forwarded-allow-ips", default="127.0.0.1", show_default=True, help="Proxies whose X-Forwarded-* headers are trusted.")
+def serve(config_file, host, port, ssl_certfile, ssl_keyfile, forwarded_allow_ips):
+    """Start the HTTP API (runs, pause/approve, state editing, artifacts, assess)."""
+    try:
+        import uvicorn
+
+        from api.app import create_app
+    except ImportError as exc:  # pragma: no cover - depends on the optional extra
+        raise click.ClickException("the API requires the 'api' extra: pip install '.[api]'") from exc
+
+    application = create_app(config_path=config_file)
+    scheme = "https" if ssl_certfile else "http"
+    click.echo(f"Serving vmware-migration-agent on {scheme}://{host}:{port} (API under /api, docs at /docs)")
+    uvicorn.run(
+        application,
+        host=host,
+        port=port,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips=forwarded_allow_ips,
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile,
+    )
 
 
 @cli.command()
@@ -375,7 +486,6 @@ def _probe_mcp_server(
         or "aws_instance"
     )
     provider_namespace, provider_name = _provider_namespace_parts(provider)
-    service_slug = _service_slug_from_resource(resource)
 
     try:
         client = _MCPStdioClient(
@@ -513,6 +623,207 @@ def _string_list(value: object) -> list[str]:
         if isinstance(item, str) and item.strip():
             out.append(item.strip())
     return out
+
+
+
+# ── platform administration (security workstream) ───────────────────────────
+# Accounts, encryption keys, audit verification and retention live in the platform services;
+# these commands build the same Platform the API uses and act as the "cli" system actor.
+
+_CLI_AUDIT_CTX = {"ip": None, "user_agent": "vma-cli"}
+_CONFIG_OPTION = click.option(
+    "--config", "config_file", default="config.yaml", type=click.Path(exists=True, path_type=Path),
+    show_default=True, help="Path to config.yaml.",
+)
+_ROLE_CHOICE = click.Choice(["viewer", "operator", "admin"])
+
+
+def _load_platform(config_file):
+    from agent.config_loader import load_config
+    from vma.platform import Platform
+
+    return Platform.from_config(load_config(config_file))
+
+
+def _platform_runtime(platform):
+    from agent.runtime import MigrationRuntime
+
+    return MigrationRuntime(platform.effective_config())
+
+
+def _auth_service(platform):
+    if platform.auth is None:
+        raise click.ClickException(
+            "authentication is disabled (security.auth.mode: disabled); set it to required to manage accounts"
+        )
+    return platform.auth
+
+
+def _platform_call(fn, *args, **kwargs):
+    """Run a service call and turn platform errors into CLI errors (exit code 1, message only)."""
+    from vma.errors import PlatformError
+    from vma.secrets import SecretsUnavailable
+
+    try:
+        return fn(*args, **kwargs)
+    except (PlatformError, SecretsUnavailable) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@cli.group(name="admin")
+def admin_group():
+    """Manage local user accounts (needs security.auth.mode: required)."""
+
+
+@admin_group.command(name="create-user")
+@click.argument("username")
+@click.option("--name", default="", help="Display name.")
+@click.option("--role", default="viewer", type=_ROLE_CHOICE, show_default=True, help="viewer | operator | admin")
+@click.option("--password", default=None, help="Password; prompted when omitted (keeps it out of shell history).")
+@_CONFIG_OPTION
+def admin_create_user(username, name, role, password, config_file):
+    """Create a local account. Works before first-run setup, so it can bootstrap the first admin."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    if password is None:
+        password = click.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    user = _platform_call(service.create_user, CLI_PRINCIPAL, username, password, name, role, _CLI_AUDIT_CTX)
+    click.echo(f"created {user['username']} ({user['role']}) id={user['id']}")
+
+
+@admin_group.command(name="reset-password")
+@click.argument("username")
+@click.option("--password", default=None, help="New password; prompted when omitted.")
+@_CONFIG_OPTION
+def admin_reset_password(username, password, config_file):
+    """Set a new password for USERNAME and revoke their sessions."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    user = _platform_call(service.find_user, username)
+    if password is None:
+        password = click.prompt("New password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    _platform_call(service.update_user, CLI_PRINCIPAL, user["id"], password=password, ctx=_CLI_AUDIT_CTX)
+    click.echo(f"password updated for {user['username']}; existing sessions revoked")
+
+
+@admin_group.command(name="list-users")
+@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@_CONFIG_OPTION
+def admin_list_users(fmt, config_file):
+    """List accounts with role, sign-in kind, MFA and status."""
+    platform = _load_platform(config_file)
+    users = _auth_service(platform).list_users()
+    if fmt == "json":
+        click.echo(json.dumps(users, indent=2))
+        return
+    if not users:
+        click.echo("no users yet: run `vma admin create-user <name> --role admin` or open the UI for first-run setup")
+        return
+    click.echo(f"{'USERNAME':<32} {'ROLE':<9} {'AUTH':<9} {'MFA':<4} {'STATUS':<9} LAST LOGIN")
+    for user in users:
+        click.echo(
+            "{:<32} {:<9} {:<9} {:<4} {:<9} {}".format(
+                user["username"][:32], user["role"], user["auth_kind"], "yes" if user["mfa_enabled"] else "no",
+                "disabled" if user["disabled"] else "active", user["last_login_at"] or "-",
+            )
+        )
+
+
+@admin_group.command(name="set-role")
+@click.argument("username")
+@click.argument("role", type=_ROLE_CHOICE)
+@_CONFIG_OPTION
+def admin_set_role(username, role, config_file):
+    """Change USERNAME's role (the last admin cannot be demoted)."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    user = _platform_call(service.find_user, username)
+    updated = _platform_call(service.update_user, CLI_PRINCIPAL, user["id"], role=role, ctx=_CLI_AUDIT_CTX)
+    click.echo(f"{updated['username']} is now {updated['role']}")
+
+
+@cli.group(name="secrets")
+def secrets_group():
+    """Encryption keys for stored secrets (VMA_SECRET_KEY)."""
+
+
+@secrets_group.command(name="generate-key")
+def secrets_generate_key():
+    """Print a new Fernet key. Export it as VMA_SECRET_KEY (to rotate: VMA_SECRET_KEY=new,old)."""
+    from vma.secrets import SecretBox
+
+    click.echo(SecretBox.generate_key())
+
+
+@secrets_group.command(name="rotate")
+@_CONFIG_OPTION
+def secrets_rotate(config_file):
+    """Re-encrypt every stored secret with the first (primary) key in VMA_SECRET_KEY.
+
+    Set VMA_SECRET_KEY=<new>,<old>, run this, then drop the old key from the variable.
+    """
+    platform = _load_platform(config_file)
+    if not platform.secrets.available:
+        raise click.ClickException(f"{platform.secrets.env_var} is not set; nothing can be rotated")
+    total = 0
+    for label, service in (("auth", platform.auth), ("connections", platform.connections), ("deployments", platform.deployments)):
+        rotate = getattr(service, "rotate_secrets", None)
+        if not callable(rotate):
+            continue
+        count = int(_platform_call(rotate) or 0)
+        total += count
+        click.echo(f"{label}: {count} row(s) re-encrypted")
+    platform.audit.record(
+        "secrets.rotated", actor="cli", actor_kind="system",
+        details={"rows": total, "key_fingerprint": platform.secrets.fingerprint},
+    )
+    click.echo(f"rotated {total} row(s) to key {platform.secrets.fingerprint}")
+
+
+@cli.group(name="audit")
+def audit_group():
+    """Tamper-evident audit log."""
+
+
+@audit_group.command(name="verify")
+@_CONFIG_OPTION
+def audit_verify(config_file):
+    """Recompute the audit hash chain; exits non-zero when an entry was altered or removed."""
+    platform = _load_platform(config_file)
+    result = platform.audit.verify()
+    click.echo(f"{'OK' if result.ok else 'BROKEN'}: {result.entries} entries, {result.message}")
+    if not result.ok:
+        raise click.exceptions.Exit(1)
+
+
+@cli.group(name="runs")
+def runs_group():
+    """Run storage maintenance."""
+
+
+@runs_group.command(name="prune")
+@click.option(
+    "--older-than-days", "older_than_days", required=True, type=click.IntRange(min=1),
+    help="Delete runs that were not updated for this many days.",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Only report what would be deleted.")
+@_CONFIG_OPTION
+def runs_prune(older_than_days, dry_run, config_file):
+    """Delete old runs through the runtime (never running or paused ones) and audit the sweep."""
+    from vma.security.retention import sweep
+
+    platform = _load_platform(config_file)
+    result = sweep(
+        platform, _platform_runtime(platform), dry_run=dry_run, actor="cli", runs_days=older_than_days, include_audit=False
+    )
+    verb = "would delete" if dry_run else "deleted"
+    click.echo(f"{verb} {result['runs_deleted']} run(s) older than {older_than_days} day(s)")
 
 
 def main():

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vmware-migration-agent"
-version = "0.1.0"
+version = "0.3.0"
 description = "VMware discovery JSON to cloud Terraform HCL migration agent"
 readme = "AGENTS.md"
 requires-python = ">=3.12"
@@ -16,11 +16,38 @@ dependencies = [
   "anthropic>=0.34",
   "openai>=1.0",
   "google-genai>=1.0",
-  "chromadb>=0.5",
   "python-dotenv>=1.0",
   "pyyaml>=6.0",
+  "rich>=13.0",
+  # <8: python-hcl2 8.x ships a stray top-level package named `cli` that shadows ours.
+  "python-hcl2>=4.3,<8",
+  "langgraph-checkpoint-sqlite>=2.0",
+  # platform (API, security, connections, deployments)
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
+  "httpx>=0.27",
+  "cryptography>=43",
+  "argon2-cffi>=23",
+  "pyotp>=2.9",
+  "authlib>=1.3",
+  "boto3>=1.35",
+  "azure-identity>=1.19",
+  "google-auth>=2.35",
+]
+
+[project.optional-dependencies]
+dev = [
   "pytest>=8.0",
   "hypothesis>=6.0",
+  "ruff>=0.6",
+  "pip-audit>=2.7",
+]
+# kept for compatibility with earlier instructions (`pip install '.[api]'`); the API is core now
+api = []
+# the experimental rag_retriever node (not in the active graph) needs a vector store
+rag = [
+  "chromadb>=0.5",
 ]
 
 [tool.pytest.ini_options]
@@ -35,8 +62,22 @@ include = [
   "cli*",
   "providers*",
   "validation*",
+  "vma*",
+  "api*",
 ]
 namespaces = true
 
 [project.scripts]
 vma = "cli.main:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".claude", "ui", "output", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"agent/llm_client.py" = ["E731"]  # provider dispatch table of lambdas

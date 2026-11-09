@@ -1,0 +1,42 @@
+# VCS
+.git
+.gitignore
+
+# Python cache and virtual envs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local build and test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# UI: dependencies and build output are produced inside the image
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+ui/.vite/
+
+# Local outputs, logs, secrets
+output/
+app-logs.txt
+*.log
+.env
+
+# Editor/OS noise
+.vscode/
+.idea/
+.DS_Store
+
+# Agent worktrees and CI metadata
+.claude/
+.github/

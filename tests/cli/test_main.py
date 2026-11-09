@@ -271,3 +271,89 @@ def test_terragen_skip_opa_disables_only_opa(monkeypatch, tmp_path: Path) -> Non
     assert validation_cfg["run_terraform_validate"] is True
     assert validation_cfg["run_tflint"] is True
     assert validation_cfg["run_opa"] is False
+
+
+def _fake_config_for_terragen(config_path: str | Path = "config.yaml") -> dict[str, object]:
+    return {
+        "llm": {"provider": "openai", "model": "gpt-4o"},
+        "output": {"base_dir": "output"},
+        "required_tags": {},
+        "validation": {},
+        "mcp": {"enabled": True},
+    }
+
+
+def _run_terragen(monkeypatch, tmp_path: Path, graph_result: dict[str, object], extra_args: list[str]):
+    captured: dict[str, object] = {}
+
+    class _FakeGraph:
+        def invoke(self, state: dict[str, object]) -> dict[str, object]:
+            captured.update(state)
+            return graph_result
+
+    monkeypatch.setattr("agent.graph.build_graph", lambda: _FakeGraph())
+    monkeypatch.setattr("agent.config_loader.load_config", _fake_config_for_terragen)
+
+    input_path = tmp_path / "discovery.json"
+    input_path.write_text(json.dumps({"virtual_machines": []}), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "terragen",
+            "--input",
+            str(input_path),
+            "--cloud",
+            "aws",
+            "--llm-provider",
+            "openai",
+            "--environment",
+            "dev",
+            "--owner",
+            "platform",
+            *extra_args,
+        ],
+    )
+    return result, captured
+
+
+def test_terragen_exits_non_zero_when_pipeline_fails(monkeypatch, tmp_path: Path) -> None:
+    """Regression: a failed migration used to exit 0, so CI jobs went green."""
+    result, _ = _run_terragen(
+        monkeypatch,
+        tmp_path,
+        graph_result={
+            "status": "failed",
+            "validation_result": {"passed": False, "errors": ["terraform validate failed: boom"]},
+        },
+        extra_args=[],
+    )
+
+    assert result.exit_code == 1
+    assert "status: failed" in result.output
+
+
+def test_terragen_exits_zero_on_success(monkeypatch, tmp_path: Path) -> None:
+    result, _ = _run_terragen(monkeypatch, tmp_path, graph_result={"status": "succeeded"}, extra_args=[])
+
+    assert result.exit_code == 0
+    assert "status: succeeded" in result.output
+
+
+def test_terragen_no_mcp_flag_disables_mcp(monkeypatch, tmp_path: Path) -> None:
+    result, captured = _run_terragen(
+        monkeypatch, tmp_path, graph_result={"status": "succeeded"}, extra_args=["--no-mcp"]
+    )
+
+    assert result.exit_code == 0
+    assert captured["config"]["mcp"]["enabled"] is False
+
+
+def test_terragen_dry_run_sets_output_dry_run(monkeypatch, tmp_path: Path) -> None:
+    result, captured = _run_terragen(
+        monkeypatch, tmp_path, graph_result={"status": "succeeded"}, extra_args=["--dry-run"]
+    )
+
+    assert result.exit_code == 0
+    assert captured["config"]["output"]["dry_run"] is True

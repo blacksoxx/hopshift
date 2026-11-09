@@ -1,0 +1,57 @@
+# VMware Migration Agent — single-container stack (API + UI + terraform/tflint/opa).
+#
+#   cp .env.example .env               # set VMA_SECRET_KEY (vma secrets generate-key)
+#   docker compose up -d --build       # UI at http://localhost:8080 (VMA_PORT changes the host port)
+#
+# Hardened per the CIS Docker Benchmark: non-root user, read-only root filesystem, no new
+# privileges, all capabilities dropped, resource limits, health check.
+services:
+  agent:
+    build:
+      context: .
+    image: vmware-migration-agent:local
+    container_name: vmware-migration-agent
+    ports:
+      - "${VMA_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Required: encrypts stored cloud credentials and MFA secrets at rest.
+      - VMA_SECRET_KEY=${VMA_SECRET_KEY:?Set VMA_SECRET_KEY in .env (generate one with: docker compose run --rm agent python -m cli.main secrets generate-key)}
+      # Optional: OIDC client secret when security.auth.oidc.enabled is true in config.yaml.
+      - VMA_OIDC_CLIENT_SECRET=${VMA_OIDC_CLIENT_SECRET:-}
+      # Optional: model providers for review notes and llm/hybrid generation.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    volumes:
+      # Runs, platform database, checkpoints, generated Terraform and deployment state.
+      - ./output:/app/output
+      # Edit config.yaml on the host and restart the container to apply it.
+      - ./config.yaml:/app/config.yaml:ro
+      # Terraform provider cache and tool state for the non-root user.
+      - agent-home:/home/appuser
+      # Cloud CLI profiles for the profile / cli / adc / clouds_yaml connection methods (read-only):
+      # - ~/.aws:/home/appuser/.aws:ro
+      # - ~/.azure:/home/appuser/.azure:ro
+      # - ~/.config/gcloud:/home/appuser/.config/gcloud:ro
+      # - ~/.config/openstack:/home/appuser/.config/openstack:ro
+      # Only for llm/hybrid runs with mcp.enabled: true (Terraform docs via the MCP server):
+      # - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2g
+    restart: unless-stopped
+
+volumes:
+  agent-home:

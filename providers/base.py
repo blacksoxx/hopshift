@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
+from providers.common import safe_file_stem
 
 
 class ProviderModule(ABC):
@@ -44,8 +45,8 @@ class ProviderModule(ABC):
 
     @staticmethod
     def compute_file_name(compute_unit: ComputeUnit) -> str:
-        return f"{compute_unit.name}.tf"
+        return f"{safe_file_stem(compute_unit.name)}.tf"
 
     @staticmethod
     def storage_file_name(compute_unit: ComputeUnit) -> str:
-        return f"{compute_unit.name}_disks.tf"
+        return f"{safe_file_stem(compute_unit.name)}_disks.tf"

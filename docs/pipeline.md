@@ -20,8 +20,7 @@ Edges:
 
 - START -> ingest
 - ingest -> blocker_parser -> enricher -> cim_mapper -> sizer -> mcp_client -> hcl_generator -> validator
-- validator -> reporter (only when validation_result.passed == true)
-- validator -> END (when validation_result.passed == false)
+- validator -> reporter (always)
 - reporter -> END
 
 ## Node Responsibilities
@@ -33,8 +32,8 @@ Edges:
 - sizer: Applies provider sizing lookup to each ComputeUnit.
 - mcp_client: Pulls provider resource documentation snippets from Terraform MCP server and stores mcp_context.
 - hcl_generator: Uses LLM to produce HCL, then runs deterministic pre-output validation feedback loop.
-- validator: Runs final deterministic validation gate and sets pass/fail route state.
-- reporter: Writes HCL files, quarantine report, and review notes to output.
+- validator: Runs the final deterministic gate via validation.tf_runner (terraform init/validate and tflint inside the provider root, e.g. aws-migration/) plus OPA, and sets validation_result and status.
+- reporter: Always runs. Writes quarantine_report.json and review_notes.md; writes HCL files only when validation_result.passed is true; writes nothing when output.dry_run is true. Sets the final status to succeeded or failed.
 
 ## Retry Behavior
 
@@ -81,6 +80,10 @@ ValidationResult fields:
 - opa_passed
 - errors
 - warnings
+
+## Exit Status
+
+`vma terragen` exits 0 only when the final status is succeeded. On failure it prints the first validation errors to stderr and exits 1.
 
 ## Important Drift Note
 

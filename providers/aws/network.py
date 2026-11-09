@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, DistributedSwitch
+from providers.common import hcl_string
 
 
 def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
@@ -12,8 +13,8 @@ def render_networking(cim: CanonicalInfrastructureModel) -> dict[str, str]:
         switches = [DistributedSwitch(name="default-dvs", port_groups=[])]
 
     vpc_hcl = _render_vpc_file(cim, switches)
-    subnets_hcl = _render_subnets_file(switches)
-    security_groups_hcl = _render_security_groups_file(switches)
+    subnets_hcl = _render_subnets_file(cim, switches)
+    security_groups_hcl = _render_security_groups_file(cim, switches)
 
     return {
         "aws-migration/networking/vpc.tf": vpc_hcl,
@@ -35,19 +36,39 @@ def _render_vpc_file(cim: CanonicalInfrastructureModel, switches: list[Distribut
         lines.append('  enable_dns_hostnames = true')
         lines.append('')
         lines.append('  tags = {')
-        lines.append(f'    Name = "{switch.name}"')
-        lines.append('    Environment = "${var.environment}"')
-        lines.append('    Owner = "${var.owner}"')
-        lines.append('    MigratedFrom = "vmware-vcenter"')
-        lines.append(f'    SourceVCenter = "{cim.source_vcenter}"')
+        lines.append(f'    Name = {hcl_string(switch.name)}')
+        lines.append('    Environment = var.environment')
+        lines.append('    Owner = var.owner')
+        lines.append(f'    MigratedFrom = {hcl_string(cim.migrated_from)}')
+        lines.append(f'    SourceVCenter = {hcl_string(cim.source_vcenter)}')
         lines.append('  }')
         lines.append('}')
         lines.append('')
+        lines.extend(_render_default_security_group(cim, switch.name, vpc_name))
 
     return "\n".join(lines).strip() + "\n"
 
 
-def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
+def _render_default_security_group(cim: CanonicalInfrastructureModel, switch_name: str, vpc_name: str) -> list[str]:
+    """CIS AWS 5.4: take over the VPC's implicit default security group and leave it without rules."""
+    return [
+        f'resource "aws_default_security_group" "{vpc_name}" {{',
+        '  # Adopts the default security group of the VPC; no ingress/egress blocks means every rule is removed.',
+        f'  vpc_id = aws_vpc.{vpc_name}.id',
+        '',
+        '  tags = {',
+        f'    Name = {hcl_string(f"{switch_name}-default-sg")}',
+        '    Environment = var.environment',
+        '    Owner = var.owner',
+        f'    MigratedFrom = {hcl_string(cim.migrated_from)}',
+        f'    SourceVCenter = {hcl_string(cim.source_vcenter)}',
+        '  }',
+        '}',
+        '',
+    ]
+
+
+def _render_subnets_file(cim: CanonicalInfrastructureModel, switches: list[DistributedSwitch]) -> str:
     lines: list[str] = []
 
     has_any_subnet = False
@@ -68,11 +89,11 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append(f'  cidr_block = "{cidr}"')
             lines.append('')
             lines.append('  tags = {')
-            lines.append(f'    Name = "{port_group.name}"')
-            lines.append(f'    VlanId = "{port_group.vlan_id}"')
-            lines.append('    Environment = "${var.environment}"')
-            lines.append('    Owner = "${var.owner}"')
-            lines.append('    MigratedFrom = "vmware-vcenter"')
+            lines.append(f'    Name = {hcl_string(port_group.name)}')
+            lines.append(f'    VlanId = {hcl_string(port_group.vlan_id)}')
+            lines.append('    Environment = var.environment')
+            lines.append('    Owner = var.owner')
+            lines.append(f'    MigratedFrom = {hcl_string(cim.migrated_from)}')
             lines.append('  }')
             lines.append('}')
             lines.append('')
@@ -86,9 +107,9 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
         lines.append('  tags = {')
         lines.append('    Name = "default"')
         lines.append('    VlanId = ""')
-        lines.append('    Environment = "${var.environment}"')
-        lines.append('    Owner = "${var.owner}"')
-        lines.append('    MigratedFrom = "vmware-vcenter"')
+        lines.append('    Environment = var.environment')
+        lines.append('    Owner = var.owner')
+        lines.append(f'    MigratedFrom = {hcl_string(cim.migrated_from)}')
         lines.append('  }')
         lines.append('}')
         lines.append('')
@@ -96,7 +117,7 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def _render_security_groups_file(switches: list[DistributedSwitch]) -> str:
+def _render_security_groups_file(cim: CanonicalInfrastructureModel, switches: list[DistributedSwitch]) -> str:
     default_vpc_ref = _terraform_identifier(switches[0].name)
     lines = [
         'resource "aws_security_group" "compute_unit" {',
@@ -121,9 +142,9 @@ def _render_security_groups_file(switches: list[DistributedSwitch]) -> str:
         '',
         '  tags = {',
         '    Name = "compute-unit-sg"',
-        '    Environment = "${var.environment}"',
-        '    Owner = "${var.owner}"',
-        '    MigratedFrom = "vmware-vcenter"',
+        '    Environment = var.environment',
+        '    Owner = var.owner',
+        f'    MigratedFrom = {hcl_string(cim.migrated_from)}',
         '  }',
         '}',
         '',

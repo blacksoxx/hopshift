@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import atexit
-from collections import deque
 import json
 import os
 import subprocess
 import threading
 import time
+from collections import deque
 from typing import Any, cast
 
 from loguru import logger
@@ -343,9 +343,27 @@ def mcp_client(state: MigrationState) -> MigrationState:
     if not isinstance(config, dict):
         raise MCPRetrievalError("mcp_client: state.config must be a mapping")
 
+    generation_mode = _get_str(_get_mapping(config, "generation"), "mode", "deterministic").lower()
+    if generation_mode == "deterministic":
+        messages = list(next_state.get("messages", []))
+        messages.append("mcp_client: skipped; deterministic generation does not use documentation context")
+        next_state["mcp_context"] = ""
+        next_state["messages"] = messages
+        next_state["status"] = "running"
+
+        logger.info("mcp_client: skipped; deterministic generation does not use documentation context")
+        return next_state
+
     mcp_cfg = _get_mapping(config, "mcp")
     if not _get_bool(mcp_cfg, "enabled", True):
-        raise MCPRetrievalError("mcp_client: mcp.enabled must be true")
+        messages = list(next_state.get("messages", []))
+        messages.append("mcp_client: disabled by config; skipping retrieval")
+        next_state["mcp_context"] = ""
+        next_state["messages"] = messages
+        next_state["status"] = "running"
+
+        logger.info("mcp_client: disabled by config; skipping retrieval")
+        return next_state
 
     cim_doc = next_state.get("sized_cim") or next_state.get("cim")
     if cim_doc is None:
@@ -732,6 +750,13 @@ def _get_mapping(source: dict[str, JSONValue], key: str) -> dict[str, JSONValue]
     if isinstance(value, dict):
         return cast(dict[str, JSONValue], value)
     return {}
+
+
+def _get_str(source: dict[str, JSONValue], key: str, default: str) -> str:
+    value = source.get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return default
 
 
 def _get_int(source: dict[str, JSONValue], key: str, default: int) -> int:

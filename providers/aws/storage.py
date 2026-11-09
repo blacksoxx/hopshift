@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_storage(
@@ -10,11 +11,11 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render AWS storage HCL files for ComputeUnit StorageVolume resources."""
-    tags = _build_required_tags(cim.source_vcenter, required_tags)
+    tags = _build_required_tags(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"aws-migration/storage/{compute_unit.name}_disks.tf"
+        path = f"aws-migration/storage/{safe_file_stem(compute_unit.name)}_disks.tf"
         output[path] = _render_compute_unit_storage(compute_unit, tags)
 
     return output
@@ -67,11 +68,11 @@ def _render_ebs_volume(
 
     lines.append('')
     lines.append('  tags = {')
-    lines.append(f'    Name = "{compute_unit.name}-{volume_ref}"')
-    lines.append(f'    Datastore = "{(volume.datastore or "").strip()}"')
+    lines.append(f'    Name = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
+    lines.append(f'    Datastore = {hcl_string((volume.datastore or "").strip())}')
     lines.append('    StorageEncrypted = "true"')
     for key, value in tags.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -104,12 +105,12 @@ def _volume_ref(compute_unit: ComputeUnit, volume: StorageVolume, index: int) ->
     return _terraform_identifier(joined)
 
 
-def _build_required_tags(source_vcenter: str, required_tags: dict[str, str] | None) -> dict[str, str]:
+def _build_required_tags(cim: CanonicalInfrastructureModel, required_tags: dict[str, str] | None) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "Environment": "var.environment",
+        "Owner": "var.owner",
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

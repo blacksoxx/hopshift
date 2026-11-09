@@ -1,76 +1,90 @@
+# Every taggable resource must carry Environment, Owner and MigratedFrom (lowercase for GCP labels).
 package vmwaremigration
 
-# Enforce required metadata tags/labels across providers.
-# Minimum required: Environment, Owner, MigratedFrom.
+import rego.v1
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  requires_metadata_block(content)
-  not contains(content, "Environment")
-  not contains(content, "environment")
-  not has_inherited_required_metadata(content)
-  msg := sprintf("tags_required: Environment tag/label missing in %s", [file_path])
+# resource type -> attribute holding the metadata map
+tag_attribute := {
+	"aws_instance": "tags",
+	"aws_vpc": "tags",
+	"aws_subnet": "tags",
+	"aws_security_group": "tags",
+	"aws_ebs_volume": "tags",
+	"aws_placement_group": "tags",
+	"aws_s3_bucket": "tags",
+	"aws_internet_gateway": "tags",
+	"aws_nat_gateway": "tags",
+	"aws_route_table": "tags",
+	"aws_eip": "tags",
+	"azurerm_virtual_network": "tags",
+	"azurerm_network_interface": "tags",
+	"azurerm_linux_virtual_machine": "tags",
+	"azurerm_windows_virtual_machine": "tags",
+	"azurerm_managed_disk": "tags",
+	"azurerm_network_security_group": "tags",
+	"azurerm_availability_set": "tags",
+	"azurerm_proximity_placement_group": "tags",
+	"azurerm_public_ip": "tags",
+	"azurerm_storage_account": "tags",
+	"google_compute_instance": "labels",
+	"google_compute_disk": "labels",
+	"openstack_compute_instance_v2": "metadata",
+	"openstack_blockstorage_volume_v3": "metadata",
 }
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  requires_metadata_block(content)
-  not contains(content, "Owner")
-  not contains(content, "owner")
-  not has_inherited_required_metadata(content)
-  msg := sprintf("tags_required: Owner tag/label missing in %s", [file_path])
+required_keys := {
+	"tags": {"Environment", "Owner", "MigratedFrom"},
+	"labels": {"environment", "owner", "migrated_from"},
+	"metadata": {"Environment", "Owner", "MigratedFrom"},
 }
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  requires_metadata_block(content)
-  not contains(content, "MigratedFrom")
-  not contains(content, "migrated_from")
-  not has_inherited_required_metadata(content)
-  msg := sprintf("tags_required: MigratedFrom tag/label missing in %s", [file_path])
+# Metadata built from a shared map (merge(var.common_tags, ...), local.tags) cannot be checked
+# statically; accept it when it references a variables/locals map, deny anything else.
+acceptable_expression(value) if {
+	is_string(value)
+	startswith(value, "${")
+	some marker in {"common_tags", "common_labels", "var.", "local."}
+	contains(value, marker)
 }
 
-requires_metadata_block(content) {
-  contains(content, "tags = {")
+deny contains msg if {
+	some r in input.resources
+	attr := tag_attribute[r.type]
+	not r.config[attr]
+	msg := sprintf("tags_required: %s has no %s (%s)", [r.address, attr, r.file])
 }
 
-requires_metadata_block(content) {
-  contains(content, "labels = {")
+deny contains msg if {
+	some r in input.resources
+	attr := tag_attribute[r.type]
+	value := r.config[attr]
+	is_object(value)
+	some key in required_keys[attr]
+	not value[key]
+	msg := sprintf("tags_required: %s %s missing %s (%s)", [r.address, attr, key, r.file])
 }
 
-requires_metadata_block(content) {
-  contains(content, "metadata = {")
+deny contains msg if {
+	some r in input.resources
+	attr := tag_attribute[r.type]
+	value := r.config[attr]
+	is_string(value)
+	not acceptable_expression(value)
+	msg := sprintf("tags_required: %s %s must be a map with the required keys (%s)", [r.address, attr, r.file])
 }
 
-# Accept inherited provider-agnostic metadata maps frequently used in root/module wiring,
-# where required keys are defined in shared locals/variables rather than inline per block.
-has_inherited_required_metadata(content) {
-  contains(content, "common_tags")
+# OpenStack networks carry a list of "Key=Value" tags.
+deny contains msg if {
+	some r in input.resources
+	r.type == "openstack_networking_network_v2"
+	tags := object.get(r.config, "tags", [])
+	some key in {"Environment", "Owner", "MigratedFrom"}
+	not some_tag_with_prefix(tags, sprintf("%s=", [key]))
+	msg := sprintf("tags_required: %s tags list missing %s= (%s)", [r.address, key, r.file])
 }
 
-has_inherited_required_metadata(content) {
-  contains(content, "common_labels")
-}
-
-has_inherited_required_metadata(content) {
-  contains(content, "var.labels")
-}
-
-has_inherited_required_metadata(content) {
-  contains(content, "local.labels")
-}
-
-has_inherited_required_metadata(content) {
-  contains(content, "labels = merge(")
-}
-
-has_inherited_required_metadata(content) {
-  contains(content, "tags = merge(")
-}
-
-has_inherited_required_metadata(content) {
-  contains(content, "metadata = merge(")
+some_tag_with_prefix(tags, prefix) if {
+	some tag in tags
+	is_string(tag)
+	startswith(tag, prefix)
 }

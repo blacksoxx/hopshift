@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
+from providers.common import is_bare_expression, safe_file_stem
 
 
 def render_storage(
@@ -10,11 +11,11 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render GCP storage HCL files for ComputeUnit StorageVolume resources."""
-    labels = _build_required_labels(cim.source_vcenter, required_tags)
+    labels = _build_required_labels(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"gcp-migration/storage/{compute_unit.name}_disks.tf"
+        path = f"gcp-migration/storage/{safe_file_stem(compute_unit.name)}_disks.tf"
         output[path] = _render_compute_unit_storage(compute_unit, labels)
 
     return output
@@ -62,9 +63,13 @@ def _render_persistent_disk(
     lines.append('  type    = "pd-balanced"')
     lines.append('')
 
-    # Enforce encryption-at-rest for all generated GCP disks.
-    lines.append('  disk_encryption_key {')
-    lines.append('    kms_key_self_link = var.default_kms_key_self_link')
+    # Persistent disks are always encrypted at rest with Google-managed keys; a customer-managed
+    # KMS key is attached only when var.default_kms_key_self_link is set.
+    lines.append('  dynamic "disk_encryption_key" {')
+    lines.append('    for_each = var.default_kms_key_self_link == "" ? [] : [1]')
+    lines.append('    content {')
+    lines.append('      kms_key_self_link = var.default_kms_key_self_link')
+    lines.append('    }')
     lines.append('  }')
 
     if volume.is_shared:
@@ -81,7 +86,7 @@ def _render_persistent_disk(
     lines.append(f'    datastore = "{_label_value((volume.datastore or ""))}"')
     lines.append('    storage_encrypted = "true"')
     for key, value in labels.items():
-        lines.append(f'    {key} = "{_label_value(value)}"')
+        lines.append(f'    {key} = {_label_expression(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -106,14 +111,14 @@ def _disk_name(value: str) -> str:
 
 
 def _build_required_labels(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
-        "environment": "${var.environment}",
-        "owner": "${var.owner}",
-        "migrated_from": "vmware-vcenter",
-        "source_vcenter": source_vcenter,
+        "environment": "var.environment",
+        "owner": "var.owner",
+        "migrated_from": cim.migrated_from,
+        "source_vcenter": cim.source_vcenter,
     }
 
     if not required_tags:
@@ -138,6 +143,13 @@ def _terraform_identifier(value: str) -> str:
     return normalized.lower()
 
 
+def _label_expression(value: str) -> str:
+    """Bare var./local. references stay bare; literals become valid GCP label values."""
+    if is_bare_expression(value):
+        return str(value).strip()
+    return f'"{_label_value(value)}"'
+
+
 def _label_key(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9_-]", "_", value.strip().lower())
     normalized = re.sub(r"_+", "_", normalized).strip("_")
@@ -151,7 +163,8 @@ def _label_key(value: str) -> str:
 
 
 def _label_value(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9_-]", "_", str(value).strip())
+    # GCP label values: lowercase letters, digits, underscore, dash; max 63 chars.
+    normalized = re.sub(r"[^a-z0-9_-]", "_", str(value).strip().lower())
     if len(normalized) > 63:
         return normalized[:63]
     return normalized

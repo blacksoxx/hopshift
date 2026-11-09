@@ -1,0 +1,217 @@
+{
+  "metadata": {
+    "failed_enrichments": 0,
+    "failed_vcenters": [],
+    "generated_at": "2026-09-18 10:00:00",
+    "schema_name": "vmware-discovery-stage1",
+    "schema_version": "1.0.0",
+    "total_vms": 4,
+    "vcenters_queried": ["vcenter-lab.example.internal"]
+  },
+  "virtual_machines": [
+    {
+      "discovery_key": "vcenter-lab::moid::vm-101",
+      "moid": "vm-101",
+      "uuid": "42000001-0000-0000-0000-000000000101",
+      "vm_name": "web-01",
+      "guest_os": "Ubuntu Linux (64-bit)",
+      "power_state": "poweredOn",
+      "is_template": false,
+      "firmware": "efi",
+      "vcpus": 2,
+      "ram_mb": 8192,
+      "cluster": "prod-cluster",
+      "datacenter": "lab-dc",
+      "source_vcenter": "vcenter-lab.example.internal",
+      "is_encrypted": false,
+      "has_vtpm": false,
+      "has_rdm_disks": false,
+      "has_shared_disks": false,
+      "vapp_config_present": false,
+      "snapshot_count": 0,
+      "migration_blocked": false,
+      "migration_blockers": [],
+      "disks": [
+        {
+          "label": "Hard disk 1",
+          "filename": "[vsan-ds] web-01/web-01.vmdk",
+          "backing_type": "FlatVer2",
+          "datastore": "vsan-ds",
+          "size_gb": 40.0,
+          "thin_provisioned": true,
+          "sharing": "sharingNone",
+          "multi_writer": false,
+          "unit_number": 0
+        }
+      ],
+      "networks": [
+        {
+          "label": "Network adapter 1",
+          "network_name": "pg-web",
+          "distributed_switch": "dvs-prod",
+          "vlan_id": "110",
+          "mac_address": "00:50:56:aa:00:01",
+          "connected": true
+        }
+      ]
+    },
+    {
+      "discovery_key": "vcenter-lab::moid::vm-102",
+      "moid": "vm-102",
+      "uuid": "42000001-0000-0000-0000-000000000102",
+      "vm_name": "db-01",
+      "guest_os": "Red Hat Enterprise Linux 9 (64-bit)",
+      "power_state": "poweredOn",
+      "is_template": false,
+      "firmware": "bios",
+      "vcpus": 4,
+      "ram_mb": 16384,
+      "cluster": "prod-cluster",
+      "datacenter": "lab-dc",
+      "source_vcenter": "vcenter-lab.example.internal",
+      "is_encrypted": false,
+      "has_vtpm": true,
+      "has_rdm_disks": false,
+      "has_shared_disks": false,
+      "vapp_config_present": false,
+      "snapshot_count": 1,
+      "migration_blocked": false,
+      "migration_blockers": [],
+      "disks": [
+        {
+          "label": "Hard disk 1",
+          "filename": "[vsan-ds] db-01/db-01.vmdk",
+          "backing_type": "FlatVer2",
+          "datastore": "vsan-ds",
+          "size_gb": 60.0,
+          "thin_provisioned": false,
+          "sharing": "sharingNone",
+          "multi_writer": false,
+          "unit_number": 0
+        },
+        {
+          "label": "Hard disk 2",
+          "filename": "[vsan-ds] db-01/db-01_1.vmdk",
+          "backing_type": "FlatVer2",
+          "datastore": "vsan-ds",
+          "size_gb": 500.0,
+          "thin_provisioned": false,
+          "sharing": "sharingNone",
+          "multi_writer": false,
+          "unit_number": 1
+        }
+      ],
+      "networks": [
+        {
+          "label": "Network adapter 1",
+          "network_name": "pg-db",
+          "distributed_switch": "dvs-prod",
+          "vlan_id": "120",
+          "mac_address": "00:50:56:aa:00:02",
+          "connected": true
+        }
+      ]
+    },
+    {
+      "discovery_key": "vcenter-lab::moid::vm-103",
+      "moid": "vm-103",
+      "uuid": "42000001-0000-0000-0000-000000000103",
+      "vm_name": "Legacy App Server (RDM)",
+      "guest_os": "Microsoft Windows Server 2012 (64-bit)",
+      "power_state": "poweredOn",
+      "is_template": false,
+      "firmware": "bios",
+      "vcpus": 8,
+      "ram_mb": 32768,
+      "cluster": "prod-cluster",
+      "datacenter": "lab-dc",
+      "source_vcenter": "vcenter-lab.example.internal",
+      "is_encrypted": false,
+      "has_vtpm": false,
+      "has_rdm_disks": true,
+      "has_shared_disks": false,
+      "vapp_config_present": false,
+      "snapshot_count": 0,
+      "migration_blocked": true,
+      "migration_blockers": ["rdm_disk_present"],
+      "disks": [
+        {
+          "label": "Hard disk 1",
+          "filename": "[vsan-ds] legacy/legacy.vmdk",
+          "backing_type": "FlatVer2",
+          "datastore": "vsan-ds",
+          "size_gb": 80.0,
+          "thin_provisioned": false,
+          "sharing": "sharingNone",
+          "multi_writer": false,
+          "unit_number": 0
+        },
+        {
+          "label": "Hard disk 2",
+          "filename": "[vsan-ds] legacy/legacy_rdm.vmdk",
+          "backing_type": "RawDiskMappingVer1",
+          "datastore": "vsan-ds",
+          "size_gb": 2048.0,
+          "thin_provisioned": false,
+          "sharing": "sharingNone",
+          "multi_writer": false,
+          "unit_number": 1
+        }
+      ],
+      "networks": [
+        {
+          "label": "Network adapter 1",
+          "network_name": "pg-web",
+          "distributed_switch": "dvs-prod",
+          "vlan_id": "110",
+          "mac_address": "00:50:56:aa:00:03",
+          "connected": true
+        }
+      ]
+    },
+    {
+      "discovery_key": "vcenter-lab::moid::vm-104",
+      "moid": "vm-104",
+      "uuid": "42000001-0000-0000-0000-000000000104",
+      "vm_name": "mgmt-jump",
+      "guest_os": "Debian GNU/Linux 12 (64-bit)",
+      "power_state": "poweredOn",
+      "is_template": false,
+      "firmware": "efi",
+      "vcpus": 1,
+      "ram_mb": 2048,
+      "cluster": null,
+      "datacenter": "lab-dc",
+      "source_vcenter": "vcenter-lab.example.internal",
+      "is_encrypted": false,
+      "has_vtpm": false,
+      "has_rdm_disks": false,
+      "has_shared_disks": false,
+      "vapp_config_present": false,
+      "snapshot_count": 0,
+      "migration_blocked": false,
+      "migration_blockers": [],
+      "disks": [
+        {
+          "label": "Hard disk 1",
+          "filename": "[local-ds] mgmt-jump/mgmt-jump.vmdk",
+          "backing_type": "FlatVer2",
+          "datastore": "local-ds",
+          "size_gb": 20.0,
+          "thin_provisioned": true,
+          "unit_number": 0
+        }
+      ],
+      "networks": [
+        {
+          "label": "Network adapter 1",
+          "network_name": "pg-mgmt",
+          "distributed_switch": "dvs-mgmt",
+          "vlan_id": "10",
+          "mac_address": "00:50:56:aa:00:04",
+          "connected": true
+        }
+      ]
+    }
+  ]
+}

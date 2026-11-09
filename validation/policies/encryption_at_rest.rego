@@ -1,29 +1,47 @@
+# Enforce encryption at rest per storage resource on parsed HCL.
 package vmwaremigration
 
-# Enforce encryption-at-rest guardrails for generated storage resources
-# across all supported providers.
+import rego.v1
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  contains(content, "resource \"aws_ebs_volume\"")
-  not contains(content, "encrypted         = true")
-  not contains(content, "encrypted = true")
-  msg := sprintf("encryption_at_rest: aws_ebs_volume must set encrypted=true in %s", [file_path])
+# ── AWS ───────────────────────────────────────────────────────────────────────
+
+deny contains msg if {
+	some r in input.resources
+	r.type == "aws_ebs_volume"
+	object.get(r.config, "encrypted", false) != true
+	msg := sprintf("encryption_at_rest: %s must set encrypted = true (%s)", [r.address, r.file])
 }
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  contains(content, "resource \"azurerm_managed_disk\"")
-  contains(content, "encryption_settings_enabled = false")
-  msg := sprintf("encryption_at_rest: azurerm_managed_disk must not disable encryption in %s", [file_path])
+deny contains msg if {
+	some r in input.resources
+	r.type == "aws_instance"
+	count(object.get(r.config, "root_block_device", [])) == 0
+	msg := sprintf("encryption_at_rest: %s must declare root_block_device { encrypted = true } (%s)", [r.address, r.file])
 }
 
-deny[msg] {
-  some file_path
-  content := input.generated_files[file_path]
-  contains(content, "resource \"openstack_blockstorage_volume_v3\"")
-  not contains(content, "volume_type = var.encrypted_volume_type")
-  msg := sprintf("encryption_at_rest: openstack_blockstorage_volume_v3 must use encrypted volume type in %s", [file_path])
+deny contains msg if {
+	some r in input.resources
+	r.type == "aws_instance"
+	some block_name in {"root_block_device", "ebs_block_device"}
+	some device in object.get(r.config, block_name, [])
+	object.get(device, "encrypted", false) != true
+	msg := sprintf("encryption_at_rest: %s %s must set encrypted = true (%s)", [r.address, block_name, r.file])
+}
+
+# ── Azure ─────────────────────────────────────────────────────────────────────
+
+deny contains msg if {
+	some r in input.resources
+	r.type == "azurerm_managed_disk"
+	object.get(r.config, "encryption_settings_enabled", true) == false
+	msg := sprintf("encryption_at_rest: %s disables encryption (%s)", [r.address, r.file])
+}
+
+# ── OpenStack ─────────────────────────────────────────────────────────────────
+
+deny contains msg if {
+	some r in input.resources
+	r.type == "openstack_blockstorage_volume_v3"
+	object.get(r.config, "volume_type", "") == ""
+	msg := sprintf("encryption_at_rest: %s must use an encrypted volume_type (%s)", [r.address, r.file])
 }

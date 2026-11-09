@@ -1,18 +1,23 @@
 from __future__ import annotations
 
-import subprocess
-import tempfile
 from pathlib import Path
 from typing import cast
 
 from loguru import logger
 
 from agent.state import MigrationState, QuarantineItem
-from validation.opa_client import evaluate_policies
+from validation.opa_client import evaluate_policies, resolve_policies_dir
+from validation.tf_runner import validate_hcl
+from vma.compliance.report import build_report
 
 
 def validator(state: MigrationState) -> MigrationState:
-    """Validate generated HCL as a deterministic final gate."""
+    """Validate generated HCL as a deterministic final gate.
+
+    Terraform init/validate and tflint are delegated to validation.tf_runner, which runs
+    them inside the provider root directory (e.g. aws-migration/). Running them in the
+    workspace root would validate an empty module and pass trivially.
+    """
     next_state = cast(MigrationState, dict(state))
 
     hcl_output = next_state.get("hcl_output", {})
@@ -30,6 +35,9 @@ def validator(state: MigrationState) -> MigrationState:
                 "errors": [],
                 "warnings": [warning_msg],
             }
+            next_state["compliance_result"] = build_report(
+                _detect_cloud(hcl_output, next_state), [], [], next_state["validation_result"]
+            )
             next_state["messages"] = messages
             next_state["status"] = "running"
 
@@ -48,6 +56,9 @@ def validator(state: MigrationState) -> MigrationState:
             "errors": [error_msg],
             "warnings": [],
         }
+        next_state["compliance_result"] = build_report(
+            _detect_cloud(hcl_output, next_state), [], [], next_state["validation_result"]
+        )
         next_state["messages"] = messages
         next_state["status"] = "failed"
 
@@ -63,40 +74,63 @@ def validator(state: MigrationState) -> MigrationState:
     run_tflint = _get_bool(validation_cfg, "run_tflint", True)
     run_opa = _get_bool(validation_cfg, "run_opa", True)
 
+    if run_tflint and _is_openstack_hcl_output(hcl_output):
+        if not _get_bool(validation_cfg, "run_tflint_openstack", False):
+            logger.info(
+                "validator: skipping tflint for openstack output (set validation.run_tflint_openstack=true to enable)"
+            )
+            run_tflint = False
+
     terraform_bin = _get_str(validation_cfg, "terraform_bin", "terraform")
     tflint_bin = _get_str(validation_cfg, "tflint_bin", "tflint")
     opa_bin = _get_str(validation_cfg, "opa_bin", "opa")
     opa_mode = _get_str(validation_cfg, "opa_mode", "binary")
     opa_server_url = _get_str(validation_cfg, "opa_server_url", "")
-    policies_dir = Path(_get_str(validation_cfg, "policies_dir", "validation/policies")).resolve()
+    policies_dir = resolve_policies_dir(_get_str(validation_cfg, "policies_dir", "validation/policies"))
 
-    with tempfile.TemporaryDirectory(prefix="vmware-migration-agent-validate-") as temp_dir:
-        workdir = Path(temp_dir)
-        _write_hcl_workspace(workdir, hcl_output)
+    tf_errors: list[str] = []
+    tf_warnings: list[str] = []
 
-        tf_validate_passed, tf_errors, tf_warnings = _run_terraform_validate(
-            workdir=workdir,
-            terraform_bin=terraform_bin,
-            enabled=run_tf_validate,
-        )
-
-        tflint_passed, tflint_errors, tflint_warnings = _run_tflint(
-            workdir=workdir,
-            tflint_bin=tflint_bin,
-            enabled=run_tflint,
-        )
-
-        opa_passed, opa_errors, opa_warnings = _run_opa_validation(
+    if run_tf_validate or run_tflint:
+        tf_result = validate_hcl(
             hcl_output=hcl_output,
-            opa_mode=opa_mode,
-            opa_bin=opa_bin,
-            opa_server_url=opa_server_url,
-            policies_dir=policies_dir,
-            enabled=run_opa,
+            terraform_bin=terraform_bin,
+            tflint_bin=tflint_bin,
+            run_tflint=run_tflint,
+            run_terraform_validate=run_tf_validate,
+            plugin_cache_dir=_get_str(validation_cfg, "terraform_plugin_cache_dir", "") or None,
         )
+        tf_validate_passed = tf_result.terraform_validate_passed
+        tflint_passed = tf_result.tflint_passed
+        tf_errors = list(tf_result.errors)
+        tf_warnings = list(tf_result.warnings)
+    else:
+        tf_validate_passed = True
+        tflint_passed = True
+        tf_warnings.append("validator: terraform validate skipped by config")
 
-    errors = [*tf_errors, *tflint_errors, *opa_errors]
-    warnings = [*tf_warnings, *tflint_warnings, *opa_warnings]
+    if not run_tflint:
+        tf_warnings.append("validator: tflint skipped by config")
+
+    opa_outcome = _run_opa_validation(
+        hcl_output=hcl_output,
+        opa_mode=opa_mode,
+        opa_bin=opa_bin,
+        opa_server_url=opa_server_url,
+        policies_dir=policies_dir,
+        enabled=run_opa,
+    )
+    opa_passed, opa_errors, opa_warnings = opa_outcome.passed, opa_outcome.errors, opa_outcome.warnings
+
+    errors = [*tf_errors, *opa_errors]
+    warnings = [*tf_warnings, *opa_warnings]
+
+    # Enforce-level compliance violations are already deny messages (opa_passed covers them);
+    # the report adds the per-control view, including advisory findings that do not fail the gate.
+    if not run_opa:
+        warnings.append("validator: compliance controls not evaluated because OPA validation is disabled")
+    elif not opa_outcome.evaluated:
+        warnings.append("validator: compliance controls not evaluated (OPA evaluation failed or no supported cloud detected)")
 
     passed = tf_validate_passed and tflint_passed and opa_passed
 
@@ -110,6 +144,15 @@ def validator(state: MigrationState) -> MigrationState:
     }
     next_state["validation_result"] = validation_result
 
+    compliance_result = build_report(
+        cloud=_detect_cloud(hcl_output, next_state),
+        violations=opa_outcome.violations,
+        evaluated=opa_outcome.evaluated,
+        validation_result=validation_result,
+    )
+    next_state["compliance_result"] = compliance_result
+    compliance_summary = compliance_result.get("summary", {})
+
     messages = list(next_state.get("messages", []))
     messages.append(
         "validator: passed={} terraform_validate_passed={} tflint_passed={} opa_passed={}".format(
@@ -117,6 +160,15 @@ def validator(state: MigrationState) -> MigrationState:
             tf_validate_passed,
             tflint_passed,
             opa_passed,
+        )
+    )
+    messages.append(
+        "validator: compliance controls={} passed={} failed={} advisory={} not_applicable={}".format(
+            compliance_summary.get("controls", 0),
+            compliance_summary.get("passed", 0),
+            compliance_summary.get("failed", 0),
+            compliance_summary.get("advisory", 0),
+            compliance_summary.get("not_applicable", 0),
         )
     )
 
@@ -151,57 +203,54 @@ def _is_empty_workload(state: MigrationState) -> bool:
     )
 
 
-def _write_hcl_workspace(workdir: Path, hcl_output: dict[str, str]) -> None:
-    for raw_path, content in hcl_output.items():
-        relative_path = Path(str(raw_path).replace("\\", "/"))
-        destination = workdir / relative_path
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(content, encoding="utf-8")
+def _is_openstack_hcl_output(hcl_output: dict[str, str]) -> bool:
+    return any(str(path).replace("\\", "/").startswith("openstack-migration/") for path in hcl_output)
 
 
-def _run_terraform_validate(
-    workdir: Path,
-    terraform_bin: str,
-    enabled: bool,
-) -> tuple[bool, list[str], list[str]]:
-    if not enabled:
-        return True, [], ["validator: terraform validate skipped by config"]
-
-    errors: list[str] = []
-    warnings: list[str] = []
-
-    init_rc, init_out = _run_command(
-        [terraform_bin, "init", "-backend=false", "-input=false", "-no-color"],
-        cwd=workdir,
-    )
-    if init_rc != 0:
-        errors.append(f"terraform init failed: {init_out}")
-        return False, errors, warnings
-
-    validate_rc, validate_out = _run_command(
-        [terraform_bin, "validate", "-no-color"],
-        cwd=workdir,
-    )
-    if validate_rc != 0:
-        errors.append(f"terraform validate failed: {validate_out}")
-        return False, errors, warnings
-
-    return True, errors, warnings
+_CLOUD_ROOTS = {
+    "aws-migration/": "aws",
+    "azure-migration/": "azure",
+    "gcp-migration/": "gcp",
+    "openstack-migration/": "openstack",
+}
 
 
-def _run_tflint(
-    workdir: Path,
-    tflint_bin: str,
-    enabled: bool,
-) -> tuple[bool, list[str], list[str]]:
-    if not enabled:
-        return True, [], ["validator: tflint skipped by config"]
+def _detect_cloud(hcl_output: object, state: MigrationState) -> str:
+    """Target cloud for the compliance report: the provider root of the output, else target_provider."""
+    if isinstance(hcl_output, dict):
+        for path in hcl_output:
+            normalized = str(path).replace("\\", "/").lstrip("/")
+            for root, cloud in _CLOUD_ROOTS.items():
+                if normalized.startswith(root):
+                    return cloud
 
-    rc, output = _run_command([tflint_bin, "--no-color"], cwd=workdir)
-    if rc != 0:
-        return False, [f"tflint failed: {output}"], []
+    target = state.get("target_provider")
+    if target is None:
+        cim = state.get("sized_cim") or state.get("cim")
+        target = getattr(cim, "target_provider", None)
+    if target is None:
+        config = state.get("config", {})
+        target = config.get("target_cloud") if isinstance(config, dict) else None
+    value = getattr(target, "value", target)
+    return str(value).strip().lower() if value else ""
 
-    return True, [], []
+
+class _OPAOutcome:
+    """OPA gate outcome plus the compliance data the report needs."""
+
+    def __init__(
+        self,
+        passed: bool,
+        errors: list[str],
+        warnings: list[str],
+        violations: list[dict[str, object]] | None = None,
+        evaluated: list[str] | None = None,
+    ) -> None:
+        self.passed = passed
+        self.errors = errors
+        self.warnings = warnings
+        self.violations = violations or []
+        self.evaluated = evaluated or []
 
 
 def _run_opa_validation(
@@ -211,12 +260,12 @@ def _run_opa_validation(
     opa_server_url: str,
     policies_dir: Path,
     enabled: bool,
-) -> tuple[bool, list[str], list[str]]:
+) -> _OPAOutcome:
     if not enabled:
-        return True, [], ["validator: OPA validation skipped by config"]
+        return _OPAOutcome(True, [], ["validator: OPA validation skipped by config"])
 
     if not policies_dir.exists():
-        return False, [f"OPA policies directory not found: {policies_dir}"], []
+        return _OPAOutcome(False, [f"OPA policies directory not found: {policies_dir}"], [])
 
     result = evaluate_policies(
         hcl_output=hcl_output,
@@ -226,26 +275,13 @@ def _run_opa_validation(
         opa_server_url=opa_server_url,
     )
 
-    return result.passed, list(result.errors), list(result.warnings)
-
-
-def _run_command(command: list[str], cwd: Path) -> tuple[int, str]:
-    try:
-        completed = subprocess.run(
-            command,
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
-        )
-    except FileNotFoundError:
-        return 127, f"command not found: {command[0]}"
-    except subprocess.TimeoutExpired:
-        return 124, f"command timed out: {' '.join(command)}"
-
-    output = "\n".join(part for part in [completed.stdout, completed.stderr] if part).strip()
-    return completed.returncode, output
+    return _OPAOutcome(
+        result.passed,
+        list(result.errors),
+        list(result.warnings),
+        list(result.violations),
+        list(result.evaluated),
+    )
 
 
 def _build_validator_quarantine_items(
@@ -296,20 +332,4 @@ def _get_bool(source: dict[str, object], key: str, default: bool) -> bool:
             return True
         if lowered in {"false", "0", "no", "n", "off"}:
             return False
-    return default
-
-
-def _get_int(source: dict[str, object], key: str, default: int) -> int:
-    value = source.get(key)
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value.strip())
-        except ValueError:
-            return default
     return default

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit, StorageVolume
+from providers.common import hcl_string, hcl_value, safe_file_stem
 
 
 def render_storage(
@@ -10,11 +11,11 @@ def render_storage(
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render OpenStack storage HCL files for ComputeUnit StorageVolume resources."""
-    metadata = _build_required_metadata(cim.source_vcenter, required_tags)
+    metadata = _build_required_metadata(cim, required_tags)
 
     output: dict[str, str] = {}
     for compute_unit in cim.compute_units:
-        path = f"openstack-migration/storage/{compute_unit.name}_disks.tf"
+        path = f"openstack-migration/storage/{safe_file_stem(compute_unit.name)}_disks.tf"
         output[path] = _render_compute_unit_storage(compute_unit, metadata)
 
     return output
@@ -54,7 +55,7 @@ def _render_volume(
     lines: list[str] = []
 
     lines.append(f'resource "openstack_blockstorage_volume_v3" "{volume_ref}" {{')
-    lines.append(f'  name        = "{compute_unit.name}-{volume_ref}"')
+    lines.append(f'  name        = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
     lines.append(f'  size        = {int(volume.size_gb)}')
     lines.append('  volume_type = var.encrypted_volume_type')
     lines.append('')
@@ -67,11 +68,11 @@ def _render_volume(
 
     lines.append('')
     lines.append('  metadata = {')
-    lines.append(f'    Name = "{compute_unit.name}-{volume_ref}"')
-    lines.append(f'    Datastore = "{(volume.datastore or "").strip()}"')
+    lines.append(f'    Name = {hcl_string(f"{compute_unit.name}-{volume_ref}")}')
+    lines.append(f'    Datastore = {hcl_string((volume.datastore or "").strip())}')
     lines.append('    StorageEncrypted = "true"')
     for key, value in metadata.items():
-        lines.append(f'    {key} = "{value}"')
+        lines.append(f'    {key} = {hcl_value(value)}')
     lines.append('  }')
     lines.append('}')
 
@@ -79,14 +80,14 @@ def _render_volume(
 
 
 def _build_required_metadata(
-    source_vcenter: str,
+    cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None,
 ) -> dict[str, str]:
     defaults = {
-        "Environment": "${var.environment}",
-        "Owner": "${var.owner}",
-        "MigratedFrom": "vmware-vcenter",
-        "SourceVCenter": source_vcenter,
+        "Environment": "var.environment",
+        "Owner": "var.owner",
+        "MigratedFrom": cim.migrated_from,
+        "SourceVCenter": cim.source_vcenter,
     }
 
     if not required_tags:

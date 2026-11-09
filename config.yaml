@@ -1,25 +1,54 @@
 # vmware-migration-agent — runtime configuration
 # All agent behaviour is controlled from here. No hardcoded values in source code.
 
-# ─── LLM ────────────────────────────────────────────────────────────────────
+# ─── GENERATION ─────────────────────────────────────────────────────────────
+generation:
+  # deterministic: render Terraform from the provider templates in providers/ (no LLM, no MCP,
+  #                no API key). Output is reproducible and diffable between runs.
+  # llm:           the LLM writes the HCL from the CIM (requires llm.* and, if enabled, MCP).
+  # hybrid:        deterministic first; if its output fails validation the LLM loop runs with
+  #                the deterministic errors as feedback.
+  mode: deterministic
+
+# ─── LLM (used by llm/hybrid generation and for review notes) ────────────────
 llm:
   # provider: anthropic | openai | google
   provider: anthropic
 
   # Model per provider — change here, not in code
+  # anthropic: claude-opus-5 (default quality) or claude-sonnet-5 (lower cost)
   models:
-    anthropic: claude-sonnet-4-5
+    anthropic: claude-opus-5
     openai: gpt-4o
     google: gemini-2.0-flash
 
   # Temperature rules — do not raise these values
-  # HCL generation must be deterministic
+  # HCL generation must be deterministic.
+  # Note: Claude 5-family models reject sampling parameters, so temperature is only
+  # sent to the openai and google providers; determinism on Anthropic comes from the
+  # prompt contract and the deterministic validation loop.
   temperature_hcl: 0.0
   # Report/review notes can be slightly more natural
   temperature_report: 0.2
 
-  max_tokens: 8192
-  timeout_seconds: 120
+  # Output budget per call. Batched generation keeps each response far below this.
+  max_tokens: 16000
+  timeout_seconds: 300
+  # Review notes are optional prose with a deterministic fallback: short timeout, single attempt.
+  review_notes_timeout_seconds: 60
+
+  # Anthropic reasoning depth: low | medium | high | xhigh | max (omit = API default, high).
+  # effort: medium
+
+  # Transient failures (rate limits, 5xx, network, timeouts): SDK-level retries plus an outer
+  # loop with jittered exponential backoff. Refusals and truncation are never retried blindly.
+  sdk_max_retries: 2
+  retry_attempts: 3
+  retry_backoff_seconds: 2
+
+  # Anthropic server-side refusal fallbacks: a declined request is re-run on Anthropic's
+  # recommended fallback model inside the same call. Set false to receive the refusal instead.
+  enable_fallbacks: true
 
 # ─── TARGET CLOUD ────────────────────────────────────────────────────────────
 # aws | azure | gcp | openstack
@@ -27,8 +56,10 @@ target_cloud: aws
 
 # ─── PIPELINE BEHAVIOUR ──────────────────────────────────────────────────────
 pipeline:
-  # How many ComputeUnits to process per LangGraph batch execution
-  batch_size: 50
+  # llm/hybrid modes: ComputeUnits per generation call. Estates larger than this are
+  # generated as one shared call (networking/placement) plus one call per batch.
+  # Halved automatically when a response is truncated.
+  batch_size: 10
 
   # Max LLM retry attempts per resource before quarantining
   max_retries: 3
@@ -59,22 +90,97 @@ validation:
   # Path to .rego policy bundle
   policies_dir: validation/policies
 
+  # Terraform provider plugin cache shared across validation runs (avoids re-downloading
+  # providers on every attempt). Empty disables the cache.
+  terraform_plugin_cache_dir: ~/.cache/vmware-migration-agent/terraform-plugins
+
 # ─── MCP DOCUMENTATION CONTEXT ───────────────────────────────────────────────
 mcp:
+  # true: retrieve Terraform Registry docs via the MCP server (requires the docker CLI and a daemon).
+  # false: skip retrieval; hcl_generator runs without documentation context.
+  # The terragen --no-mcp flag sets this to false for one run.
   enabled: true
   tool_timeout_seconds: 30
   terraform:
-    image: "hashicorp/terraform-mcp-server:latest"
+    # Pinned by tag and multi-arch index digest (2026-08-26 release). Update both together.
+    image: "hashicorp/terraform-mcp-server:1.3.0@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
     toolsets: "registry"
+
+# ─── RUNTIME (service layer used by the API/UI) ──────────────────────────────
+runtime:
+  # One folder per run: run.json, discovery.json, events.jsonl, artifacts/
+  runs_dir: output/runs
+  # LangGraph checkpoint database (pause / resume / re-run); empty = in-memory only
+  checkpoint_db: output/runs/checkpoints.sqlite
+  # Default pause points for runs created through the runtime (not the CLI):
+  #   review_cim      pause before hcl_generator so the CIM can be reviewed/edited
+  #   approve_output  pause before reporter so files are only written after approval
+  default_pause_points:
+    - review_cim
+    - approve_output
+  # Platform database (users, sessions, tokens, connections, audit log, settings, deployments)
+  platform_db: output/platform.sqlite
+
+# ─── SECURITY (platform access control, secrets, retention) ─────────────────
+security:
+  auth:
+    # required: every API call needs a session or API token (first start shows the setup screen)
+    # disabled: no authentication; local development only
+    mode: required
+    session_hours: 12
+    idle_minutes: 60
+    # optional | required — whether every user must enrol a TOTP second factor
+    mfa: optional
+    lockout_threshold: 5
+    lockout_minutes: 15
+    oidc:
+      enabled: false
+      issuer: ""
+      client_id: ""
+      client_secret_env: VMA_OIDC_CLIENT_SECRET
+      scopes: [openid, profile, email]
+      allowed_domains: []
+      default_role: viewer
+      admin_groups: []
+      groups_claim: groups
+  # Environment variable holding the Fernet key(s) that encrypt stored credentials
+  secret_key_env: VMA_SECRET_KEY
+  headers:
+    hsts: true
+    # default | off
+    content_security_policy: default
+  # Extra origins allowed to call the API with a session cookie (reverse proxies on other hosts)
+  allowed_origins: []
+  # Serve Swagger UI at /docs
+  api_docs: true
+  retention:
+    runs_days: 0
+    audit_days: 0
+  # Store discovery.json encrypted with the secret key (requires VMA_SECRET_KEY)
+  encrypt_run_inputs: false
+
+# ─── DEPLOYMENTS (terraform plan / apply from the platform) ──────────────────
+deploy:
+  terraform_bin: terraform
+  timeout_minutes: 60
+  allow_apply: true
+  allow_destroy: true
+  remote_state:
+    enabled: false
+    type: ""          # s3 | azurerm | gcs
+    config: {}
 
 # ─── OUTPUT ──────────────────────────────────────────────────────────────────
 output:
   base_dir: output/
 
-  # Terraform files are written under {provider}-migration/{resource_type}/{name}.tf at repo root.
-  # Example: aws-migration/networking/vpc.tf
+  # Deterministic mode writes one flat Terraform root module per provider:
+  #   {provider}-migration/providers.tf, variables.tf,
+  #   {provider}-migration/{resource_type}_{name}.tf   (e.g. aws-migration/networking_vpc.tf,
+  #                                                     aws-migration/compute_web-01.tf)
   # resource_type values: networking | compute | storage | placement
-  structure: "{provider}-migration/{resource_type}/{name}.tf"
+  # (llm mode keeps its own module layout; this value is informational.)
+  structure: "{provider}-migration/{resource_type}_{name}.tf"
 
   write_quarantine_report: true
   quarantine_report_filename: quarantine_report.json
@@ -82,8 +188,25 @@ output:
   write_review_notes: true
   review_notes_filename: review_notes.md
 
+  # Compliance-as-code report (per-control pass/fail/advisory with CIS, SOC 2 and HIPAA
+  # references), written for every run next to quarantine_report.json. See docs/compliance.md.
+  write_compliance_report: true
+  compliance_report_json_filename: compliance_report.json
+  compliance_report_markdown_filename: compliance_report.md
+
+  # Written by the `assess` command
+  assessment_report_json_filename: assessment_report.json
+  assessment_report_markdown_filename: assessment_report.md
+
   # Overwrite existing files in output/ (set false to protect manual edits)
   overwrite: true
+
+  # When true, no files are written at all (set by the terragen --dry-run flag)
+  dry_run: false
+
+  # Write review notes with the LLM (deterministic text otherwise). Runs created through the
+  # API/UI can override this per run.
+  llm_review_notes: true
 
 # ─── VSPHERE MAPPING ─────────────────────────────────────────────────────────
 vsphere:
@@ -100,12 +223,16 @@ vsphere:
     - encrypted_vm_present
     - rdm_disk_present
     - shared_disk_present
+    - vm_template
+    - unsupported_architecture
 
   # VMware blockers that cause needs_review (HCL generated with TODO comments)
   soft_blockers:
     - vtpm_present
     - mounted_iso_present
     - vapp_config_present
+    - snapshots_present
+    - powered_off
 
 # ─── TAGGING ─────────────────────────────────────────────────────────────────
 # These tags are injected into every generated resource
@@ -126,5 +253,6 @@ logging:
   # console: human-readable for local development
   format: console
   # Optional second sink: keep structured logs for debugging while console stays readable
-  detailed_log_file: app-logs.txt
+  # Kept under output/ so the container can run with a read-only root filesystem
+  detailed_log_file: output/app-logs.txt
   detailed_log_level: TRACE
