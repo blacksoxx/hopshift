@@ -203,6 +203,7 @@ def test_unknown_run_and_not_succeeded(client: TestClient, runtime: MigrationRun
 def test_roles_are_enforced(runtime: MigrationRuntime, fake_terraform: Path) -> None:
     app = create_app(runtime=runtime)
     app.state.platform.connections = FakeConnections()
+    app.state.platform.config.setdefault("security", {}).setdefault("auth", {})["mode"] = "required"
     app.state.platform.auth = FakeAuth("viewer")
     client = TestClient(app)
     run_id = make_run(runtime)

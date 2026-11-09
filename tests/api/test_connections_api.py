@@ -51,6 +51,8 @@ class _FakeAuth:
 
 
 def _as_role(client: TestClient, role: str) -> None:
+    # the fixture runs with auth disabled; role checks need the required mode plus a fake principal
+    client.app.state.platform.config.setdefault("security", {}).setdefault("auth", {})["mode"] = "required"
     client.app.state.platform.auth = _FakeAuth(Principal(subject=f"{role}-user", kind="user", role=role))
 
 
