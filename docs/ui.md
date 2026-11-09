@@ -1,65 +1,63 @@
-# Web UI
+# The web UI
 
-A React + Vite front-end over the HTTP API (see runtime-and-api.md). Source lives in `ui/`.
+A single-page application (React 19, Vite, TypeScript, Tailwind v4, Radix primitives, motion)
+served by the API from `ui/dist`. It talks only to `/api`; it holds no secrets and no business
+logic. Light and dark themes follow the system or the toggle in the top bar.
 
-## Screens
+## Pages
 
-- **Runs**: every run with status, pause point, cloud, mode and input; refreshes every few seconds.
-- **New run**: pick a discovery JSON (parsed in the browser, VM count shown), target cloud, generation mode, LLM provider for llm/hybrid, Environment and Owner tags, skip flags, dry run, and which pause points to stop at. Starts the run and opens it.
-- **Run detail**: status and actions (Approve and continue / Approve and write output while paused, Re-run from a node when finished), the node timeline, and four tabs:
-  - Overview: counts, validation errors and warnings, quarantine list with reasons.
-  - CIM: compute units, clusters and topology. Editable (name, vCPU, RAM, image ref, or raw JSON) while the run is paused at `review_cim`; Save writes the edited CIM into the paused run.
-  - Artifacts: generated files with a viewer, available once the output has been approved.
-  - Log: the event stream with each node's messages. Live while the run executes (server-sent events).
-- **Assess**: deterministic risk report for a discovery file without creating a run.
-- **Settings**: effective server configuration and pipeline metadata (read-only).
+| Route | What it is for |
+|---|---|
+| `/setup` | Shown once, while no user exists: create the first administrator. |
+| `/login` | Password sign-in, second-factor step, single sign-on button when OIDC is configured. |
+| `/` | Dashboard: run counts, success rate, 30-day activity, runs waiting for approval, connections, security posture. |
+| `/runs` | All runs with search, status and cloud filters, tag chips; cancel and delete from the row menu. |
+| `/runs/new` | Four-step wizard: upload the discovery JSON (summary of VMs, switches, clusters, vCenter), choose the target cloud and options, pick a cloud connection, review and start. |
+| `/runs/:id` | Run detail: live timeline, overview (stats, validation, quarantine, review notes), CIM editor (table with inline edits, bulk actions, raw JSON), artifacts (file tree, highlighted viewer, diff against another run, zip download), deploy (variables, plan, apply and destroy with typed confirmation, live logs, state), compliance report, event log. |
+| `/assess` | Readiness assessment of an inventory without creating a run: risk per VM, charts, CSV and Markdown export. |
+| `/connections` | Cloud connections: add with a provider → method → form flow driven by the catalog, test, device-code sign-in, replace secrets, delete. |
+| `/settings` | General (editable configuration), users, API tokens, audit log, security posture, profile (password, second factor). |
+| `/audit` | The audit log with filters, chain verification and export (admin). |
 
-Routing uses URL hashes (`/#/runs/<id>`) so the built app can be served by FastAPI at `/` while
-the API keeps `/api/*`.
+Roles shape what is visible: viewers read, operators run and approve, admins manage users,
+connections and settings.
 
-## Develop
+## Keyboard
+
+| Keys | Action |
+|---|---|
+| `⌘K` / `Ctrl+K` | Command palette: jump to pages and recent runs, switch theme |
+| `g` then `d` / `r` / `n` / `a` / `c` / `s` | Dashboard, Runs, New run, Assess, Connections, Settings |
+| `1`–`6` on a run page | Switch tabs |
+| `Esc` | Close dialogs and the palette |
+
+## Live updates
+
+Run pages subscribe to server-sent events for the log and timeline, poll the run status every
+two seconds as a safety net while a run executes, and resubscribe after a dropped stream.
+Deployment logs stream the same way. Nothing on a page blocks while work is running.
+
+## Building and testing
 
 ```bash
 cd ui
-npm install
-npm run dev          # http://localhost:5173, proxies /api to http://127.0.0.1:8080
+npm ci
+npm run dev            # Vite on :5173, proxies /api to :8080 (VITE_API_PROXY to change)
+npm run build          # production bundle in ui/dist (served by `vma serve`)
+npx tsc --noEmit       # type check
+npx vitest run         # unit tests (jsdom, Testing Library)
+npx playwright test    # end-to-end: starts an isolated server through e2e/serve.py
 ```
 
-Run the API separately from the repository root: `vma serve` (default port 8080).
+`npx playwright test` builds nothing: run `npm run build` first. To test an already running
+server (for example the Docker stack) set `PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080`; the
+suite creates the first administrator when the server is fresh and signs in otherwise.
 
-## Build and serve
+## Design system
 
-```bash
-cd ui && npm run build     # type-checks, writes ui/dist
-vma serve                  # serves ui/dist at / and the API at /api
-```
-
-## Run with Docker
-
-```bash
-docker compose up --build -d      # builds the UI and the agent image, serves on http://localhost:8080
-VMA_PORT=8088 docker compose up -d  # pick another host port if 8080 is taken
-docker compose logs -f agent      # follow the API log
-docker compose down               # stop; runs persist under ./output/runs
-```
-
-The image contains terraform, tflint, OPA and the docker CLI, so validation runs inside the
-container (the first run downloads Terraform providers). API keys are read from the host
-environment if set. The CLI is available too: `docker compose run --rm agent python -m cli.main terragen --help`.
-
-## Tests
-
-- `npm test`: Vitest component and client tests (jsdom, API mocked).
-- `npm run e2e`: Playwright against the real server. Builds must exist (`npm run build`); the
-  config starts `vma serve` on port 8765 from the repository root, uploads
-  `tests/fixtures/discovery_multi_vm.json`, pauses at `review_cim`, edits a VM name, approves
-  twice and checks the renamed Terraform file in the artifacts. First run: `npx playwright install chromium`.
-
-The end-to-end run creates real runs under `output/runs/`. If an LLM credential is present the
-reporter calls the model for the review notes; set `output.write_review_notes: false` or remove
-the credential to keep end-to-end runs offline.
-
-## Not yet
-
-Authentication, config editing, cancellation of a running job, per-VM quarantine overrides,
-and a topology graph view. The UI assumes a single user on a trusted network.
+Components under `ui/src/components/ui` are owned by the repository (buttons, inputs, badges,
+cards, dialogs, menus, tooltips, tabs, switches, selects, toasts, tables, alerts, empty states,
+stats). Tokens live in `ui/src/styles/globals.css` and are exposed as Tailwind colours
+(`bg-background`, `text-muted-foreground`, `border-border`, `text-primary`, `text-success`,
+`text-warning`, `text-destructive`). Fonts (Inter, JetBrains Mono) are self-hosted so the strict
+Content-Security-Policy needs no external origins.
