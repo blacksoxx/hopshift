@@ -340,13 +340,15 @@ class DeployService:
                 self._runners.pop(deployment.id, None)
         if runner.cancelled or deployment.id in self._cancelled:
             status, error = "cancelled", error or "cancelled by operator"
-        self._finish(deployment, paths, status=status, error=error, exit_code=exit_code, summary=summary)
+        # Audit first, then flip the status: a client that observes the final status must also
+        # find the audit entry (the HTTP tests and any evidence export rely on that ordering).
         counts = {key: (summary or {}).get(key, 0) for key in ("add", "change", "destroy", "replace")}
         self._audit(
             "deployment.finished", actor, deployment.run_id, context,
             outcome="success" if status == "succeeded" else status,
             deployment_id=deployment.id, action=deployment.action, status=status, exit_code=exit_code, **counts,
         )
+        self._finish(deployment, paths, status=status, error=error, exit_code=exit_code, summary=summary)
 
     def _run_action(
         self, deployment: Deployment, paths: RunPaths, runner: TerraformRunner, plan_record: Deployment | None, log: LogWriter, secrets: list[str]
