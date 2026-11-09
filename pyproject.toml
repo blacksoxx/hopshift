@@ -16,7 +16,6 @@ dependencies = [
   "anthropic>=0.34",
   "openai>=1.0",
   "google-genai>=1.0",
-  "chromadb>=0.5",
   "python-dotenv>=1.0",
   "pyyaml>=6.0",
   "rich>=13.0",
@@ -46,6 +45,10 @@ dev = [
 ]
 # kept for compatibility with earlier instructions (`pip install '.[api]'`); the API is core now
 api = []
+# the experimental rag_retriever node (not in the active graph) needs a vector store
+rag = [
+  "chromadb>=0.5",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
