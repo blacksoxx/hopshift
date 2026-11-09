@@ -31,6 +31,7 @@ def _config() -> dict[str, object]:
         "output": {"base_dir": "output"},
         "required_tags": {"MigratedFrom": "vmware-vcenter"},
         "runtime": {"default_pause_points": ["review_cim"]},
+        "security": {"auth": {"mode": "disabled"}},
     }
 
 
