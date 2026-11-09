@@ -50,7 +50,7 @@ Every pull request runs these in CI together with dependency, secret and contain
   return secret values.
 - New API areas get their own router in `api/routes/` and their own service package in `vma/`.
 - Type hints everywhere, `ruff` clean, tests next to the feature (`tests/<area>/`).
-- Keep the line endings of the file you are editing (a few files are CRLF for historical reasons).
+- Line endings are LF everywhere (enforced by `.gitattributes`).
 - Commit messages: `type(scope): summary` (feat, fix, docs, test, chore, refactor).
 
 ## Adding things

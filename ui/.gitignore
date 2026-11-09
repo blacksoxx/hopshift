@@ -1,7 +1,5 @@
-
-# ─── UI (Vite / Playwright) ──────────────────────────────────────────────────
-ui/node_modules/
-ui/dist/
-ui/test-results/
-ui/playwright-report/
-ui/.vite/
+node_modules/
+dist/
+test-results/
+playwright-report/
+.vite/

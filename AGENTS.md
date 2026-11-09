@@ -107,4 +107,4 @@ Platform:
 - `tests/integration/` renders every cloud and runs real terraform validate + tflint + OPA, and asserts zero enforce violations
 - Cloud SDK calls and the terraform binary are stubbed in unit tests (`tests/fixtures/fake_terraform.sh`)
 - No tests write to `output/` — use the `tmp_path` pytest fixture
-- `ruff check .` must be clean; keep the line endings of the file you edit
+- `ruff check .` must be clean; line endings are LF everywhere (`.gitattributes`)
