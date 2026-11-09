@@ -118,6 +118,57 @@ runtime:
   default_pause_points:
     - review_cim
     - approve_output
+  # Platform database (users, sessions, tokens, connections, audit log, settings, deployments)
+  platform_db: output/platform.sqlite
+
+# ─── SECURITY (platform access control, secrets, retention) ─────────────────
+security:
+  auth:
+    # required: every API call needs a session or API token (first start shows the setup screen)
+    # disabled: no authentication; local development only
+    mode: required
+    session_hours: 12
+    idle_minutes: 60
+    # optional | required — whether every user must enrol a TOTP second factor
+    mfa: optional
+    lockout_threshold: 5
+    lockout_minutes: 15
+    oidc:
+      enabled: false
+      issuer: ""
+      client_id: ""
+      client_secret_env: VMA_OIDC_CLIENT_SECRET
+      scopes: [openid, profile, email]
+      allowed_domains: []
+      default_role: viewer
+      admin_groups: []
+      groups_claim: groups
+  # Environment variable holding the Fernet key(s) that encrypt stored credentials
+  secret_key_env: VMA_SECRET_KEY
+  headers:
+    hsts: true
+    # default | off
+    content_security_policy: default
+  # Extra origins allowed to call the API with a session cookie (reverse proxies on other hosts)
+  allowed_origins: []
+  # Serve Swagger UI at /docs
+  api_docs: true
+  retention:
+    runs_days: 0
+    audit_days: 0
+  # Store discovery.json encrypted with the secret key (requires VMA_SECRET_KEY)
+  encrypt_run_inputs: false
+
+# ─── DEPLOYMENTS (terraform plan / apply from the platform) ──────────────────
+deploy:
+  terraform_bin: terraform
+  timeout_minutes: 60
+  allow_apply: true
+  allow_destroy: true
+  remote_state:
+    enabled: false
+    type: ""          # s3 | azurerm | gcs
+    config: {}
 
 # ─── OUTPUT ──────────────────────────────────────────────────────────────────
 output:

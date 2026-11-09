@@ -18,11 +18,12 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -48,6 +49,7 @@ PAUSE_POINTS: dict[str, str] = {
     "approve_output": "reporter",
 }
 NODE_TO_PAUSE_POINT: dict[str, str] = {node: name for name, node in PAUSE_POINTS.items()}
+TERMINAL_STATUSES: frozenset[str] = frozenset({"succeeded", "failed", "error", "cancelled"})
 
 SUPPORTED_CLOUDS = ("aws", "azure", "gcp", "openstack")
 GENERATION_MODES = ("deterministic", "llm", "hybrid")
@@ -111,7 +113,7 @@ class RunRecord:
     run_id: str
     created_at: str
     updated_at: str
-    status: str  # created | running | paused | succeeded | failed | error
+    status: str  # created | running | paused | succeeded | failed | error | cancelled
     cloud: str
     mode: str
     options: dict[str, Any]
@@ -121,9 +123,20 @@ class RunRecord:
     pause_point: str | None = None
     error: str | None = None
     event_count: int = 0
+    name: str | None = None
+    tags: list[str] = field(default_factory=list)
+    connection_id: str | None = None
+    created_by: str | None = None
+    cancel_requested: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RunRecord":
+        """Tolerate records written by older or newer versions (unknown keys are dropped)."""
+        known = {f.name for f in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known})
 
 
 def build_run_config(base_config: dict[str, Any], options: RunOptions, output_dir: Path | str) -> dict[str, Any]:
@@ -202,10 +215,13 @@ def initial_state(discovery: dict[str, Any], cfg: dict[str, Any], cloud: str) ->
 class RunStore:
     """Filesystem persistence for run records, inputs, events and artifacts."""
 
-    def __init__(self, runs_dir: Path | str) -> None:
+    def __init__(self, runs_dir: Path | str, secret_box: Any | None = None, encrypt_inputs: bool = False) -> None:
         self.root = Path(runs_dir).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        # Optional encryption at rest for discovery.json (security.encrypt_run_inputs).
+        self.secret_box = secret_box
+        self.encrypt_inputs = bool(encrypt_inputs)
 
     def run_dir(self, run_id: str) -> Path:
         _validate_run_id(run_id)
@@ -218,7 +234,12 @@ class RunStore:
         run_dir = self.run_dir(record.run_id)
         run_dir.mkdir(parents=True, exist_ok=False)
         (run_dir / "artifacts").mkdir()
-        (run_dir / "discovery.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=True), encoding="utf-8")
+        if self.encrypt_inputs:
+            if self.secret_box is None or not getattr(self.secret_box, "available", False):
+                raise RunError("security.encrypt_run_inputs is on but no secret key is configured")
+            (run_dir / "discovery.json.enc").write_text(self.secret_box.encrypt_json(discovery), encoding="utf-8")
+        else:
+            (run_dir / "discovery.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=True), encoding="utf-8")
         (run_dir / "events.jsonl").write_text("", encoding="utf-8")
         self.save(record)
 
@@ -237,20 +258,32 @@ class RunStore:
         last_error: Exception | None = None
         for _ in range(3):  # writes are atomic; this only guards against an exotic partial read
             try:
-                return RunRecord(**json.loads(path.read_text(encoding="utf-8")))
+                return RunRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
             except (json.JSONDecodeError, TypeError) as exc:
                 last_error = exc
                 time.sleep(0.02)
         raise RunError(f"run record for {run_id} is unreadable: {last_error}")
 
     def load_discovery(self, run_id: str) -> dict[str, Any]:
+        encrypted = self.run_dir(run_id) / "discovery.json.enc"
+        if encrypted.exists():
+            if self.secret_box is None:
+                raise RunError(f"run {run_id} input is encrypted but no secret key is configured")
+            return self.secret_box.decrypt_json(encrypted.read_text(encoding="utf-8"))
         return json.loads((self.run_dir(run_id) / "discovery.json").read_text(encoding="utf-8"))
+
+    def delete(self, run_id: str) -> None:
+        run_dir = self.run_dir(run_id)
+        if not run_dir.exists():
+            raise RunError(f"unknown run: {run_id}")
+        with self._lock:
+            shutil.rmtree(run_dir)
 
     def list(self) -> list[RunRecord]:
         records: list[RunRecord] = []
         for path in self.root.glob("*/run.json"):
             try:
-                records.append(RunRecord(**json.loads(path.read_text(encoding="utf-8"))))
+                records.append(RunRecord.from_dict(json.loads(path.read_text(encoding="utf-8"))))
             except (ValueError, TypeError):
                 continue
         return sorted(records, key=lambda record: record.created_at, reverse=True)
@@ -302,10 +335,17 @@ class MigrationRuntime:
         base_config: dict[str, Any],
         runs_dir: Path | str | None = None,
         checkpoint_db: Path | str | None = None,
+        secret_box: Any | None = None,
     ) -> None:
         self.base_config = base_config
         runtime_cfg = base_config.get("runtime") if isinstance(base_config.get("runtime"), dict) else {}
-        self.store = RunStore(runs_dir or runtime_cfg.get("runs_dir") or "output/runs")
+        security_cfg = base_config.get("security") if isinstance(base_config.get("security"), dict) else {}
+        self.store = RunStore(
+            runs_dir or runtime_cfg.get("runs_dir") or "output/runs",
+            secret_box=secret_box,
+            encrypt_inputs=bool(security_cfg.get("encrypt_run_inputs", False)),
+        )
+        self._cancel_requested: set[str] = set()
         self.default_pause_points = [
             str(item) for item in (runtime_cfg.get("default_pause_points") or []) if str(item) in PAUSE_POINTS
         ]
@@ -322,6 +362,10 @@ class MigrationRuntime:
         discovery: dict[str, Any],
         options: RunOptions,
         input_filename: str = "discovery.json",
+        name: str | None = None,
+        tags: list[str] | None = None,
+        connection_id: str | None = None,
+        created_by: str | None = None,
     ) -> RunRecord:
         options.validate()
         validate_discovery_payload(discovery)  # raises ValueError with a clear message
@@ -343,6 +387,10 @@ class MigrationRuntime:
             options=asdict(options),
             input_filename=input_filename,
             run_dir=str(run_dir),
+            name=_clean_name(name),
+            tags=_clean_tags(tags),
+            connection_id=connection_id or None,
+            created_by=created_by,
         )
         self.store.create(record, discovery)
         (run_dir / "config.json").write_text(json.dumps(cfg, indent=2, ensure_ascii=True, default=str), encoding="utf-8")
@@ -384,6 +432,60 @@ class MigrationRuntime:
 
         self.store.append_event(run_id, _event("rerun", node=node, summary={"from_checkpoint": checkpoint_config["configurable"].get("checkpoint_id")}))
         return self._execute(record, None, config=checkpoint_config)
+
+    def cancel(self, run_id: str) -> RunRecord:
+        """Stop a run. An executing run stops after the current node; created or paused runs
+        are marked cancelled immediately. Cancelled runs can be re-run from a checkpoint."""
+        record = self.store.load(run_id)
+        if record.status in TERMINAL_STATUSES:
+            raise RunError(f"run {run_id} is already {record.status}")
+        with self._lock:
+            executing = run_id in self._active
+            if executing:
+                self._cancel_requested.add(run_id)
+        record.cancel_requested = True
+        if not executing:
+            record.status = "cancelled"
+            record.paused_before = None
+            record.pause_point = None
+            self.store.append_event(run_id, _event("cancelled", summary={"while": "idle"}))
+        self.store.save(record)
+        return record
+
+    def update_run(
+        self,
+        run_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        connection_id: str | None = None,
+        clear_connection: bool = False,
+    ) -> RunRecord:
+        record = self.store.load(run_id)
+        if name is not None:
+            record.name = _clean_name(name)
+        if tags is not None:
+            record.tags = _clean_tags(tags)
+        if clear_connection:
+            record.connection_id = None
+        elif connection_id:
+            record.connection_id = connection_id
+        self.store.save(record)
+        return record
+
+    def delete_run(self, run_id: str) -> None:
+        record = self.store.load(run_id)
+        with self._lock:
+            if run_id in self._active:
+                raise RunError(f"run {run_id} is executing; cancel it first")
+        self.store.delete(run_id)
+        checkpointer = self._checkpointer
+        delete_thread = getattr(checkpointer, "delete_thread", None)
+        if callable(delete_thread):
+            try:
+                delete_thread(run_id)
+            except Exception as exc:  # pragma: no cover - best effort cleanup
+                logger.warning("runtime: could not delete checkpoints for {}: {}", run_id, exc)
+        logger.info("runtime: deleted run {} ({})", run_id, record.status)
 
     # ── inspection and control ────────────────────────────────────────────────
 
@@ -465,12 +567,17 @@ class MigrationRuntime:
         self.store.append_event(run_id, _event("start" if state is not None else "resume", summary={"paused_before": None}))
 
         seen_messages = 0 if state is not None else self._message_count(graph, thread_config)
+        cancelled = False
         try:
             for update in graph.stream(state, thread_config, stream_mode="updates"):
                 for node, payload in update.items():
                     if node == "__interrupt__":
                         continue
                     seen_messages = self._record_node_event(record, node, payload, seen_messages)
+                with self._lock:
+                    cancelled = run_id in self._cancel_requested
+                if cancelled:
+                    break
         except Exception as exc:
             record.status = "error"
             record.error = f"{exc.__class__.__name__}: {exc}"
@@ -479,10 +586,15 @@ class MigrationRuntime:
             self.store.save(record)
             with self._lock:
                 self._active.discard(run_id)
+                self._cancel_requested.discard(run_id)
             return record
 
         snapshot = graph.get_state(self._thread_config(run_id))
-        if snapshot.next:
+        if cancelled:
+            record.status = "cancelled"
+            record.cancel_requested = True
+            self.store.append_event(run_id, _event("cancelled", node=snapshot.next[0] if snapshot.next else None, summary={"while": "executing"}))
+        elif snapshot.next:
             record.status = "paused"
             record.paused_before = snapshot.next[0]
             record.pause_point = NODE_TO_PAUSE_POINT.get(record.paused_before)
@@ -495,6 +607,7 @@ class MigrationRuntime:
         self.store.save(record)
         with self._lock:
             self._active.discard(run_id)
+            self._cancel_requested.discard(run_id)
         return record
 
     def _record_node_event(self, record: RunRecord, node: str, payload: Any, seen_messages: int) -> int:
@@ -596,6 +709,20 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _clean_name(name: str | None) -> str | None:
+    text = " ".join(str(name).split()) if name else ""
+    return text[:120] or None
+
+
+def _clean_tags(tags: list[str] | None) -> list[str]:
+    cleaned: list[str] = []
+    for raw in tags or []:
+        tag = "-".join(str(raw).strip().lower().split())[:40]
+        if tag and tag not in cleaned:
+            cleaned.append(tag)
+    return cleaned[:20]
+
+
 def _new_run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
 
@@ -614,6 +741,7 @@ __all__ = [
     "RunOptions",
     "RunRecord",
     "RunStore",
+    "TERMINAL_STATUSES",
     "build_run_config",
     "initial_state",
     "iter_nodes",

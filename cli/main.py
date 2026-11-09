@@ -277,7 +277,10 @@ def assess(input_file, cloud, output_dir, config_file):
               help="Path to config.yaml.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
 @click.option("--port", default=8080, type=int, show_default=True, help="Bind port.")
-def serve(config_file, host, port):
+@click.option("--ssl-certfile", default=None, type=click.Path(exists=True, path_type=str), help="Serve HTTPS with this certificate (PEM).")
+@click.option("--ssl-keyfile", default=None, type=click.Path(exists=True, path_type=str), help="Private key for --ssl-certfile.")
+@click.option("--forwarded-allow-ips", default="127.0.0.1", show_default=True, help="Proxies whose X-Forwarded-* headers are trusted.")
+def serve(config_file, host, port, ssl_certfile, ssl_keyfile, forwarded_allow_ips):
     """Start the HTTP API (runs, pause/approve, state editing, artifacts, assess)."""
     try:
         import uvicorn
@@ -285,12 +288,19 @@ def serve(config_file, host, port):
     except ImportError as exc:  # pragma: no cover - depends on the optional extra
         raise click.ClickException("the API requires the 'api' extra: pip install '.[api]'") from exc
 
-    from agent.config_loader import load_config
-    from agent.runtime import MigrationRuntime
-
-    application = create_app(runtime=MigrationRuntime(load_config(config_file)))
-    click.echo(f"Serving vmware-migration-agent API on http://{host}:{port} (docs at /docs)")
-    uvicorn.run(application, host=host, port=port, log_level="info")
+    application = create_app(config_path=config_file)
+    scheme = "https" if ssl_certfile else "http"
+    click.echo(f"Serving vmware-migration-agent on {scheme}://{host}:{port} (API under /api, docs at /docs)")
+    uvicorn.run(
+        application,
+        host=host,
+        port=port,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips=forwarded_allow_ips,
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile,
+    )
 
 
 @cli.command()
