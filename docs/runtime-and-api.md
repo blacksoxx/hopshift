@@ -1,4 +1,4 @@
-# Runtime And API
+# Run runtime
 
 `agent/runtime.py` is the service layer the API and UI drive. The CLI's `terragen` shares its
 config-override logic but still runs the graph in one shot.
@@ -47,30 +47,7 @@ by that node.
 
 ## HTTP API
 
-Start with `vma serve` (needs the `api` extra: `pip install '.[api]'`). All routes are under `/api`; interactive docs at `/docs`. When `ui/dist` exists (see ui.md) it is served at `/`.
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/health`, `/api/meta`, `/api/config` | liveness, enums for the UI, effective base config |
-| GET | `/api/runs` | list runs |
-| POST | `/api/runs` | create a run from `{discovery, options, input_filename?, start?}` |
-| GET | `/api/runs/{id}` | run record plus `executing` |
-| POST | `/runs/{id}/start` | start a created run (202) |
-| POST | `/runs/{id}/resume` | approve / continue a paused run (202) |
-| POST | `/runs/{id}/rerun` | `{node}`: fork from the checkpoint before that node (202) |
-| GET | `/runs/{id}/state` | current graph state, JSON-safe, without config |
-| PATCH | `/runs/{id}/state` | `{values}`: patch state while paused |
-| GET | `/runs/{id}/events?since=N` | events after index N |
-| GET | `/runs/{id}/events/stream` | server-sent events until the run pauses or ends |
-| GET | `/runs/{id}/artifacts` | list artifact files |
-| GET | `/runs/{id}/artifacts/{path}` | artifact content |
-| POST | `/api/assess` | synchronous risk assessment `{discovery, cloud}` |
-
-`options` mirrors the CLI flags: `cloud`, `environment`, `owner`, `mode`, `llm_provider`,
-`llm_model`, `llm_base_url`, `skip_validation`, `skip_opa`, `no_mcp`, `dry_run`,
-`llm_review_notes` (default true), `pause_points` (omit for the configured defaults, `[]` for none).
-
-Errors: unknown run 404, lifecycle or validation problems 400, a second start on an executing
-run 409. Runs execute in a small thread pool; the API process must stay up for a run to progress.
-
-Not yet: authentication, multipart upload, cancellation. The API binds to localhost by default.
+The endpoint reference moved to [api.md](api.md). In short: everything lives under `/api`,
+authentication is a session cookie or a `vma_` bearer token, roles are viewer / operator /
+admin, runs execute in a thread pool and are observed through polling or server-sent events,
+and the built UI is served at `/`.
