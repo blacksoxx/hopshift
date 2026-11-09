@@ -107,23 +107,31 @@ def test_connection_crud_and_test_over_http(client: TestClient, monkeypatch: pyt
 
 
 def test_http_error_mapping(client: TestClient) -> None:
-    assert client.post("/api/connections", json=AWS_BODY).status_code == 201
+    response = client.post("/api/connections", json=AWS_BODY)
+    assert response.status_code == 201
     duplicate = client.post("/api/connections", json=AWS_BODY)
     assert duplicate.status_code == 409 and "already exists" in duplicate.text
 
     invalid = client.post("/api/connections", json={**AWS_BODY, "name": "x", "config": {"bogus": "1"}})
     assert invalid.status_code == 400 and "unknown field 'bogus'" in invalid.text
-    assert client.post("/api/connections", json={**AWS_BODY, "name": "y", "provider": "nope"}).status_code == 400
+    response = client.post("/api/connections", json={**AWS_BODY, "name": "y", "provider": "nope"})
+    assert response.status_code == 400
 
     assert client.get("/api/connections/missing").status_code == 404
-    assert client.post("/api/connections/missing/test").status_code == 404
-    assert client.patch("/api/connections/missing", json={"name": "z"}).status_code == 404
-    assert client.delete("/api/connections/missing").status_code == 404
-    assert client.post("/api/connections/missing/device/start").status_code == 404
+    response = client.post("/api/connections/missing/test")
+    assert response.status_code == 404
+    response = client.patch("/api/connections/missing", json={"name": "z"})
+    assert response.status_code == 404
+    response = client.delete("/api/connections/missing")
+    assert response.status_code == 404
+    response = client.post("/api/connections/missing/device/start")
+    assert response.status_code == 404
 
     environment = client.post("/api/connections", json={"name": "env", "provider": "aws", "auth_method": "environment", "config": {"region": "us-east-1"}}).json()
-    assert client.post(f"/api/connections/{environment['id']}/device/start").status_code == 400
-    assert client.post(f"/api/connections/{environment['id']}/device/poll", json={"flow_id": "nope"}).status_code == 404
+    response = client.post(f"/api/connections/{environment['id']}/device/start")
+    assert response.status_code == 400
+    response = client.post(f"/api/connections/{environment['id']}/device/poll", json={"flow_id": "nope"})
+    assert response.status_code == 404
 
 
 def test_secrets_unavailable_maps_to_503(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,19 +152,28 @@ def test_roles_are_enforced(client: TestClient, monkeypatch: pytest.MonkeyPatch)
     assert client.get("/api/connections").status_code == 200
     assert client.get("/api/connections/methods").status_code == 200
     assert client.get(f"/api/connections/{connection_id}").status_code == 200
-    assert client.post(f"/api/connections/{connection_id}/test").status_code == 403
-    assert client.post("/api/connections", json={**AWS_BODY, "name": "other"}).status_code == 403
-    assert client.patch(f"/api/connections/{connection_id}", json={"name": "x"}).status_code == 403
-    assert client.delete(f"/api/connections/{connection_id}").status_code == 403
+    response = client.post(f"/api/connections/{connection_id}/test")
+    assert response.status_code == 403
+    response = client.post("/api/connections", json={**AWS_BODY, "name": "other"})
+    assert response.status_code == 403
+    response = client.patch(f"/api/connections/{connection_id}", json={"name": "x"})
+    assert response.status_code == 403
+    response = client.delete(f"/api/connections/{connection_id}")
+    assert response.status_code == 403
 
     _as_role(client, "operator")
-    assert client.post(f"/api/connections/{connection_id}/test").status_code == 200
-    assert client.post("/api/connections", json={**AWS_BODY, "name": "other"}).status_code == 403
-    assert client.delete(f"/api/connections/{connection_id}").status_code == 403
+    response = client.post(f"/api/connections/{connection_id}/test")
+    assert response.status_code == 200
+    response = client.post("/api/connections", json={**AWS_BODY, "name": "other"})
+    assert response.status_code == 403
+    response = client.delete(f"/api/connections/{connection_id}")
+    assert response.status_code == 403
 
     _as_role(client, "admin")
-    assert client.patch(f"/api/connections/{connection_id}", json={"name": "renamed"}).status_code == 200
-    assert client.delete(f"/api/connections/{connection_id}").status_code == 204
+    response = client.patch(f"/api/connections/{connection_id}", json={"name": "renamed"})
+    assert response.status_code == 200
+    response = client.delete(f"/api/connections/{connection_id}")
+    assert response.status_code == 204
     entries, _ = client.app.state.platform.audit.list(action="connection.tested")
     assert entries[0].actor == "operator-user" and entries[0].user_agent == "testclient"
 
@@ -200,6 +217,7 @@ def test_runs_can_reference_a_connection(client: TestClient) -> None:
     connection_id = client.post("/api/connections", json=AWS_BODY).json()["id"]
     discovery: dict[str, Any] = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "discovery_multi_vm.json").read_text(encoding="utf-8"))
     options = {"cloud": "aws", "environment": "dev", "owner": "platform"}
-    assert client.post("/api/runs", json={"discovery": discovery, "options": options, "connection_id": "missing"}).status_code == 404
+    response = client.post("/api/runs", json={"discovery": discovery, "options": options, "connection_id": "missing"})
+    assert response.status_code == 404
     created = client.post("/api/runs", json={"discovery": discovery, "options": options, "connection_id": connection_id})
     assert created.status_code == 201 and created.json()["connection_id"] == connection_id

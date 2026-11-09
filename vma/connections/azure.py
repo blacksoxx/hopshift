@@ -89,7 +89,7 @@ class DeviceSession:
         try:
             authenticate(self.credential, self.scope)
             self.authenticated = True
-        except BaseException as exc:  # noqa: BLE001 - reported to the poller, never raised in the thread
+        except Exception as exc:  # noqa: BLE001 - reported to the poller, never raised in the thread
             self.error = safe_error(exc)
         finally:
             self.done.set()

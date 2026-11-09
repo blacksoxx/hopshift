@@ -74,7 +74,8 @@ def test_setup_login_logout_flow(client: TestClient) -> None:
     assert "Secure" not in set_cookie  # plain http in tests
     assert "password_hash" not in created.text and PASSWORD not in created.text
 
-    assert client.post("/api/auth/setup", json={"username": "second", "password": PASSWORD, "name": "x"}).status_code == 409
+    response = client.post("/api/auth/setup", json={"username": "second", "password": PASSWORD, "name": "x"})
+    assert response.status_code == 409
 
     status = client.get("/api/auth/status").json()
     assert status["setup_required"] is False and status["user"]["username"] == "admin"
@@ -82,7 +83,8 @@ def test_setup_login_logout_flow(client: TestClient) -> None:
     assert me["role"] == "admin" and me["auth_kind"] == "password" and me["principal"]["kind"] == "user"
     assert client.get("/api/runs").status_code == 200
 
-    assert client.post("/api/auth/logout").status_code == 204
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 204
     assert client.get("/api/auth/me").status_code == 401
     client.cookies.set("vma_session", "stale-or-expired-value")
     stale = client.post("/api/auth/logout")  # logout never fails and always clears the cookie
@@ -166,10 +168,12 @@ def test_api_tokens(client: TestClient) -> None:
     assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Bearer vma_not_a_real_token"}).status_code == 401
     assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Basic abc"}).status_code == 401
 
-    assert client.delete(f"/api/auth/tokens/{payload['id']}").status_code == 204
+    response = client.delete(f"/api/auth/tokens/{payload['id']}")
+    assert response.status_code == 204
     assert bearer.get("/api/runs").status_code == 401
     assert client.get("/api/auth/tokens").json() == []
-    assert client.delete(f"/api/auth/tokens/{payload['id']}").status_code == 404
+    response = client.delete(f"/api/auth/tokens/{payload['id']}")
+    assert response.status_code == 404
 
     # A viewer cannot create a token above their role, and cannot list everyone's tokens.
     client.post("/api/users", json={"username": "viewer", "password": OTHER_PASSWORD, "name": "V", "role": "viewer"})
@@ -194,9 +198,12 @@ def test_user_administration(client: TestClient) -> None:
     created = client.post("/api/users", json={"username": "Bob", "password": OTHER_PASSWORD, "name": "Bob", "role": "viewer"})
     assert created.status_code == 201 and created.json()["username"] == "bob"
     bob_id = created.json()["id"]
-    assert client.post("/api/users", json={"username": "bob", "password": OTHER_PASSWORD, "name": "Bob", "role": "viewer"}).status_code == 409
-    assert client.post("/api/users", json={"username": "eve", "password": OTHER_PASSWORD, "name": "Eve", "role": "root"}).status_code == 400
-    assert client.post("/api/users", json={"username": "bad name!", "password": OTHER_PASSWORD, "name": "x", "role": "viewer"}).status_code == 400
+    response = client.post("/api/users", json={"username": "bob", "password": OTHER_PASSWORD, "name": "Bob", "role": "viewer"})
+    assert response.status_code == 409
+    response = client.post("/api/users", json={"username": "eve", "password": OTHER_PASSWORD, "name": "Eve", "role": "root"})
+    assert response.status_code == 400
+    response = client.post("/api/users", json={"username": "bad name!", "password": OTHER_PASSWORD, "name": "x", "role": "viewer"})
+    assert response.status_code == 400
     assert {user["username"] for user in client.get("/api/users").json()} == {"admin", "bob"}
 
     bob = TestClient(client.app, headers={"Origin": "http://testserver"})
@@ -209,19 +216,24 @@ def test_user_administration(client: TestClient) -> None:
     assert promoted.status_code == 200 and promoted.json()["role"] == "operator"
     assert bob.get("/api/auth/me").json()["role"] == "operator"
 
-    assert client.delete(f"/api/users/{admin['id']}").status_code == 409  # cannot delete yourself
-    assert client.patch(f"/api/users/{admin['id']}", json={"role": "viewer"}).status_code == 409  # last admin
-    assert client.patch(f"/api/users/{admin['id']}", json={"disabled": True}).status_code == 409
+    response = client.delete(f"/api/users/{admin['id']}")
+    assert response.status_code == 409  # cannot delete yourself
+    response = client.patch(f"/api/users/{admin['id']}", json={"role": "viewer"})
+    assert response.status_code == 409  # last admin
+    response = client.patch(f"/api/users/{admin['id']}", json={"disabled": True})
+    assert response.status_code == 409
 
     disabled = client.patch(f"/api/users/{bob_id}", json={"disabled": True})
     assert disabled.status_code == 200 and disabled.json()["disabled"] is True
     assert bob.get("/api/auth/me").status_code == 401  # sessions revoked
     assert _login(bob, "bob", OTHER_PASSWORD).status_code == 401  # generic failure for disabled accounts
 
-    assert client.patch(f"/api/users/{bob_id}", json={"disabled": False, "password": PASSWORD}).status_code == 200
+    response = client.patch(f"/api/users/{bob_id}", json={"disabled": False, "password": PASSWORD})
+    assert response.status_code == 200
     assert _login(bob, "bob", PASSWORD).status_code == 200
 
-    assert client.delete(f"/api/users/{bob_id}").status_code == 204
+    response = client.delete(f"/api/users/{bob_id}")
+    assert response.status_code == 204
     assert client.get(f"/api/users/{bob_id}").status_code == 404
     assert bob.get("/api/auth/me").status_code == 401
 
@@ -241,13 +253,15 @@ def test_mfa_enrolment_login_recovery_and_disable(client: TestClient) -> None:
     assert "issuer=vmware-migration-agent" in enrolled.json()["otpauth_uri"]
     totp = pyotp.TOTP(secret)
 
-    assert client.post("/api/auth/mfa/confirm", json={"code": "000000"}).status_code == 403
+    response = client.post("/api/auth/mfa/confirm", json={"code": "000000"})
+    assert response.status_code == 403
     confirmed = client.post("/api/auth/mfa/confirm", json={"code": totp.at(datetime.now(timezone.utc), -1)})
     assert confirmed.status_code == 200, confirmed.text
     codes = confirmed.json()["recovery_codes"]
     assert len(codes) == 8 and all(len(code) == 11 and "-" in code for code in codes)
     assert client.get("/api/auth/me").json()["mfa_enabled"] is True
-    assert client.post("/api/auth/mfa/enroll").status_code == 409
+    response = client.post("/api/auth/mfa/enroll")
+    assert response.status_code == 409
 
     client.post("/api/auth/logout")
     challenge = _login(client, "admin", PASSWORD)
@@ -269,9 +283,12 @@ def test_mfa_enrolment_login_recovery_and_disable(client: TestClient) -> None:
     assert reused.status_code == 401 and reused.json()["mfa_required"] is True  # single use
     assert _login(client, "admin", PASSWORD, totp_code=codes[1]).status_code == 200
 
-    assert client.post("/api/auth/mfa/disable", json={"password": "wrong password here", "code": codes[2]}).status_code == 403
-    assert client.post("/api/auth/mfa/disable", json={"password": PASSWORD, "code": "000000"}).status_code == 403
-    assert client.post("/api/auth/mfa/disable", json={"password": PASSWORD, "code": codes[2]}).status_code == 204
+    response = client.post("/api/auth/mfa/disable", json={"password": "wrong password here", "code": codes[2]})
+    assert response.status_code == 403
+    response = client.post("/api/auth/mfa/disable", json={"password": PASSWORD, "code": "000000"})
+    assert response.status_code == 403
+    response = client.post("/api/auth/mfa/disable", json={"password": PASSWORD, "code": codes[2]})
+    assert response.status_code == 204
     assert client.get("/api/auth/me").json()["mfa_enabled"] is False
     client.post("/api/auth/logout")
     assert _login(client, "admin", PASSWORD).status_code == 200
@@ -291,13 +308,16 @@ def test_mfa_required_policy_blocks_everything_but_auth(tmp_path: Path, monkeypa
     blocked = client.get("/api/runs")
     assert blocked.status_code == 403 and blocked.json()["detail"] == "mfa_enrollment_required"
     assert client.get("/api/users").status_code == 403
-    assert client.post("/api/auth/tokens", json={"name": "ci"}).status_code == 403
+    response = client.post("/api/auth/tokens", json={"name": "ci"})
+    assert response.status_code == 403
 
     secret = client.post("/api/auth/mfa/enroll").json()["secret"]
-    assert client.post("/api/auth/mfa/confirm", json={"code": pyotp.TOTP(secret).now()}).status_code == 200
+    response = client.post("/api/auth/mfa/confirm", json={"code": pyotp.TOTP(secret).now()})
+    assert response.status_code == 200
     assert client.get("/api/auth/me").json()["mfa_enrollment_required"] is False
     assert client.get("/api/runs").status_code == 200
-    assert client.post("/api/auth/tokens", json={"name": "ci"}).status_code == 201
+    response = client.post("/api/auth/tokens", json={"name": "ci"})
+    assert response.status_code == 201
 
     # An admin can reset a lost second factor; the user is then back in enrolment mode.
     user_id = client.get("/api/auth/me").json()["id"]
@@ -358,8 +378,10 @@ def test_auth_disabled_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert status["user"]["role"] == "admin" and status["user"]["auth_kind"] == "anonymous"
     assert client.get("/api/auth/me").json()["username"] == "anonymous"
     assert client.get("/api/runs").status_code == 200
-    assert client.post("/api/auth/setup", json={"username": "admin", "password": PASSWORD, "name": "A"}).status_code == 400
-    assert client.post("/api/auth/login", json={"username": "admin", "password": PASSWORD}).status_code == 400
+    response = client.post("/api/auth/setup", json={"username": "admin", "password": PASSWORD, "name": "A"})
+    assert response.status_code == 400
+    response = client.post("/api/auth/login", json={"username": "admin", "password": PASSWORD})
+    assert response.status_code == 400
     assert client.get("/api/users").status_code == 400
     assert client.get("/api/audit").status_code == 200  # the audit log works without accounts
     checks = {check["id"]: check for check in client.get("/api/settings/posture").json()["checks"]}

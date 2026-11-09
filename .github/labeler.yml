@@ -1,0 +1,36 @@
+"area: pipeline":
+  - changed-files:
+      - any-glob-to-any-file: ["agent/**", "cim/**", "providers/**"]
+"area: validation":
+  - changed-files:
+      - any-glob-to-any-file: ["validation/**", "vma/compliance/**"]
+"area: platform":
+  - changed-files:
+      - any-glob-to-any-file: ["vma/**", "api/**"]
+"area: security":
+  - changed-files:
+      - any-glob-to-any-file: ["vma/security/**", "api/middleware.py", "api/deps.py", "SECURITY.md"]
+"area: connections":
+  - changed-files:
+      - any-glob-to-any-file: ["vma/connections/**", "ui/src/components/connections/**"]
+"area: deployments":
+  - changed-files:
+      - any-glob-to-any-file: ["vma/deploy/**", "ui/src/components/run/DeployTab.tsx"]
+"area: ui":
+  - changed-files:
+      - any-glob-to-any-file: ["ui/**"]
+"area: cli":
+  - changed-files:
+      - any-glob-to-any-file: ["cli/**"]
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "README.md", "CONTRIBUTING.md"]
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file: [".github/**", "Dockerfile", "docker-compose.yml", ".pre-commit-config.yaml"]
+"area: tests":
+  - changed-files:
+      - any-glob-to-any-file: ["tests/**", "ui/e2e/**", "ui/src/**/*.test.tsx", "ui/src/**/*.test.ts"]
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file: ["pyproject.toml", "ui/package.json", "ui/package-lock.json"]

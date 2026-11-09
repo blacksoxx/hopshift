@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import agent.nodes.reporter as reporter_module
+from agent.nodes import reporter as reporter_module
 from agent.nodes.reporter import reporter
 
 

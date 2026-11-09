@@ -186,7 +186,7 @@ class ConnectionService:
         try:
             values.update(_string_values(self._decrypt(connection)))
         except Unavailable:
-            pass
+            pass  # no encryption key: there are no stored secret values to mask
         module = self._module(connection)
         if connection.provider == "openstack" and connection.auth_method == "clouds_yaml":
             values.update(openstack.clouds_yaml_secret_values(connection.config))
@@ -194,7 +194,7 @@ class ConnectionService:
         try:
             env = self.terraform_env(connection.id)
         except (Invalid, Unavailable):
-            pass
+            pass  # credentials cannot be resolved right now; mask what is stored
         for key in getattr(module, "SECRET_ENV_KEYS", ()):
             if env.get(key):
                 values.add(env[key])

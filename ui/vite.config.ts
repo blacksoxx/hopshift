@@ -32,5 +32,14 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
+    // coverage instrumentation slows jsdom renders; keep generous limits so CI is not flaky
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "lcov"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test-setup.ts", "src/test-utils.tsx", "src/**/test-utils.tsx", "src/**/test-helpers.tsx"],
+    },
   },
 });

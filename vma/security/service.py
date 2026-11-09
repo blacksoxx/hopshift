@@ -469,10 +469,11 @@ class AuthService:
             return True
         normalized = cleaned.lower().replace("-", "")
         if len(normalized) >= 10:
-            digest = sha256_hex(normalized)
             matched: dict[str, Any] | None = None
             for row in self.store.unused_recovery_codes(user["id"]):  # full scan: constant iterations
-                if hmac.compare_digest(row["code_hash"], digest):
+                # recovery codes are short enough to brute-force from a leaked table, so they are
+                # stored with the same slow hash as passwords (argon2id), never a fast digest
+                if passwords.verify_password(row["code_hash"], normalized):
                     matched = row
             if matched is not None and self.store.use_recovery_code(int(matched["id"])):
                 remaining = len(self.store.unused_recovery_codes(user["id"]))
@@ -506,7 +507,7 @@ class AuthService:
             self._audit("auth.mfa_confirmed", actor=user["username"], target_type="user", target_id=user["id"], outcome="failure", ctx=ctx)
             raise Forbidden("the code is not valid for the enrolled authenticator")
         codes = [f"{secrets.token_hex(5)[:5]}-{secrets.token_hex(5)[:5]}" for _ in range(RECOVERY_CODE_COUNT)]
-        self.store.replace_recovery_codes(user["id"], [sha256_hex(item.replace("-", "")) for item in codes])
+        self.store.replace_recovery_codes(user["id"], [passwords.hash_password(item.replace("-", "")) for item in codes])
         self.store.update_user(user["id"], mfa_secret=pending, mfa_pending_secret=None, mfa_enabled=1)
         self._audit("auth.mfa_confirmed", actor=user["username"], target_type="user", target_id=user["id"], details={"recovery_codes": RECOVERY_CODE_COUNT}, ctx=ctx)
         return {"recovery_codes": codes}

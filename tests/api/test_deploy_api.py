@@ -125,13 +125,17 @@ def test_plan_apply_destroy_over_http(client: TestClient, runtime: MigrationRunt
     assert put.status_code == 200
     by_name = {item["name"]: item for item in put.json()}
     assert by_name["aws_region"]["value"] == "eu-west-1" and by_name["db_password"]["value"] == "***"
-    assert client.put(f"/api/runs/{run_id}/deploy/variables", json={"values": {"nope": 1}}).status_code == 400
+    response = client.put(f"/api/runs/{run_id}/deploy/variables", json={"values": {"nope": 1}})
+    assert response.status_code == 400
     assert client.get(f"/api/runs/{run_id}/deploy/state").json() == {"exists": False, "remote": False}
 
     # plan
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan"}).status_code == 400  # connection required
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "nope"}).status_code == 404
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "bogus", "connection_id": "conn-1"}).status_code == 400
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan"})
+    assert response.status_code == 400  # connection required
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "nope"})
+    assert response.status_code == 404
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "bogus", "connection_id": "conn-1"})
+    assert response.status_code == 400
     created = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"})
     assert created.status_code == 202, created.text
     plan_id = created.json()["id"]
@@ -151,11 +155,14 @@ def test_plan_apply_destroy_over_http(client: TestClient, runtime: MigrationRunt
     assert len(plan_json["resource_changes"]) == 6 and plan_json["variables"]["db_password"] == {"value": "***"}
     assert client.get(f"/api/runs/{run_id}/deployments/{plan_id}/plan").status_code == 200
     assert client.get(f"/api/runs/{run_id}/deployments/nope/plan").status_code == 404
-    assert client.post(f"/api/runs/{run_id}/deployments/{plan_id}/cancel").status_code == 409  # already finished
+    response = client.post(f"/api/runs/{run_id}/deployments/{plan_id}/cancel")
+    assert response.status_code == 409  # already finished
 
     # apply gates
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "apply", "connection_id": "conn-1", "plan_id": plan_id}).status_code == 403
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "apply", "connection_id": "conn-1", "confirmation": run_id}).status_code == 400
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "apply", "connection_id": "conn-1", "plan_id": plan_id})
+    assert response.status_code == 403
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "apply", "connection_id": "conn-1", "confirmation": run_id})
+    assert response.status_code == 400
     applied = client.post(f"/api/runs/{run_id}/deployments", json={"action": "apply", "connection_id": "conn-1", "plan_id": plan_id, "confirmation": run_id})
     assert applied.status_code == 202, applied.text
     applied = wait_done(client, run_id, applied.json()["id"])
@@ -164,7 +171,8 @@ def test_plan_apply_destroy_over_http(client: TestClient, runtime: MigrationRunt
     assert state["exists"] is True and [item["address"] for item in state["resources"]] == ["aws_vpc.main", 'aws_subnet.a["x"]']
 
     # destroy
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "destroy", "connection_id": "conn-1"}).status_code == 403
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "destroy", "connection_id": "conn-1"})
+    assert response.status_code == 403
     destroyed = client.post(f"/api/runs/{run_id}/deployments", json={"action": "destroy", "connection_id": "conn-1", "confirmation": run_id})
     assert destroyed.status_code == 202
     assert wait_done(client, run_id, destroyed.json()["id"])["status"] == "succeeded"
@@ -182,12 +190,15 @@ def test_cancel_and_conflicts_over_http(client: TestClient, runtime: MigrationRu
     deadline = time.time() + 10
     while client.get(f"/api/runs/{run_id}/deployments/{created['id']}").json()["status"] != "running" and time.time() < deadline:
         time.sleep(0.05)
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"}).status_code == 409
-    assert client.delete(f"/api/runs/{run_id}").status_code == 409  # has_active
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"})
+    assert response.status_code == 409
+    response = client.delete(f"/api/runs/{run_id}")
+    assert response.status_code == 409  # has_active
     time.sleep(0.2)
     cancelled = client.post(f"/api/runs/{run_id}/deployments/{created['id']}/cancel")
     assert cancelled.status_code == 202 and cancelled.json()["status"] == "cancelled"
-    assert client.delete(f"/api/runs/{run_id}").status_code == 204
+    response = client.delete(f"/api/runs/{run_id}")
+    assert response.status_code == 204
 
 
 def test_unknown_run_and_not_succeeded(client: TestClient, runtime: MigrationRuntime) -> None:
@@ -209,8 +220,10 @@ def test_roles_are_enforced(runtime: MigrationRuntime, fake_terraform: Path) -> 
     run_id = make_run(runtime)
     assert client.get(f"/api/runs/{run_id}/deployments").status_code == 200
     assert client.get(f"/api/runs/{run_id}/deploy/variables").status_code == 200
-    assert client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"}).status_code == 403
-    assert client.put(f"/api/runs/{run_id}/deploy/variables", json={"values": {}}).status_code == 403
+    response = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"})
+    assert response.status_code == 403
+    response = client.put(f"/api/runs/{run_id}/deploy/variables", json={"values": {}})
+    assert response.status_code == 403
 
     app.state.platform.auth = FakeAuth("operator")
     created = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"})

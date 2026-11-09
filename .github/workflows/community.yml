@@ -1,0 +1,54 @@
+# Community automation: greet first-time contributors and tidy stale issues and pull requests.
+name: Community
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  greet:
+    name: Welcome first-time contributors
+    if: github.event_name == 'issues' || github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            Thanks for opening your first issue here. A maintainer will take a look soon.
+            If this is a bug, the exact error text, the target cloud and a redacted discovery
+            JSON make it much faster to reproduce.
+          pr-message: |
+            Thanks for your first pull request! CI runs the full suite (lint, unit, integration,
+            UI, end-to-end and security scans) and posts a coverage comment. See CONTRIBUTING.md
+            for the conventions; the PR title should follow `type(scope): summary`.
+
+  stale:
+    name: Mark and close stale items
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,security,roadmap
+          exempt-pr-labels: pinned,security
+          stale-issue-message: This issue has had no activity for 60 days and will be closed in 14 days unless there is new activity.
+          stale-pr-message: This pull request has had no activity for 60 days and will be closed in 14 days unless there is new activity.

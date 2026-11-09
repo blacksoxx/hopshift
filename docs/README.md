@@ -97,6 +97,7 @@ Platform:
 - [deployments.md](deployments.md): Terraform plan / apply / destroy with approval gates, state, LocalStack recipe.
 - [api.md](api.md): The HTTP API, endpoint by endpoint, with roles.
 - [ui.md](ui.md): The web UI: pages, shortcuts, building and testing.
+- [ci.md](ci.md): Continuous integration, bots, release pipeline, and how to run the same checks locally.
 - [platform-plan.md](platform-plan.md): The build contract used for phase 3 (kept for reference).
 
 Core:

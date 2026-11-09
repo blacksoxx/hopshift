@@ -16,6 +16,7 @@ cd vmware-migration-agent
 # Python
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+pre-commit install          # ruff, gitleaks and sanity hooks run on every commit
 
 # UI
 cd ui && npm ci && cd ..
@@ -38,7 +39,10 @@ cd ui && npx playwright test               # end-to-end against a real server
 ruff check .
 ```
 
-Every pull request runs these in CI together with dependency, secret and container scans.
+Every pull request runs these in CI together with dependency, secret, static-analysis and
+container scans, posts a coverage comment, checks the title format and reviews new
+dependencies. `All checks passed` is the required status on `main`. The full list is in
+[docs/ci.md](docs/ci.md).
 
 ## Conventions
 
@@ -51,7 +55,8 @@ Every pull request runs these in CI together with dependency, secret and contain
 - New API areas get their own router in `api/routes/` and their own service package in `vma/`.
 - Type hints everywhere, `ruff` clean, tests next to the feature (`tests/<area>/`).
 - Line endings are LF everywhere (enforced by `.gitattributes`).
-- Commit messages: `type(scope): summary` (feat, fix, docs, test, chore, refactor).
+- Commit messages and pull request titles: `type(scope): summary` with a lowercase subject
+  (feat, fix, docs, test, chore, refactor, ci, build, perf, security).
 
 ## Adding things
 

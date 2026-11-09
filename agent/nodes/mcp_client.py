@@ -601,7 +601,7 @@ def _fallback_provider_context(
                 )
             )
     except MCPRetrievalError:
-        pass
+        pass  # optional enrichment; the base snippets are still returned
 
     try:
         capabilities_payload = _call_registry_tool(
@@ -626,7 +626,7 @@ def _fallback_provider_context(
                 )
             )
     except MCPRetrievalError:
-        pass
+        pass  # optional enrichment; the base snippets are still returned
 
     return snippets
 
@@ -802,7 +802,7 @@ def _read_jsonrpc_message_with_timeout(stdout: Any, timeout_seconds: int) -> obj
     def _reader() -> None:
         try:
             output["payload"] = _read_jsonrpc_message(stdout)
-        except BaseException as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # pragma: no cover - defensive
             errors.append(exc)
 
     thread = threading.Thread(target=_reader, daemon=True)

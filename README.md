@@ -12,6 +12,10 @@
 <p align="center">
   <a href="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/ci.yml"><img src="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/codeql.yml"><img src="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/blacksoxx/vmware-migration-agent"><img src="https://api.scorecard.dev/projects/github.com/blacksoxx/vmware-migration-agent/badge" alt="OpenSSF Scorecard" /></a>
+  <a href="https://github.com/blacksoxx/vmware-migration-agent/tree/python-coverage-comment-action-data"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/blacksoxx/vmware-migration-agent/python-coverage-comment-action-data/endpoint.json" alt="Coverage" /></a>
+  <a href="https://github.com/blacksoxx/vmware-migration-agent/releases"><img src="https://img.shields.io/github/v/release/blacksoxx/vmware-migration-agent?color=4f46e5" alt="Release" /></a>
+  <a href="https://github.com/blacksoxx/vmware-migration-agent/pkgs/container/vmware-migration-agent"><img src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4f46e5.svg" alt="MIT" /></a>
   <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/terraform-1.8-7b42bc.svg" alt="Terraform 1.8" />
@@ -158,13 +162,19 @@ See [docs/connections.md](docs/connections.md).
 ## Development
 
 ```bash
-pip install -e ".[dev]" && (cd ui && npm ci)
-pytest -q --ignore=tests/integration          # fast unit suite
+pip install -e ".[dev]" && pre-commit install && (cd ui && npm ci)
+pytest -q --ignore=tests/integration --cov    # fast unit suite with coverage
 pytest -q tests/integration                   # real terraform/tflint/opa on all four clouds
-cd ui && npx vitest run && npm run build && npx playwright test
+cd ui && npx vitest run --coverage && npm run build && npx playwright test
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+Pull requests get the full treatment automatically: lint, unit tests on three Python
+targets, integration, UI, end-to-end, secret and dependency scans, semgrep, trivy, CodeQL, a
+coverage comment and a dependency review. Releases build a signed multi-arch image on GHCR.
+See [docs/ci.md](docs/ci.md), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+Prefer the published image? `docker pull ghcr.io/blacksoxx/vmware-migration-agent:latest`
+(linux/amd64 and linux/arm64, Sigstore-signed; see the release notes to verify).
 
 ## Roadmap
 

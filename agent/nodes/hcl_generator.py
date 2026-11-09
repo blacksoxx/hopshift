@@ -874,8 +874,9 @@ def _enforce_source_allowlist(provider: str, hcl_output: dict[str, str]) -> None
                     )
                 continue
 
-            if source.startswith("registry.terraform.io/"):
-                source = source[len("registry.terraform.io/"):]
+            registry_host, _, remainder = source.partition("/")
+            if registry_host == "registry.terraform.io" and remainder:
+                source = remainder  # the public registry prefix is optional in provider sources
 
             if _PROVIDER_SOURCE_SHAPE.match(source):
                 if source not in allowed_providers:

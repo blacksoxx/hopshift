@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import importlib
 import json
 import os
@@ -679,15 +678,15 @@ def _build_client_cache_key(
         "provider_override": provider_override or "",
         "model_override": model_override or "",
         "base_url_override": base_url_override or "",
-        "api_key_override_sha256": _hash_secret(api_key_override),
+        "api_key_override_present": bool(api_key_override),
         "env": {
             "LLM_PROVIDER": os.getenv("LLM_PROVIDER", "").strip(),
             "LLM_MODEL": os.getenv("LLM_MODEL", "").strip(),
             "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL", "").strip(),
             "LLM_BASE_URL": os.getenv("LLM_BASE_URL", "").strip(),
-            "ANTHROPIC_API_KEY_SHA256": _hash_secret(os.getenv("ANTHROPIC_API_KEY", "").strip()),
-            "OPENAI_API_KEY_SHA256": _hash_secret(os.getenv("OPENAI_API_KEY", "").strip()),
-            "GOOGLE_API_KEY_SHA256": _hash_secret(os.getenv("GOOGLE_API_KEY", "").strip()),
+            "ANTHROPIC_API_KEY_present": bool(os.getenv("ANTHROPIC_API_KEY", "").strip()),
+            "OPENAI_API_KEY_present": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+            "GOOGLE_API_KEY_present": bool(os.getenv("GOOGLE_API_KEY", "").strip()),
         },
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -703,12 +702,6 @@ def _normalize_cache_value(value: object) -> object:
     if isinstance(value, (list, tuple)):
         return [_normalize_cache_value(item) for item in value]
     return repr(value)
-
-
-def _hash_secret(value: str | None) -> str:
-    if not value:
-        return ""
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _get_mapping(source: Mapping[str, object], key: str) -> Mapping[str, object]:

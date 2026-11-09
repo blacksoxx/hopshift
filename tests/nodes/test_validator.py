@@ -142,7 +142,7 @@ def test_validator_builds_compliance_report_from_opa_results(monkeypatch) -> Non
     """The validator turns OPA compliance violations into compliance_result; enforce violations
     are already deny messages, so they fail the gate, while advisory ones only show up in the
     report."""
-    import agent.nodes.validator as validator_module
+    from agent.nodes import validator as validator_module
     from validation.opa_client import OPAEvaluationResult
 
     def _fake_evaluate_policies(**kwargs) -> OPAEvaluationResult:

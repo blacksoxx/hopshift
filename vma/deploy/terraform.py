@@ -262,13 +262,13 @@ def _signal_group(proc: subprocess.Popen[str], sig: signal.Signals) -> None:
     try:
         os.killpg(proc.pid, sig)  # start_new_session makes the pid the group id
     except ProcessLookupError:
-        pass
+        pass  # the process group is already gone
     except OSError as exc:  # pragma: no cover - platform specific
         logger.warning("deploy: could not signal terraform process group: {}", exc)
         try:
             proc.send_signal(sig)
         except OSError:
-            pass
+            pass  # nothing else can be done; the timeout path reports the outcome
 
 
 # ── summaries ────────────────────────────────────────────────────────────────

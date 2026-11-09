@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import validation.opa_client as opa_module
+from validation import opa_client as opa_module
 from validation.opa_client import OPAClient, _extract_compliance, _extract_deny_messages
 
 
