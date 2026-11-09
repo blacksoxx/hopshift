@@ -27,7 +27,13 @@ class SecretBox:
     def __init__(self, keys: list[str] | None, env_var: str = DEFAULT_KEY_ENV) -> None:
         self.env_var = env_var
         cleaned = [key.strip() for key in (keys or []) if key and key.strip()]
-        self._fernets = [Fernet(key.encode("ascii")) for key in cleaned]
+        try:
+            self._fernets = [Fernet(key.encode("ascii")) for key in cleaned]
+        except (ValueError, UnicodeEncodeError) as exc:
+            raise SecretsUnavailable(
+                f"{env_var} is not a valid Fernet key (expected 32 url-safe base64 bytes; "
+                "generate one with `vma secrets generate-key`)"
+            ) from exc
         self._multi = MultiFernet(self._fernets) if self._fernets else None
         self.fingerprint = hashlib.sha256(cleaned[0].encode("ascii")).hexdigest()[:12] if cleaned else None
 

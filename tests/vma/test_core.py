@@ -100,3 +100,9 @@ def test_platform_from_config_wires_services(tmp_path: Path, monkeypatch: pytest
     platform.audit.record("platform.started")
     assert platform.audit.verify().ok
     assert platform.auth_mode in {"required", "disabled"}
+
+
+def test_secret_box_rejects_an_invalid_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VMA_SECRET_KEY", "not-a-fernet-key")
+    with pytest.raises(SecretsUnavailable, match="valid Fernet key"):
+        SecretBox.from_env()

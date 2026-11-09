@@ -119,4 +119,6 @@ def is_executing(app: FastAPI, run_id: str) -> bool:
     return bool(future is not None and not future.done())
 
 
-app = create_app()
+# No module-level application: importing this module must not touch the filesystem or the
+# database. Serve with `vma serve`, or with uvicorn's factory mode:
+#   uvicorn --factory api.app:create_app

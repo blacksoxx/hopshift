@@ -114,7 +114,7 @@ jobs:
       - run: npx playwright test
         working-directory: ui
         env:
-          VMA_SECRET_KEY: ${{ secrets.VMA_E2E_SECRET_KEY || 'Ym9yaW5nLWJ1dC12YWxpZC1mZXJuZXQta2V5LWZvci1jaS0wMQ==' }}
+          VMA_SECRET_KEY: ${{ secrets.VMA_E2E_SECRET_KEY || 'Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=' }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

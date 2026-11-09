@@ -47,7 +47,7 @@ def main() -> None:
     config_path = state_dir / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
-    os.environ.setdefault("VMA_SECRET_KEY", "Ym9yaW5nLWJ1dC12YWxpZC1mZXJuZXQta2V5LWZvci1jaS0wMQ==")
+    os.environ.setdefault("VMA_SECRET_KEY", "Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=")
     os.environ.setdefault("TF_PLUGIN_CACHE_DIR", str(Path.home() / ".cache" / "vmware-migration-agent" / "terraform-plugins"))
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):
         os.environ.pop(key, None)  # the suite must never call a model
@@ -55,6 +55,7 @@ def main() -> None:
     sys.stdout.write(f"e2e server: state in {state_dir}\n")
     sys.stdout.flush()
     os.chdir(ROOT)
+    sys.path.insert(0, str(ROOT))  # the script lives under ui/e2e; the packages live at the root
     sys.argv = ["vma", "serve", "--config", str(config_path), "--host", args.host, "--port", str(args.port)]
     from cli.main import main as cli_main
 
