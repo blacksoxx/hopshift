@@ -17,6 +17,8 @@ SOFT_BLOCKERS: frozenset[str] = frozenset(
 )
 KNOWN_BLOCKERS: frozenset[str] = HARD_BLOCKERS | SOFT_BLOCKERS
 
+__all__ = ["HARD_BLOCKERS", "SOFT_BLOCKERS", "KNOWN_BLOCKERS", "normalize_blocker", "blockers_for_vm", "is_hard"]
+
 _ALIASES: dict[str, str] = {
     "encrypted_vm_present": "encrypted_vm_present",
     "encrypted_vm": "encrypted_vm_present",

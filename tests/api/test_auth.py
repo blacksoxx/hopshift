@@ -162,8 +162,10 @@ def test_api_tokens(client: TestClient) -> None:
     assert bearer.get("/api/runs").status_code == 200
     assert bearer.get("/api/users").status_code == 403  # operator token cannot use admin endpoints
     assert bearer.get("/api/auth/me").json()["principal"]["kind"] == "token"
-    assert bearer.post("/api/auth/tokens", json={"name": "chain"}).status_code == 403  # tokens cannot mint tokens
-    assert bearer.post("/api/auth/mfa/enroll").status_code == 403
+    response = bearer.post("/api/auth/tokens", json={"name": "chain"})
+    assert response.status_code == 403  # tokens cannot mint tokens
+    response = bearer.post("/api/auth/mfa/enroll")
+    assert response.status_code == 403
 
     assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Bearer vma_not_a_real_token"}).status_code == 401
     assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Basic abc"}).status_code == 401
@@ -179,12 +181,14 @@ def test_api_tokens(client: TestClient) -> None:
     client.post("/api/users", json={"username": "viewer", "password": OTHER_PASSWORD, "name": "V", "role": "viewer"})
     viewer = TestClient(client.app, headers={"Origin": "http://testserver"})
     assert _login(viewer, "viewer", OTHER_PASSWORD).status_code == 200
-    assert viewer.post("/api/auth/tokens", json={"name": "escalate", "role": "admin"}).status_code == 403
+    response = viewer.post("/api/auth/tokens", json={"name": "escalate", "role": "admin"})
+    assert response.status_code == 403
     own = viewer.post("/api/auth/tokens", json={"name": "mine"})
     assert own.status_code == 201 and own.json()["role"] == "viewer"
     assert viewer.get("/api/auth/tokens?all=true").status_code == 403
     assert {item["username"] for item in client.get("/api/auth/tokens?all=true").json()} == {"viewer"}
-    assert viewer.delete(f"/api/auth/tokens/{own.json()['id']}").status_code == 204
+    response = viewer.delete(f"/api/auth/tokens/{own.json()['id']}")
+    assert response.status_code == 204
 
     actions = [entry["action"] for entry in client.get("/api/audit?limit=100").json()["entries"]]
     assert "auth.token_created" in actions and "auth.token_deleted" in actions
@@ -210,7 +214,8 @@ def test_user_administration(client: TestClient) -> None:
     assert _login(bob, "bob", OTHER_PASSWORD).status_code == 200
     assert bob.get("/api/users").status_code == 403
     assert bob.get("/api/audit").status_code == 403
-    assert bob.post("/api/runs", json={"discovery": {}, "options": {"cloud": "aws", "environment": "d", "owner": "o"}}).status_code == 403
+    response = bob.post("/api/runs", json={"discovery": {}, "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
+    assert response.status_code == 403
 
     promoted = client.patch(f"/api/users/{bob_id}", json={"role": "operator"})
     assert promoted.status_code == 200 and promoted.json()["role"] == "operator"
@@ -324,9 +329,11 @@ def test_mfa_required_policy_blocks_everything_but_auth(tmp_path: Path, monkeypa
     client.post("/api/users", json={"username": "second", "password": OTHER_PASSWORD, "name": "S", "role": "admin"})
     second = TestClient(client.app, headers={"Origin": "http://testserver"})
     assert _login(second, "second", OTHER_PASSWORD).status_code == 200
-    assert second.post(f"/api/users/{user_id}/mfa/reset").status_code == 403  # the policy applies to admins too
+    response = second.post(f"/api/users/{user_id}/mfa/reset")
+    assert response.status_code == 403  # the policy applies to admins too
     second_secret = second.post("/api/auth/mfa/enroll").json()["secret"]
-    assert second.post("/api/auth/mfa/confirm", json={"code": pyotp.TOTP(second_secret).now()}).status_code == 200
+    response = second.post("/api/auth/mfa/confirm", json={"code": pyotp.TOTP(second_secret).now()})
+    assert response.status_code == 200
     reset = second.post(f"/api/users/{user_id}/mfa/reset")
     assert reset.status_code == 200 and reset.json()["mfa_enabled"] is False
     assert client.get("/api/auth/me").status_code == 401  # sessions of the reset user are revoked

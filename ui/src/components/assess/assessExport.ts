@@ -6,7 +6,10 @@ export type RiskLevel = (typeof RISK_LEVELS)[number];
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
   // RFC 4180: wrap in quotes and double the embedded quotes; backslashes carry no meaning in CSV.
-  return /[",\n\r]/.test(text) ? `"${text.split('"').join('""')}"` : text;
+  if (!/[",\n\r]/.test(text)) return text;
+  let quoted = '"';
+  for (const ch of text) quoted += ch === '"' ? '""' : ch;
+  return quoted + '"';
 }
 
 function mdCell(value: unknown): string {

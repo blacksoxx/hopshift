@@ -9,9 +9,9 @@ for a team, and behind TLS for production.
 |---|---|---|
 | Python | 3.12 | everything |
 | Node.js | 22 | building the UI (not needed with Docker) |
-| terraform | 1.8.x | validation and deployments |
-| tflint | 0.53.x | validation |
-| opa | 0.68.x | security and compliance policies |
+| terraform | 1.17.x | validation and deployments |
+| tflint | 0.66.x | validation |
+| opa | 1.22.x | security and compliance policies |
 | Docker | any recent | the container stack; the Terraform MCP docs server (optional) |
 
 The container image ships all of these pinned; the versions are build arguments in the

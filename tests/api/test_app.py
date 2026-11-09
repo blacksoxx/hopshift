@@ -114,9 +114,12 @@ def test_lifecycle_errors_map_to_http_codes(client: TestClient) -> None:
 
     created = client.post("/api/runs", json={"discovery": _discovery(), "options": {"cloud": "aws", "environment": "d", "owner": "o"}})
     run_id = created.json()["run_id"]
-    assert client.post(f"/api/runs/{run_id}/resume").status_code == 400
-    assert client.patch(f"/api/runs/{run_id}/state", json={"values": {"sized_cim": {}}}).status_code == 400
-    assert client.post(f"/api/runs/{run_id}/rerun", json={"node": "sizer"}).status_code == 400
+    response = client.post(f"/api/runs/{run_id}/resume")
+    assert response.status_code == 400
+    response = client.patch(f"/api/runs/{run_id}/state", json={"values": {"sized_cim": {}}})
+    assert response.status_code == 400
+    response = client.post(f"/api/runs/{run_id}/rerun", json={"node": "sizer"})
+    assert response.status_code == 400
 
 
 def test_assess_endpoint_runs_synchronously(client: TestClient) -> None:

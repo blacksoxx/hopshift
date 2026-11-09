@@ -52,3 +52,6 @@ ui/.vite/
 
 # ─── Claude Code agent worktrees (local only) ────────────────────────────────
 .claude/worktrees/
+
+# Coverage output
+ui/coverage/

@@ -245,8 +245,8 @@ class ConnectionService:
                 result = aws.device_poll(connection.config, flow_secret)
             else:
                 result = azure.device_poll(connection_id=connection.id, flow_id=flow_id)
-        except SecretsUnavailable as exc:
-            result = {"status": "error", "message": str(exc)}
+        except SecretsUnavailable:
+            result = {"status": "error", "message": "the server has no encryption key configured; set VMA_SECRET_KEY and restart"}
         except Exception as exc:  # noqa: BLE001
             result = {"status": "error", "message": safe_error(exc)}
         status = str(result.get("status") or "error")

@@ -18,7 +18,7 @@
   <a href="https://github.com/blacksoxx/vmware-migration-agent/pkgs/container/vmware-migration-agent"><img src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4f46e5.svg" alt="MIT" /></a>
   <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12" />
-  <img src="https://img.shields.io/badge/terraform-1.8-7b42bc.svg" alt="Terraform 1.8" />
+  <img src="https://img.shields.io/badge/terraform-1.17-7b42bc.svg" alt="Terraform 1.17" />
   <img src="https://img.shields.io/badge/OPA-policies-1e90ff.svg" alt="OPA" />
 </p>
 
