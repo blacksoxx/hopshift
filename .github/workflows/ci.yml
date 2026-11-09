@@ -56,6 +56,7 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - uses: open-policy-agent/setup-opa@v2
+        if: runner.os == 'Linux'   # policy tests skip without the binary; macOS covers the Python side
         with:
           version: ${{ env.OPA_VERSION }}
       - name: Unit tests with coverage
