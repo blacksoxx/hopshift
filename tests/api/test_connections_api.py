@@ -25,7 +25,7 @@ def _config() -> dict[str, object]:
         "generation": {"mode": "deterministic"}, "mcp": {"enabled": False},
         "validation": {"run_terraform_validate": False, "run_tflint": False, "run_opa": False},
         "output": {"base_dir": "output"}, "runtime": {"default_pause_points": []},
-        "security": {"auth": {"mode": "required"}},
+        "security": {"auth": {"mode": "disabled"}},  # the HTTP tests exercise the service, not sign-in
     }
 
 

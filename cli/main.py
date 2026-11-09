@@ -1,11 +1,11 @@
-import click
-from pathlib import Path
 import json
 import os
+from pathlib import Path
+
+import click
 from loguru import logger
 
 from agent.nodes.mcp_client import _MCPStdioClient
-
 from cim.schema import TargetProvider
 
 SUPPORTED_PROVIDERS = ["anthropic", "openai", "google"]
@@ -132,9 +132,10 @@ def terragen(
           --llm-base-url https://my-instance.openai.azure.com/ \\
           -m my-gpt4o-deployment -e prod --owner sre
     """
-    from agent.graph import build_graph
     from agent.config_loader import load_config
-    from agent.runtime import RunError, RunOptions, build_run_config, initial_state as build_initial_state
+    from agent.graph import build_graph
+    from agent.runtime import RunError, RunOptions, build_run_config
+    from agent.runtime import initial_state as build_initial_state
 
     base_cfg = load_config(config_file)
 
@@ -230,8 +231,8 @@ def assess(input_file, cloud, output_dir, config_file):
     Unlike terragen, blocked VMs are assessed rather than quarantined, so the report covers
     the whole inventory.
     """
-    from agent.graph import build_assess_graph
     from agent.config_loader import load_config
+    from agent.graph import build_assess_graph
 
     cfg = load_config(config_file)
     cfg["target_cloud"] = cloud.lower()
@@ -284,6 +285,7 @@ def serve(config_file, host, port, ssl_certfile, ssl_keyfile, forwarded_allow_ip
     """Start the HTTP API (runs, pause/approve, state editing, artifacts, assess)."""
     try:
         import uvicorn
+
         from api.app import create_app
     except ImportError as exc:  # pragma: no cover - depends on the optional extra
         raise click.ClickException("the API requires the 'api' extra: pip install '.[api]'") from exc
@@ -484,7 +486,6 @@ def _probe_mcp_server(
         or "aws_instance"
     )
     provider_namespace, provider_name = _provider_namespace_parts(provider)
-    service_slug = _service_slug_from_resource(resource)
 
     try:
         client = _MCPStdioClient(

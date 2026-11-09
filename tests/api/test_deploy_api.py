@@ -62,7 +62,7 @@ def _config(tmp_path: Path) -> dict[str, Any]:
     return {
         "runtime": {"runs_dir": str(tmp_path / "runs"), "checkpoint_db": str(tmp_path / "cp.sqlite")},
         "validation": {"terraform_plugin_cache_dir": ""},
-        "security": {"auth": {"mode": "required"}},
+        "security": {"auth": {"mode": "disabled"}},  # the HTTP tests exercise the service, not sign-in
         "deploy": {"terraform_bin": "terraform", "timeout_minutes": 1, "allow_apply": True, "allow_destroy": True, "remote_state": {"enabled": False}},
     }
 
