@@ -624,6 +624,207 @@ def _string_list(value: object) -> list[str]:
     return out
 
 
+
+# ── platform administration (security workstream) ───────────────────────────
+# Accounts, encryption keys, audit verification and retention live in the platform services;
+# these commands build the same Platform the API uses and act as the "cli" system actor.
+
+_CLI_AUDIT_CTX = {"ip": None, "user_agent": "vma-cli"}
+_CONFIG_OPTION = click.option(
+    "--config", "config_file", default="config.yaml", type=click.Path(exists=True, path_type=Path),
+    show_default=True, help="Path to config.yaml.",
+)
+_ROLE_CHOICE = click.Choice(["viewer", "operator", "admin"])
+
+
+def _load_platform(config_file):
+    from agent.config_loader import load_config
+    from vma.platform import Platform
+
+    return Platform.from_config(load_config(config_file))
+
+
+def _platform_runtime(platform):
+    from agent.runtime import MigrationRuntime
+
+    return MigrationRuntime(platform.effective_config())
+
+
+def _auth_service(platform):
+    if platform.auth is None:
+        raise click.ClickException(
+            "authentication is disabled (security.auth.mode: disabled); set it to required to manage accounts"
+        )
+    return platform.auth
+
+
+def _platform_call(fn, *args, **kwargs):
+    """Run a service call and turn platform errors into CLI errors (exit code 1, message only)."""
+    from vma.errors import PlatformError
+    from vma.secrets import SecretsUnavailable
+
+    try:
+        return fn(*args, **kwargs)
+    except (PlatformError, SecretsUnavailable) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@cli.group(name="admin")
+def admin_group():
+    """Manage local user accounts (needs security.auth.mode: required)."""
+
+
+@admin_group.command(name="create-user")
+@click.argument("username")
+@click.option("--name", default="", help="Display name.")
+@click.option("--role", default="viewer", type=_ROLE_CHOICE, show_default=True, help="viewer | operator | admin")
+@click.option("--password", default=None, help="Password; prompted when omitted (keeps it out of shell history).")
+@_CONFIG_OPTION
+def admin_create_user(username, name, role, password, config_file):
+    """Create a local account. Works before first-run setup, so it can bootstrap the first admin."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    if password is None:
+        password = click.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    user = _platform_call(service.create_user, CLI_PRINCIPAL, username, password, name, role, _CLI_AUDIT_CTX)
+    click.echo(f"created {user['username']} ({user['role']}) id={user['id']}")
+
+
+@admin_group.command(name="reset-password")
+@click.argument("username")
+@click.option("--password", default=None, help="New password; prompted when omitted.")
+@_CONFIG_OPTION
+def admin_reset_password(username, password, config_file):
+    """Set a new password for USERNAME and revoke their sessions."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    user = _platform_call(service.find_user, username)
+    if password is None:
+        password = click.prompt("New password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    _platform_call(service.update_user, CLI_PRINCIPAL, user["id"], password=password, ctx=_CLI_AUDIT_CTX)
+    click.echo(f"password updated for {user['username']}; existing sessions revoked")
+
+
+@admin_group.command(name="list-users")
+@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@_CONFIG_OPTION
+def admin_list_users(fmt, config_file):
+    """List accounts with role, sign-in kind, MFA and status."""
+    platform = _load_platform(config_file)
+    users = _auth_service(platform).list_users()
+    if fmt == "json":
+        click.echo(json.dumps(users, indent=2))
+        return
+    if not users:
+        click.echo("no users yet: run `vma admin create-user <name> --role admin` or open the UI for first-run setup")
+        return
+    click.echo(f"{'USERNAME':<32} {'ROLE':<9} {'AUTH':<9} {'MFA':<4} {'STATUS':<9} LAST LOGIN")
+    for user in users:
+        click.echo(
+            "{:<32} {:<9} {:<9} {:<4} {:<9} {}".format(
+                user["username"][:32], user["role"], user["auth_kind"], "yes" if user["mfa_enabled"] else "no",
+                "disabled" if user["disabled"] else "active", user["last_login_at"] or "-",
+            )
+        )
+
+
+@admin_group.command(name="set-role")
+@click.argument("username")
+@click.argument("role", type=_ROLE_CHOICE)
+@_CONFIG_OPTION
+def admin_set_role(username, role, config_file):
+    """Change USERNAME's role (the last admin cannot be demoted)."""
+    from vma.security.service import CLI_PRINCIPAL
+
+    platform = _load_platform(config_file)
+    service = _auth_service(platform)
+    user = _platform_call(service.find_user, username)
+    updated = _platform_call(service.update_user, CLI_PRINCIPAL, user["id"], role=role, ctx=_CLI_AUDIT_CTX)
+    click.echo(f"{updated['username']} is now {updated['role']}")
+
+
+@cli.group(name="secrets")
+def secrets_group():
+    """Encryption keys for stored secrets (VMA_SECRET_KEY)."""
+
+
+@secrets_group.command(name="generate-key")
+def secrets_generate_key():
+    """Print a new Fernet key. Export it as VMA_SECRET_KEY (to rotate: VMA_SECRET_KEY=new,old)."""
+    from vma.secrets import SecretBox
+
+    click.echo(SecretBox.generate_key())
+
+
+@secrets_group.command(name="rotate")
+@_CONFIG_OPTION
+def secrets_rotate(config_file):
+    """Re-encrypt every stored secret with the first (primary) key in VMA_SECRET_KEY.
+
+    Set VMA_SECRET_KEY=<new>,<old>, run this, then drop the old key from the variable.
+    """
+    platform = _load_platform(config_file)
+    if not platform.secrets.available:
+        raise click.ClickException(f"{platform.secrets.env_var} is not set; nothing can be rotated")
+    total = 0
+    for label, service in (("auth", platform.auth), ("connections", platform.connections), ("deployments", platform.deployments)):
+        rotate = getattr(service, "rotate_secrets", None)
+        if not callable(rotate):
+            continue
+        count = int(_platform_call(rotate) or 0)
+        total += count
+        click.echo(f"{label}: {count} row(s) re-encrypted")
+    platform.audit.record(
+        "secrets.rotated", actor="cli", actor_kind="system",
+        details={"rows": total, "key_fingerprint": platform.secrets.fingerprint},
+    )
+    click.echo(f"rotated {total} row(s) to key {platform.secrets.fingerprint}")
+
+
+@cli.group(name="audit")
+def audit_group():
+    """Tamper-evident audit log."""
+
+
+@audit_group.command(name="verify")
+@_CONFIG_OPTION
+def audit_verify(config_file):
+    """Recompute the audit hash chain; exits non-zero when an entry was altered or removed."""
+    platform = _load_platform(config_file)
+    result = platform.audit.verify()
+    click.echo(f"{'OK' if result.ok else 'BROKEN'}: {result.entries} entries, {result.message}")
+    if not result.ok:
+        raise click.exceptions.Exit(1)
+
+
+@cli.group(name="runs")
+def runs_group():
+    """Run storage maintenance."""
+
+
+@runs_group.command(name="prune")
+@click.option(
+    "--older-than-days", "older_than_days", required=True, type=click.IntRange(min=1),
+    help="Delete runs that were not updated for this many days.",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Only report what would be deleted.")
+@_CONFIG_OPTION
+def runs_prune(older_than_days, dry_run, config_file):
+    """Delete old runs through the runtime (never running or paused ones) and audit the sweep."""
+    from vma.security.retention import sweep
+
+    platform = _load_platform(config_file)
+    result = sweep(
+        platform, _platform_runtime(platform), dry_run=dry_run, actor="cli", runs_days=older_than_days, include_audit=False
+    )
+    verb = "would delete" if dry_run else "deleted"
+    click.echo(f"{verb} {result['runs_deleted']} run(s) older than {older_than_days} day(s)")
+
+
 def main():
     cli()
 
