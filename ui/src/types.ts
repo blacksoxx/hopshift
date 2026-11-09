@@ -282,7 +282,7 @@ export interface ConnectionField {
   required: boolean;
   secret: boolean;
   help?: string;
-  options?: string[];
+  options?: { value: string; label: string }[];
   placeholder?: string;
   default?: string | boolean | number | null;
 }
@@ -292,6 +292,7 @@ export interface ConnectionMethod {
   label: string;
   description: string;
   terraform_ready: boolean;
+  device_flow: boolean;
   fields: ConnectionField[];
 }
 
@@ -312,6 +313,9 @@ export interface Connection {
   has_secret: boolean;
   secret_fields: string[];
   terraform_ready: boolean;
+  device_flow?: boolean;
+  provider_label?: string;
+  method_label?: string;
 }
 
 export interface ConnectionTest {
