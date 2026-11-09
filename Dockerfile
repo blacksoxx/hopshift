@@ -72,7 +72,7 @@ RUN terraform version \
 WORKDIR /app
 
 # Install dependencies first so source edits do not invalidate the layer.
-COPY pyproject.toml /app/
+COPY pyproject.toml AGENTS.md /app/
 RUN pip install --upgrade pip && pip install .
 
 COPY . /app
