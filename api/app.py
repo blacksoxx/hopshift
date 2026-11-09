@@ -20,6 +20,7 @@ from agent.runtime import MigrationRuntime, RunError
 from api.middleware import OriginCheckMiddleware, SecurityHeadersMiddleware
 from api.routes import all_routers
 from vma import __version__
+from vma.errors import Conflict, Forbidden, Invalid, NotFound, PlatformError, Unavailable
 from vma.platform import Platform
 from vma.secrets import SecretsUnavailable
 from vma.settings import SettingsError
@@ -84,6 +85,11 @@ def create_app(
     @app.exception_handler(SecretsUnavailable)
     async def _secrets_error(request: Request, exc: SecretsUnavailable):  # type: ignore[no-untyped-def]
         return PlainTextResponse(str(exc), status_code=503)
+
+    @app.exception_handler(PlatformError)
+    async def _platform_error(request: Request, exc: PlatformError):  # type: ignore[no-untyped-def]
+        status = {NotFound: 404, Conflict: 409, Forbidden: 403, Invalid: 400, Unavailable: 503}.get(type(exc), 400)
+        return PlainTextResponse(str(exc), status_code=status)
 
     @app.exception_handler(ValueError)
     async def _value_error(request: Request, exc: ValueError):  # type: ignore[no-untyped-def]
