@@ -211,7 +211,10 @@ function Breadcrumbs() {
       {parts.map((part, index) => {
         const to = `/${parts.slice(0, index + 1).join("/")}`;
         const last = index === parts.length - 1;
-        const label = LABELS[part] ?? (part.length > 24 ? `${part.slice(0, 10)}…${part.slice(-8)}` : part);
+        const parent = parts[index - 1];
+        const label =
+          LABELS[part] ??
+          (parent === "connections" ? "Details" : parent === "runs" && /^\d{8}T\d{6}Z-[0-9a-f]{8}$/.test(part) ? part.slice(-8) : part.length > 24 ? `${part.slice(0, 10)}…${part.slice(-8)}` : part);
         return (
           <React.Fragment key={to}>
             {index > 0 ? <span className="text-muted-foreground/60">/</span> : null}
