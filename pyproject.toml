@@ -20,7 +20,7 @@ dependencies = [
   "pyyaml>=6.0",
   "rich>=13.0",
   # <8: python-hcl2 8.x ships a stray top-level package named `cli` that shadows ours.
-  "python-hcl2>=4.3,<8",
+  "python-hcl2>=4.3,<9",
   "langgraph-checkpoint-sqlite>=2.0",
   # platform (API, security, connections, deployments)
   "fastapi>=0.115",
