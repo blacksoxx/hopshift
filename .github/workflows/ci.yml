@@ -211,6 +211,8 @@ jobs:
           format: sarif
           output: trivy-fs.sarif
           exit-code: "1"
+          # the SARIF upload must honour the severity filter, otherwise every finding lands in code scanning
+          limit-severities-for-sarif: true
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
@@ -249,6 +251,7 @@ jobs:
           format: sarif
           output: trivy-image.sarif
           exit-code: "0"
+          limit-severities-for-sarif: true
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
