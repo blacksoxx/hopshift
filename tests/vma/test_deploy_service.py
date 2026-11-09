@@ -486,6 +486,7 @@ def test_without_connection_service_the_process_environment_is_inherited(
 ) -> None:
     monkeypatch.setenv("AWS_PROFILE", "local-profile")
     platform = Platform.from_config(_config(tmp_path), db_path=tmp_path / "p3.sqlite")
+    platform.connections = None  # simulate a build without the connections service
     service = build_deploy_service(platform)
     service.bind_runtime(runtime)
     assert platform.connections is None
@@ -542,6 +543,7 @@ def test_plan_and_output_summaries() -> None:
 def test_remote_state_override_and_state_summary(tmp_path: Path, runtime: MigrationRuntime, fake_terraform: FakeTerraform) -> None:
     config = _config(tmp_path, remote_state={"enabled": True, "type": "gcs", "config": {"bucket": "state-bucket", "prefix": "vma"}})
     platform = Platform.from_config(config, db_path=tmp_path / "p4.sqlite")
+    platform.connections = None  # inherit the process environment (no connection)
     platform.extras["runtime"] = runtime
     service = platform.deployments
     run_id = make_run(runtime)

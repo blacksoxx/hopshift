@@ -49,3 +49,6 @@ ui/dist/
 ui/test-results/
 ui/playwright-report/
 ui/.vite/
+
+# ─── Claude Code agent worktrees (local only) ────────────────────────────────
+.claude/worktrees/
