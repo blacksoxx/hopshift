@@ -91,6 +91,8 @@ Behavior:
 - quarantine_report_filename
 - write_review_notes
 - review_notes_filename
+- write_compliance_report, compliance_report_json_filename, compliance_report_markdown_filename
+- llm_review_notes (write review notes with the model; runs created through the API/UI can override per run)
 - overwrite
 - dry_run
 
@@ -124,7 +126,40 @@ Default tags injected into generated resources:
 
 CLI overwrites Environment and Owner at runtime.
 
+## runtime
+
+Service layer used by the API, the UI and the platform.
+
+- runs_dir: one folder per run (run.json, discovery.json, events.jsonl, artifacts/, deploy/)
+- checkpoint_db: LangGraph checkpoint database (pause / resume / re-run); empty keeps checkpoints in memory
+- platform_db: SQLite database for users, sessions, tokens, connections, deployments, the audit log and settings overrides
+- default_pause_points: `review_cim` (before hcl_generator) and/or `approve_output` (before reporter) for runs created through the runtime; the CLI never pauses
+
+## security
+
+- auth.mode: `required` (default) or `disabled` (development only; every caller is an anonymous admin)
+- auth.session_hours, auth.idle_minutes: absolute and idle session expiry
+- auth.mfa: `optional` or `required` (users without a second factor may only use the account endpoints until enrolled)
+- auth.lockout_threshold, auth.lockout_minutes: failed-login lockout per account
+- auth.oidc: `enabled`, `issuer`, `client_id`, `client_secret_env` (name of the environment variable holding the client secret), `scopes`, `allowed_domains`, `default_role`, `admin_groups`, `groups_claim`
+- secret_key_env: environment variable holding the Fernet key(s) that encrypt stored credentials (default `VMA_SECRET_KEY`; comma-separated keys, the first encrypts, all decrypt)
+- headers.hsts, headers.content_security_policy (`default` or `off`)
+- allowed_origins: extra origins allowed to call the API with a session cookie
+- api_docs: serve Swagger UI at /docs
+- retention.runs_days, retention.audit_days: delete runs and prune audit entries older than N days (0 keeps everything); applied by the hourly sweeper and `vma runs prune`
+- encrypt_run_inputs: store discovery.json encrypted with the secret key
+
+A few keys (`generation.mode`, the model settings, validation switches, default pause points, MFA policy, session lifetimes, lockout, retention, deploy gates) can be overridden from Settings in the UI by an administrator; the overrides live in `platform_db` and are applied over this file when a run is created.
+
+## deploy
+
+- terraform_bin
+- timeout_minutes: maximum duration of a plan, apply or destroy
+- allow_apply, allow_destroy: global gates; a request against a disabled action is refused and audited
+- remote_state.enabled, remote_state.type (`s3` | `azurerm` | `gcs`), remote_state.config: rendered into `backend_override.tf` in the deployment workspace; by default state stays local under the run's `deploy/state/` folder
+
 ## logging
 
 - level
 - format (json or console)
+- detailed_log_file, detailed_log_level: optional second sink (kept under output/ so the container can run with a read-only root filesystem)
