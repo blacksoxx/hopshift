@@ -350,6 +350,7 @@ export interface Deployment {
   requested_by: string | null;
   approved_by: string | null;
   plan_id: string | null;
+  created_at?: string;
   started_at: string | null;
   finished_at: string | null;
   exit_code: number | null;
@@ -370,11 +371,14 @@ export interface TerraformVariable {
   default: unknown;
   sensitive: boolean;
   required: boolean;
+  set?: boolean;
   value?: unknown;
 }
 
 export interface TerraformStateSummary {
   exists: boolean;
+  remote?: boolean;
+  backend?: string;
   resources?: { address: string; type: string }[];
   serial?: number;
   terraform_version?: string;
