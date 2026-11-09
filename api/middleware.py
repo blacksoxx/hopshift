@@ -18,7 +18,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 STRICT_CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
     "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
-    "object-src 'none'; upgrade-insecure-requests"
+    "object-src 'none'"
 )
 # Swagger UI and ReDoc load their assets from a CDN; they get a relaxed policy on their own paths only.
 DOCS_CSP = (
@@ -51,7 +51,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         headers.setdefault("Cache-Control", "no-store") if request.url.path.startswith("/api") else None
         if self.csp_mode != "off":
             path = request.url.path
-            headers.setdefault("Content-Security-Policy", DOCS_CSP if path.startswith(DOCS_PATHS) else STRICT_CSP)
+            policy = DOCS_CSP if path.startswith(DOCS_PATHS) else STRICT_CSP
+            if is_https(request):
+                # Only meaningful behind TLS; on plain HTTP it would break same-origin API calls.
+                policy += "; upgrade-insecure-requests"
+            headers.setdefault("Content-Security-Policy", policy)
         if self.hsts and is_https(request):
             headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
         return response
