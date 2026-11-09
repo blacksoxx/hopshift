@@ -10,14 +10,16 @@ const ADMIN = { username: "e2e-admin", password: "correct-horse-battery-staple-4
 /** Create the first administrator when the server is fresh, otherwise sign in. */
 async function signIn(page: Page) {
   await page.goto("/#/");
-  await page.waitForURL(/#\/(setup|login|$)/, { timeout: 30_000 });
-  if (page.url().includes("#/setup")) {
+  // the app redirects to /setup (fresh server), /login (signed out) or shows the dashboard
+  const landing = page.locator('[data-testid="setup-form"], [data-testid="login-form"], [data-testid="stat-runs"]').first();
+  await landing.waitFor({ timeout: 30_000 });
+  if ((await landing.getAttribute("data-testid")) === "setup-form") {
     await page.getByTestId("setup-username").fill(ADMIN.username);
     await page.getByTestId("setup-name").fill(ADMIN.name);
     await page.getByTestId("setup-password").fill(ADMIN.password);
     await page.getByTestId("setup-confirm").fill(ADMIN.password);
     await page.getByTestId("setup-submit").click();
-  } else if (page.url().includes("#/login")) {
+  } else if ((await landing.getAttribute("data-testid")) === "login-form") {
     await page.getByTestId("login-username").fill(ADMIN.username);
     await page.getByTestId("login-password").fill(ADMIN.password);
     await page.getByTestId("login-submit").click();
