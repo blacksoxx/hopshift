@@ -10,6 +10,7 @@ from agent.llm_client import LLMClient
 from agent.prompts import build_report_system_prompt, build_report_user_prompt
 from agent.state import MigrationState
 from validation.paths import ensure_safe_relative_path
+from vma.compliance.report import build_report, render_markdown
 
 
 def reporter(state: MigrationState) -> MigrationState:
@@ -30,9 +31,12 @@ def reporter(state: MigrationState) -> MigrationState:
     base_dir = Path(_get_str(output_cfg, "base_dir", "output")).resolve()
     write_review_notes = _get_bool(output_cfg, "write_review_notes", True)
     write_quarantine_report = _get_bool(output_cfg, "write_quarantine_report", True)
+    write_compliance_report = _get_bool(output_cfg, "write_compliance_report", True)
     overwrite_output = _get_bool(output_cfg, "overwrite", True)
     review_notes_filename = _get_str(output_cfg, "review_notes_filename", "review_notes.md")
     quarantine_filename = _get_str(output_cfg, "quarantine_report_filename", "quarantine_report.json")
+    compliance_json_filename = _get_str(output_cfg, "compliance_report_json_filename", "compliance_report.json")
+    compliance_md_filename = _get_str(output_cfg, "compliance_report_markdown_filename", "compliance_report.md")
     dry_run = _get_bool(output_cfg, "dry_run", False)
 
     validation_result = next_state.get("validation_result", {})
@@ -72,11 +76,30 @@ def reporter(state: MigrationState) -> MigrationState:
             encoding="utf-8",
         )
 
+    # The compliance report is written for every outcome (like the quarantine report) so a
+    # failed gate still leaves per-control evidence. Without a validator result it is a
+    # not_applicable report that says so.
+    compliance_result = next_state.get("compliance_result")
+    if not isinstance(compliance_result, dict):
+        compliance_result = build_report(
+            _detect_cloud(hcl_output, next_state), [], [], validation_result if isinstance(validation_result, dict) else {}
+        )
+        next_state["compliance_result"] = compliance_result
+
+    if write_compliance_report and not dry_run:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        (base_dir / compliance_json_filename).write_text(
+            json.dumps(compliance_result, indent=2, ensure_ascii=True),
+            encoding="utf-8",
+        )
+        (base_dir / compliance_md_filename).write_text(render_markdown(compliance_result), encoding="utf-8")
+
     messages.append(
-        "reporter: wrote_hcl_files={} wrote_review_notes={} wrote_quarantine_report={}".format(
+        "reporter: wrote_hcl_files={} wrote_review_notes={} wrote_quarantine_report={} wrote_compliance_report={}".format(
             hcl_files_written,
             write_review_notes and not dry_run,
             write_quarantine_report and not dry_run,
+            write_compliance_report and not dry_run,
         )
     )
 
@@ -150,6 +173,30 @@ def _fallback_review_notes(summary_payload: dict[str, object]) -> str:
             "3. Validate generated HCL in target environment before apply.",
         ]
     )
+
+
+_CLOUD_ROOTS = {
+    "aws-migration/": "aws",
+    "azure-migration/": "azure",
+    "gcp-migration/": "gcp",
+    "openstack-migration/": "openstack",
+}
+
+
+def _detect_cloud(hcl_output: dict[str, str], state: MigrationState) -> str:
+    for path in hcl_output:
+        for root, cloud in _CLOUD_ROOTS.items():
+            if path.lstrip("/").startswith(root):
+                return cloud
+    target = state.get("target_provider")
+    if target is None:
+        cim = state.get("sized_cim") or state.get("cim")
+        target = getattr(cim, "target_provider", None)
+    if target is None:
+        config = state.get("config", {})
+        target = config.get("target_cloud") if isinstance(config, dict) else None
+    value = getattr(target, "value", target)
+    return str(value).strip().lower() if value else ""
 
 
 def _normalize_hcl_output(raw: object) -> dict[str, str]:

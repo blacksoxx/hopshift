@@ -69,6 +69,8 @@ class MigrationState(TypedDict, total=False):
     mcp_context: str
     hcl_output: dict[str, str]
     validation_result: ValidationResult
+    # Output of vma.compliance.report.build_report (controls, statuses, framework counts).
+    compliance_result: dict[str, JSONValue]
     review_notes: str
     assessment_result: AssessmentResult
 

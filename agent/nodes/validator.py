@@ -8,6 +8,7 @@ from loguru import logger
 from agent.state import MigrationState, QuarantineItem
 from validation.opa_client import evaluate_policies, resolve_policies_dir
 from validation.tf_runner import validate_hcl
+from vma.compliance.report import build_report
 
 
 def validator(state: MigrationState) -> MigrationState:
@@ -34,6 +35,9 @@ def validator(state: MigrationState) -> MigrationState:
                 "errors": [],
                 "warnings": [warning_msg],
             }
+            next_state["compliance_result"] = build_report(
+                _detect_cloud(hcl_output, next_state), [], [], next_state["validation_result"]
+            )
             next_state["messages"] = messages
             next_state["status"] = "running"
 
@@ -52,6 +56,9 @@ def validator(state: MigrationState) -> MigrationState:
             "errors": [error_msg],
             "warnings": [],
         }
+        next_state["compliance_result"] = build_report(
+            _detect_cloud(hcl_output, next_state), [], [], next_state["validation_result"]
+        )
         next_state["messages"] = messages
         next_state["status"] = "failed"
 
@@ -105,7 +112,7 @@ def validator(state: MigrationState) -> MigrationState:
     if not run_tflint:
         tf_warnings.append("validator: tflint skipped by config")
 
-    opa_passed, opa_errors, opa_warnings = _run_opa_validation(
+    opa_outcome = _run_opa_validation(
         hcl_output=hcl_output,
         opa_mode=opa_mode,
         opa_bin=opa_bin,
@@ -113,9 +120,17 @@ def validator(state: MigrationState) -> MigrationState:
         policies_dir=policies_dir,
         enabled=run_opa,
     )
+    opa_passed, opa_errors, opa_warnings = opa_outcome.passed, opa_outcome.errors, opa_outcome.warnings
 
     errors = [*tf_errors, *opa_errors]
     warnings = [*tf_warnings, *opa_warnings]
+
+    # Enforce-level compliance violations are already deny messages (opa_passed covers them);
+    # the report adds the per-control view, including advisory findings that do not fail the gate.
+    if not run_opa:
+        warnings.append("validator: compliance controls not evaluated because OPA validation is disabled")
+    elif not opa_outcome.evaluated:
+        warnings.append("validator: compliance controls not evaluated (OPA evaluation failed or no supported cloud detected)")
 
     passed = tf_validate_passed and tflint_passed and opa_passed
 
@@ -129,6 +144,15 @@ def validator(state: MigrationState) -> MigrationState:
     }
     next_state["validation_result"] = validation_result
 
+    compliance_result = build_report(
+        cloud=_detect_cloud(hcl_output, next_state),
+        violations=opa_outcome.violations,
+        evaluated=opa_outcome.evaluated,
+        validation_result=validation_result,
+    )
+    next_state["compliance_result"] = compliance_result
+    compliance_summary = compliance_result.get("summary", {})
+
     messages = list(next_state.get("messages", []))
     messages.append(
         "validator: passed={} terraform_validate_passed={} tflint_passed={} opa_passed={}".format(
@@ -136,6 +160,15 @@ def validator(state: MigrationState) -> MigrationState:
             tf_validate_passed,
             tflint_passed,
             opa_passed,
+        )
+    )
+    messages.append(
+        "validator: compliance controls={} passed={} failed={} advisory={} not_applicable={}".format(
+            compliance_summary.get("controls", 0),
+            compliance_summary.get("passed", 0),
+            compliance_summary.get("failed", 0),
+            compliance_summary.get("advisory", 0),
+            compliance_summary.get("not_applicable", 0),
         )
     )
 
@@ -174,6 +207,52 @@ def _is_openstack_hcl_output(hcl_output: dict[str, str]) -> bool:
     return any(str(path).replace("\\", "/").startswith("openstack-migration/") for path in hcl_output)
 
 
+_CLOUD_ROOTS = {
+    "aws-migration/": "aws",
+    "azure-migration/": "azure",
+    "gcp-migration/": "gcp",
+    "openstack-migration/": "openstack",
+}
+
+
+def _detect_cloud(hcl_output: object, state: MigrationState) -> str:
+    """Target cloud for the compliance report: the provider root of the output, else target_provider."""
+    if isinstance(hcl_output, dict):
+        for path in hcl_output:
+            normalized = str(path).replace("\\", "/").lstrip("/")
+            for root, cloud in _CLOUD_ROOTS.items():
+                if normalized.startswith(root):
+                    return cloud
+
+    target = state.get("target_provider")
+    if target is None:
+        cim = state.get("sized_cim") or state.get("cim")
+        target = getattr(cim, "target_provider", None)
+    if target is None:
+        config = state.get("config", {})
+        target = config.get("target_cloud") if isinstance(config, dict) else None
+    value = getattr(target, "value", target)
+    return str(value).strip().lower() if value else ""
+
+
+class _OPAOutcome:
+    """OPA gate outcome plus the compliance data the report needs."""
+
+    def __init__(
+        self,
+        passed: bool,
+        errors: list[str],
+        warnings: list[str],
+        violations: list[dict[str, object]] | None = None,
+        evaluated: list[str] | None = None,
+    ) -> None:
+        self.passed = passed
+        self.errors = errors
+        self.warnings = warnings
+        self.violations = violations or []
+        self.evaluated = evaluated or []
+
+
 def _run_opa_validation(
     hcl_output: dict[str, str],
     opa_mode: str,
@@ -181,12 +260,12 @@ def _run_opa_validation(
     opa_server_url: str,
     policies_dir: Path,
     enabled: bool,
-) -> tuple[bool, list[str], list[str]]:
+) -> _OPAOutcome:
     if not enabled:
-        return True, [], ["validator: OPA validation skipped by config"]
+        return _OPAOutcome(True, [], ["validator: OPA validation skipped by config"])
 
     if not policies_dir.exists():
-        return False, [f"OPA policies directory not found: {policies_dir}"], []
+        return _OPAOutcome(False, [f"OPA policies directory not found: {policies_dir}"], [])
 
     result = evaluate_policies(
         hcl_output=hcl_output,
@@ -196,7 +275,13 @@ def _run_opa_validation(
         opa_server_url=opa_server_url,
     )
 
-    return result.passed, list(result.errors), list(result.warnings)
+    return _OPAOutcome(
+        result.passed,
+        list(result.errors),
+        list(result.warnings),
+        list(result.violations),
+        list(result.evaluated),
+    )
 
 
 def _build_validator_quarantine_items(

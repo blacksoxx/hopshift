@@ -48,6 +48,13 @@ def render_runtime(
                 "Image self link per VMware VM name, produced by Migrate to Virtual Machines or an image import."
             ),
             variable_block(
+                "service_account_email",
+                "string",
+                "Dedicated service account for the migrated instances (CIS GCP 4.1). Empty uses the default "
+                "Compute Engine service account with limited scopes.",
+                "",
+            ),
+            variable_block(
                 "default_kms_key_self_link",
                 "string",
                 "Optional Cloud KMS key for customer-managed disk encryption. Empty uses Google-managed keys.",

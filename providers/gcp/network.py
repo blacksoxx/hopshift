@@ -59,6 +59,8 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append(f'  ip_cidr_range = "{cidr}"')
             lines.append('  private_ip_google_access = true')
             lines.append('')
+            lines.extend(_log_config_lines())
+            lines.append('')
             lines.append(f'  description = {hcl_string(description)}')
             lines.append('}')
             lines.append('')
@@ -72,6 +74,8 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
             lines.append(f'  network       = google_compute_network.{network_ref}.id')
             lines.append('  ip_cidr_range = "10.60.1.0/24"')
             lines.append('  private_ip_google_access = true')
+            lines.append('')
+            lines.extend(_log_config_lines())
             lines.append('}')
             lines.append('')
 
@@ -83,10 +87,23 @@ def _render_subnets_file(switches: list[DistributedSwitch]) -> str:
         lines.append('  network       = google_compute_network.default_dvs.id')
         lines.append('  ip_cidr_range = "10.60.1.0/24"')
         lines.append('  private_ip_google_access = true')
+        lines.append('')
+        lines.extend(_log_config_lines())
         lines.append('}')
         lines.append('')
 
     return "\n".join(lines).strip() + "\n"
+
+
+def _log_config_lines() -> list[str]:
+    """VPC flow logs on every subnetwork (CIS GCP 3.8)."""
+    return [
+        '  log_config {',
+        '    aggregation_interval = "INTERVAL_5_SEC"',
+        '    flow_sampling        = 0.5',
+        '    metadata             = "INCLUDE_ALL_METADATA"',
+        '  }',
+    ]
 
 
 def _render_security_file(switches: list[DistributedSwitch]) -> str:

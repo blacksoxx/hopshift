@@ -188,6 +188,12 @@ output:
   write_review_notes: true
   review_notes_filename: review_notes.md
 
+  # Compliance-as-code report (per-control pass/fail/advisory with CIS, SOC 2 and HIPAA
+  # references), written for every run next to quarantine_report.json. See docs/compliance.md.
+  write_compliance_report: true
+  compliance_report_json_filename: compliance_report.json
+  compliance_report_markdown_filename: compliance_report.md
+
   # Written by the `assess` command
   assessment_report_json_filename: assessment_report.json
   assessment_report_markdown_filename: assessment_report.md
