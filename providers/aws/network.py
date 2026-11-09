@@ -44,8 +44,28 @@ def _render_vpc_file(cim: CanonicalInfrastructureModel, switches: list[Distribut
         lines.append('  }')
         lines.append('}')
         lines.append('')
+        lines.extend(_render_default_security_group(cim, switch.name, vpc_name))
 
     return "\n".join(lines).strip() + "\n"
+
+
+def _render_default_security_group(cim: CanonicalInfrastructureModel, switch_name: str, vpc_name: str) -> list[str]:
+    """CIS AWS 5.4: take over the VPC's implicit default security group and leave it without rules."""
+    return [
+        f'resource "aws_default_security_group" "{vpc_name}" {{',
+        '  # Adopts the default security group of the VPC; no ingress/egress blocks means every rule is removed.',
+        f'  vpc_id = aws_vpc.{vpc_name}.id',
+        '',
+        '  tags = {',
+        f'    Name = {hcl_string(f"{switch_name}-default-sg")}',
+        '    Environment = var.environment',
+        '    Owner = var.owner',
+        f'    MigratedFrom = {hcl_string(cim.migrated_from)}',
+        f'    SourceVCenter = {hcl_string(cim.source_vcenter)}',
+        '  }',
+        '}',
+        '',
+    ]
 
 
 def _render_subnets_file(cim: CanonicalInfrastructureModel, switches: list[DistributedSwitch]) -> str:

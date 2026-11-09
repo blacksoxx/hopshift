@@ -40,6 +40,9 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     lines.append(f'  instance_type          = "{instance_type}"')
     lines.append(f'  subnet_id              = aws_subnet.{_subnet_ref(compute_unit)}.id')
     lines.append('  vpc_security_group_ids = [aws_security_group.compute_unit.id]')
+    # Secure by default: private addressing only and dedicated EBS bandwidth.
+    lines.append('  associate_public_ip_address = false')
+    lines.append('  ebs_optimized               = true')
 
     if compute_unit.cluster_ref:
         lines.append(
@@ -49,6 +52,13 @@ def _render_compute_unit(compute_unit: ComputeUnit, tags: dict[str, str]) -> str
     if compute_unit.has_vtpm:
         lines.append('  # TODO: ComputeUnit has vTPM and needs manual review (NitroTPM requires a UEFI AMI).')
 
+    lines.append('')
+    lines.append('  # IMDSv2 only (CIS AWS 5.6): token-backed metadata requests, no forwarding past the instance.')
+    lines.append('  metadata_options {')
+    lines.append('    http_endpoint               = "enabled"')
+    lines.append('    http_tokens                 = "required"')
+    lines.append('    http_put_response_hop_limit = 1')
+    lines.append('  }')
     lines.append('')
     lines.append('  root_block_device {')
     lines.append('    encrypted = true')

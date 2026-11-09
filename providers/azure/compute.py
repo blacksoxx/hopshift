@@ -81,6 +81,9 @@ def _render_compute_unit(
     lines.append('    storage_account_type = "StandardSSD_LRS"')
     lines.append('  }')
     lines.append('')
+    lines.append('  # Managed boot diagnostics (no storage account required).')
+    lines.append('  boot_diagnostics {}')
+    lines.append('')
     lines.append(f'  # Image: the managed image migrated for this VM (var.image_overrides[{name_literal}]),')
     lines.append('  # otherwise a marketplace reference so the configuration stays plan-able.')
     default_image = hcl_string(compute_unit.image_ref) if compute_unit.image_ref else "null"

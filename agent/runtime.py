@@ -673,6 +673,11 @@ def _summarize(values: dict[str, Any]) -> dict[str, Any]:
     if validation:
         summary["validation_passed"] = bool(validation.get("passed"))
         summary["validation_errors"] = len(validation.get("errors") or [])
+    compliance = values.get("compliance_result") if isinstance(values.get("compliance_result"), dict) else {}
+    compliance_summary = compliance.get("summary") if isinstance(compliance.get("summary"), dict) else {}
+    if compliance_summary:
+        summary["compliance_failed"] = int(compliance_summary.get("failed") or 0)
+        summary["compliance_advisory"] = int(compliance_summary.get("advisory") or 0)
     return summary
 
 

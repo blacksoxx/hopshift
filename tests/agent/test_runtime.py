@@ -48,6 +48,23 @@ def _options(**overrides: object) -> RunOptions:
     return RunOptions(**values)  # type: ignore[arg-type]
 
 
+def test_summarize_reports_compliance_counts() -> None:
+    from agent.runtime import _summarize
+
+    summary = _summarize(
+        {
+            "status": "running",
+            "validation_result": {"passed": False, "errors": ["x"]},
+            "compliance_result": {"summary": {"controls": 10, "passed": 7, "failed": 2, "advisory": 1, "not_applicable": 0}},
+        }
+    )
+
+    assert summary["validation_passed"] is False
+    assert summary["compliance_failed"] == 2
+    assert summary["compliance_advisory"] == 1
+    assert "compliance_failed" not in _summarize({"status": "running"})
+
+
 def test_build_run_config_applies_options_like_the_cli() -> None:
     cfg = build_run_config(_base_config(), _options(skip_opa=True, no_mcp=True, dry_run=True, mode="deterministic"), "/tmp/out")
 
