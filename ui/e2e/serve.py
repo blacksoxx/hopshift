@@ -47,6 +47,9 @@ def main() -> None:
     config_path = state_dir / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
+    # terraform/tflint come from PATH; opa may live only in the virtualenv's bin on dev machines
+    venv_bin = Path(sys.executable).resolve().parent
+    os.environ["PATH"] = f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}"
     os.environ.setdefault("VMA_SECRET_KEY", "Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=")
     os.environ.setdefault("TF_PLUGIN_CACHE_DIR", str(Path.home() / ".cache" / "vmware-migration-agent" / "terraform-plugins"))
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):

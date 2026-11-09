@@ -54,7 +54,7 @@ async function signIn() {
   await page.waitForSelector('[data-testid="stat-runs"]', { timeout: 30_000 });
 }
 
-async function createRun(name, { approve = true, tags = ["lab"] } = {}) {
+async function createRun(name, { approve = true, tags = ["lab"], validate = false } = {}) {
   await page.goto(`${base}/#/runs/new`, { waitUntil: "networkidle" });
   await page.waitForSelector("[data-testid=dropzone]");
   await page.getByTestId("discovery-file").setInputFiles(fixture);
@@ -66,25 +66,26 @@ async function createRun(name, { approve = true, tags = ["lab"] } = {}) {
     await page.getByTestId("run-tags").fill(tag);
     await page.keyboard.press("Enter");
   }
-  await page.getByTestId("toggle-validation").click(); // offline: no provider downloads
+  if (!validate) await page.getByTestId("toggle-validation").click(); // offline: no provider downloads
   await page.getByTestId("wizard-next").click();
   await page.getByTestId("wizard-next").click();
   await page.getByTestId("start-run").click();
   await page.waitForURL(/#\/runs\/\d{8}T/);
   const runId = page.url().split("/runs/")[1].split("/")[0];
-  await page.waitForSelector('[data-testid="paused-banner"]', { timeout: 60_000 });
+  await page.waitForSelector('[data-testid="paused-banner"]', { timeout: 120_000 });
   if (!approve) return runId;
   await page.getByTestId("approve").click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="paused-banner"]')?.textContent?.includes("approve_output"), null, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelector('[data-testid="paused-banner"]')?.textContent?.includes("approve_output"), null, { timeout: 240_000 });
   await page.getByTestId("approve").click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="status-badge"]')?.textContent?.trim() === "succeeded", null, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelector('[data-testid="status-badge"]')?.textContent?.trim() === "succeeded", null, { timeout: 240_000 });
   return runId;
 }
 
 await signIn();
 
 // data: one succeeded run, one paused run, one connection
-const succeeded = await createRun("prod-cluster lift-and-shift", { tags: ["prod", "wave-1"] });
+// validated for real (terraform, tflint, OPA) so the compliance report has content
+const succeeded = await createRun("prod-cluster lift-and-shift", { tags: ["prod", "wave-1"], validate: true });
 await createRun("lab vCenter rehearsal", { approve: false, tags: ["lab"] });
 await page.goto(`${base}/#/connections`, { waitUntil: "networkidle" });
 if ((await page.getByTestId("connection-row").count()) === 0) {

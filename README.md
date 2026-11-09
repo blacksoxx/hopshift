@@ -111,6 +111,21 @@ platform gives you the controls and the evidence. See [docs/security.md](docs/se
   <img src="docs/images/compliance.png" alt="Compliance report" width="900" />
 </p>
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Runs](docs/images/runs.png) | ![CIM review](docs/images/cim.png) |
+| ![Artifacts with highlighting and diff](docs/images/artifacts.png) | ![Deployments](docs/images/deploy.png) |
+| ![Assessment](docs/images/assess.png) | ![Connections](docs/images/connections.png) |
+| ![Security posture](docs/images/posture.png) | ![Audit log](docs/images/audit.png) |
+
+Dark mode is a click away:
+
+<p align="center">
+  <img src="docs/images/dashboard-dark.png" alt="Dashboard, dark theme" width="900" />
+</p>
+
 ## Cloud connections
 
 Every sign-in method you are likely to meet, verified before use and resolved into the
