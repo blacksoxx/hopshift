@@ -132,7 +132,7 @@ export function AppShell() {
         </header>
         <main className="flex-1 px-4 py-6 md:px-8 md:py-7">
           {/* Enter-only transition: exit animations can leave a ghost page behind on rapid hash changes. */}
-          <motion.div key={location.pathname} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="mx-auto w-full max-w-[1400px]">
+          <motion.div key={location.pathname.split("/").slice(0, 2).join("/")} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="mx-auto w-full max-w-[1400px]">
             <Outlet />
           </motion.div>
         </main>
