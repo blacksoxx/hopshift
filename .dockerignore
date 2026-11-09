@@ -36,3 +36,7 @@ app-logs.txt
 .vscode/
 .idea/
 .DS_Store
+
+# Agent worktrees and CI metadata
+.claude/
+.github/

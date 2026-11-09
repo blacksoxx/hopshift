@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from cim.schema import CanonicalInfrastructureModel
-from providers.runtime_common import image_overrides_block, literal_default as _literal, tag_variable_blocks, variable_block
+from providers.runtime_common import image_overrides_block, tag_variable_blocks, variable_block
+from providers.runtime_common import literal_default as _literal
 
 PROVIDER_VERSION = "~> 6.0"
 

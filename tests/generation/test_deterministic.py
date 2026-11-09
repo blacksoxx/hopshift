@@ -4,12 +4,12 @@ import pytest
 
 from agent.generation.deterministic import DeterministicRenderError, render_deterministic
 from cim.schema import (
+    NIC,
     CanonicalInfrastructureModel,
     ClusterSemantics,
     ComputeCluster,
     ComputeUnit,
     DistributedSwitch,
-    NIC,
     NetworkTopology,
     PortGroup,
     StorageVolume,

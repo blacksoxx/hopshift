@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import atexit
-from collections import deque
 import json
 import os
 import subprocess
 import threading
 import time
+from collections import deque
 from typing import Any, cast
 
 from loguru import logger

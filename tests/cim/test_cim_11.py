@@ -9,7 +9,6 @@ import pytest
 from cim import schema_export
 from cim.schema import (
     Architecture,
-    CanonicalInfrastructureModel,
     ClusterSemantics,
     DistributedSwitch,
     MigrationStatus,

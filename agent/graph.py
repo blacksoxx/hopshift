@@ -18,7 +18,6 @@ from agent.nodes.sizer import sizer
 from agent.nodes.validator import validator
 from agent.state import MigrationState
 
-
 NODE_ORDER: tuple[str, ...] = (
     "ingest",
     "blocker_parser",

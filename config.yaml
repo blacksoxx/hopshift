@@ -253,5 +253,6 @@ logging:
   # console: human-readable for local development
   format: console
   # Optional second sink: keep structured logs for debugging while console stays readable
-  detailed_log_file: app-logs.txt
+  # Kept under output/ so the container can run with a read-only root filesystem
+  detailed_log_file: output/app-logs.txt
   detailed_log_level: TRACE

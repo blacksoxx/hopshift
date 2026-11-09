@@ -66,3 +66,15 @@ namespaces = true
 
 [project.scripts]
 vma = "cli.main:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".claude", "ui", "output", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"agent/llm_client.py" = ["E731"]  # provider dispatch table of lambdas

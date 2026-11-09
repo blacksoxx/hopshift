@@ -6,11 +6,11 @@ import pytest
 
 import agent.nodes.hcl_generator as hcl_module
 from cim.schema import (
+    NIC,
     CanonicalInfrastructureModel,
     ComputeUnit,
     DistributedSwitch,
     MigrationStatus,
-    NIC,
     NetworkTopology,
     PortGroup,
     TargetProvider,
@@ -754,7 +754,6 @@ def test_llm_generation_batches_large_estates(monkeypatch: pytest.MonkeyPatch) -
 def test_llm_truncation_halves_batch_and_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     from agent.llm_client import LLMTruncatedError
 
-    seen_batches: list[int] = []
 
     class _TruncatingLLM:
         last_usage = None

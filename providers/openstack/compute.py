@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
-from providers.common import hcl_string, hcl_value, safe_file_stem, source_context_comments as _source_context_comments
+from providers.common import hcl_string, hcl_value, safe_file_stem
+from providers.common import source_context_comments as _source_context_comments
 from providers.openstack.sizing_table import get_instance_type
 
 

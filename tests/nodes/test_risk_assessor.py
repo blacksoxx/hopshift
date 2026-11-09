@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from agent.nodes.risk_assessor import risk_assessor
 from cim.schema import (
+    NIC,
     CanonicalInfrastructureModel,
     ComputeUnit,
     DistributedSwitch,
     MigrationStatus,
-    NIC,
     NetworkTopology,
     PortGroup,
     StorageVolume,

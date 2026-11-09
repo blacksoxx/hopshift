@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import cast
 
 from loguru import logger
 
-from cim.schema import CanonicalInfrastructureModel
+from agent.generation.deterministic import DeterministicRenderError, render_deterministic
 from agent.llm_client import LLMClient, LLMRefusalError, LLMTruncatedError
 from agent.prompts import (
     HCL_FILES_SCHEMA,
@@ -17,8 +17,8 @@ from agent.prompts import (
     build_hcl_prompt_parts,
     build_hcl_system_prompt,
 )
-from agent.generation.deterministic import DeterministicRenderError, render_deterministic
 from agent.state import MigrationState
+from cim.schema import CanonicalInfrastructureModel
 from providers.common import safe_file_stem
 from validation.opa_client import evaluate_policies, resolve_policies_dir
 from validation.paths import UnsafePathError, ensure_safe_relative_path

@@ -36,11 +36,7 @@ from agent import graph as graph_module
 from agent.graph import NODE_ORDER
 from agent.nodes.ingest import validate_discovery_payload
 from cim.schema import (
-    Architecture,
     CanonicalInfrastructureModel,
-    ClusterSemantics,
-    MigrationStatus,
-    SourcePlatform,
     TargetProvider,
 )
 

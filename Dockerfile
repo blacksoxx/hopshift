@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ── Stage 1: build the web UI ──────────────────────────────────────────────────
 FROM node:22-alpine AS ui-build
 WORKDIR /ui
@@ -6,8 +7,13 @@ RUN npm ci --no-audit --no-fund
 COPY ui/ ./
 RUN npm run build
 
-# ── Stage 2: agent + API, serving the built UI ─────────────────────────────────
+# ── Stage 2: platform (API + UI + pipeline tooling) ───────────────────────────
 FROM python:3.12-slim
+
+LABEL org.opencontainers.image.title="vmware-migration-agent" \
+      org.opencontainers.image.description="Turn vSphere discovery into validated, compliant Terraform and deploy it with human approval." \
+      org.opencontainers.image.source="https://github.com/blacksoxx/vmware-migration-agent" \
+      org.opencontainers.image.licenses="MIT"
 
 # Populated by BuildKit for the build platform (amd64 on x86 hosts, arm64 on Apple Silicon).
 ARG TARGETARCH
@@ -18,7 +24,12 @@ ARG DOCKER_CLI_VERSION=27.3.1
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    # Terraform: no update checks, no interactive prompts, provider cache in the user's home.
+    CHECKPOINT_DISABLE=1 \
+    TF_IN_AUTOMATION=1 \
+    TF_INPUT=0 \
+    TF_PLUGIN_CACHE_DIR=/home/appuser/.cache/vmware-migration-agent/terraform-plugins
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl unzip \
@@ -60,15 +71,19 @@ RUN terraform version \
 
 WORKDIR /app
 
+# Install dependencies first so source edits do not invalidate the layer.
+COPY pyproject.toml /app/
+RUN pip install --upgrade pip && pip install .
+
 COPY . /app
 COPY --from=ui-build /ui/dist /app/ui/dist
+RUN pip install --no-deps .
 
-RUN pip install --upgrade pip \
-    && pip install ".[api]"
-
+# Non-root runtime user; /app is read-only for it, writable state lives under /app/output
+# and /home/appuser (mount volumes there; see docker-compose.yml).
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/output/runs /home/appuser/.cache \
-    && chown -R appuser:appuser /app /home/appuser
+    && mkdir -p /app/output/runs /home/appuser/.cache/vmware-migration-agent/terraform-plugins \
+    && chown -R appuser:appuser /app/output /home/appuser
 
 USER appuser
 

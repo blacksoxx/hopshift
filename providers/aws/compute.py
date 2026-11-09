@@ -4,7 +4,8 @@ import re
 
 from cim.schema import CanonicalInfrastructureModel, ComputeUnit
 from providers.aws.sizing_table import get_instance_type
-from providers.common import hcl_string, hcl_value, safe_file_stem, source_context_comments as _source_context_comments
+from providers.common import hcl_string, hcl_value, safe_file_stem
+from providers.common import source_context_comments as _source_context_comments
 
 
 def render_compute(

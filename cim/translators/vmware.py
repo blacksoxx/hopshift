@@ -11,6 +11,7 @@ from typing import Any
 
 from cim.blockers import HARD_BLOCKERS, blockers_for_vm
 from cim.schema import (
+    NIC,
     Architecture,
     CanonicalInfrastructureModel,
     ClusterSemantics,
@@ -19,7 +20,6 @@ from cim.schema import (
     MigrationStatus,
     NetworkSegment,
     NetworkTopology,
-    NIC,
     SourceEndpoint,
     SourcePlatform,
     StorageVolume,
