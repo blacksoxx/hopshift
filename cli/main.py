@@ -480,11 +480,6 @@ def _probe_mcp_server(
         }
 
     provider = str(raw_server.get("provider", "hashicorp/aws")).strip() or "hashicorp/aws"
-    resource = (
-        str(raw_server.get("resource", "")).strip()
-        or str(raw_server.get("query", "")).strip()
-        or "aws_instance"
-    )
     provider_namespace, provider_name = _provider_namespace_parts(provider)
 
     try:

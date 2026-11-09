@@ -150,7 +150,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high || echo "::warning::npm audit reported findings; review the log"
         working-directory: ui
       - name: Filesystem scan (trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -187,7 +187,7 @@ jobs:
           docker run --rm vmware-migration-agent:ci terraform version
           docker run --rm vmware-migration-agent:ci opa version
       - name: Image scan (trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: vmware-migration-agent:ci
           severity: CRITICAL,HIGH
