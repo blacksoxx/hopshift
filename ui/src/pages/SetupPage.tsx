@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
@@ -15,8 +14,7 @@ export function passwordIssues(password: string, username: string): string[] {
 }
 
 export function SetupPage() {
-  const { login, refresh } = useAuth();
-  const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = React.useState("admin");
   const [name, setName] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -34,9 +32,10 @@ export function SetupPage() {
     setError(null);
     try {
       await api.setup(username.trim(), password, name.trim() || username.trim());
+      // login() updates the auth state; the PublicOnly guard then redirects to the dashboard.
+      // No explicit navigate here: a late navigate would yank the user away from wherever
+      // they already went.
       await login(username.trim(), password);
-      await refresh();
-      navigate("/", { replace: true });
     } catch (exc) {
       setError((exc as Error).message || "Setup failed.");
     } finally {
