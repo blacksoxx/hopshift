@@ -24,7 +24,7 @@ jwt = oidc_module.jwt
 JsonWebKey = oidc_module.JsonWebKey
 
 ISSUER = "https://idp.example.test"
-CLIENT_ID = "vma-client"
+CLIENT_ID = "hopshift-client"
 CLIENT_SECRET = "very-secret-client-secret"
 SECRET_ENV = "TEST_OIDC_CLIENT_SECRET"
 
