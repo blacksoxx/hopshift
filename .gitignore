@@ -55,3 +55,7 @@ ui/.vite/
 
 # Coverage output
 ui/coverage/
+
+# safety net: tool output written at the repo root by mistake
+/node_modules/
+/test-results/

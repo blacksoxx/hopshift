@@ -2,7 +2,7 @@
 
 The key comes from the environment (`HOPSHIFT_SECRET_KEY` by default) and never from a file in the
 repository. The variable may hold several comma-separated Fernet keys: the first encrypts, all
-of them decrypt, which is how rotation works (`vma secrets rotate`). Without a key the box is
+of them decrypt, which is how rotation works (`hopshift secrets rotate`). Without a key the box is
 unavailable and services must refuse to store secrets with a clear message.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ class SecretBox:
         except (ValueError, UnicodeEncodeError) as exc:
             raise SecretsUnavailable(
                 f"{env_var} is not a valid Fernet key (expected 32 url-safe base64 bytes; "
-                "generate one with `vma secrets generate-key`)"
+                "generate one with `hopshift secrets generate-key`)"
             ) from exc
         self._multi = MultiFernet(self._fernets) if self._fernets else None
         self.fingerprint = hashlib.sha256(cleaned[0].encode("ascii")).hexdigest()[:12] if cleaned else None
@@ -49,7 +49,7 @@ class SecretBox:
     def require(self) -> MultiFernet:
         if self._multi is None:
             raise SecretsUnavailable(
-                f"no encryption key configured: set {self.env_var} (generate one with `vma secrets generate-key`)"
+                f"no encryption key configured: set {self.env_var} (generate one with `hopshift secrets generate-key`)"
             )
         return self._multi
 

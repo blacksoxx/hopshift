@@ -95,7 +95,7 @@ def posture_checks(platform: Any, request: Any) -> list[dict[str, Any]]:
         _check(
             "mfa.secrets_encrypted", "MFA secrets encrypted at rest", "pass" if plaintext == 0 else "fail",
             "all TOTP secrets are stored encrypted" if plaintext == 0
-            else f"{plaintext} TOTP secret(s) stored unencrypted: set {platform.secrets.env_var} and run `vma secrets rotate`",
+            else f"{plaintext} TOTP secret(s) stored unencrypted: set {platform.secrets.env_var} and run `hopshift secrets rotate`",
             ["SOC2 CC6.1", "HIPAA 164.312(a)(2)(iv)"],
         )
     )

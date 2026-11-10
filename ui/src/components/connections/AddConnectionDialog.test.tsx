@@ -100,7 +100,7 @@ describe("AddConnectionDialog", () => {
     expect(alert).toHaveTextContent("a connection named 'lab' already exists");
     expect(api.testConnection).not.toHaveBeenCalled();
 
-    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set HOPSHIFT_SECRET_KEY (generate one with `vma secrets generate-key`)"));
+    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set HOPSHIFT_SECRET_KEY (generate one with `hopshift secrets generate-key`)"));
     await user.click(screen.getByTestId("connection-submit"));
     await waitFor(() => expect(screen.getByTestId("add-error")).toHaveTextContent("Secrets cannot be stored"));
   });

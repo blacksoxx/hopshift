@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--auth", choices=["required", "disabled"], default="required")
     args = parser.parse_args()
 
-    state_dir = Path(args.state_dir) if args.state_dir else Path(tempfile.mkdtemp(prefix="vma-e2e-"))
+    state_dir = Path(args.state_dir) if args.state_dir else Path(tempfile.mkdtemp(prefix="hopshift-e2e-"))
     if args.state_dir and state_dir.exists():
         shutil.rmtree(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -59,7 +59,7 @@ def main() -> None:
     sys.stdout.flush()
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))  # the script lives under ui/e2e; the packages live at the root
-    sys.argv = ["vma", "serve", "--config", str(config_path), "--host", args.host, "--port", str(args.port)]
+    sys.argv = ["hopshift", "serve", "--config", str(config_path), "--host", args.host, "--port", str(args.port)]
     from hopshift.cli.main import main as cli_main
 
     cli_main()

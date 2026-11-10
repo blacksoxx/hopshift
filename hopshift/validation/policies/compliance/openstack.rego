@@ -1,5 +1,5 @@
 # OpenStack compliance controls. CIS publishes no OpenStack benchmark; the SOC 2 / HIPAA
-# references live in vma/compliance/controls.py.
+# references live in hopshift/services/compliance/controls.py.
 package hopshift.compliance
 
 import rego.v1

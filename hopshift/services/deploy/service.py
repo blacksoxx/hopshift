@@ -118,7 +118,7 @@ class DeployService:
         self.platform = platform
         self.store = DeploymentStore(platform.db)
         self._runtime_provider = runtime_provider
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="vma-deploy")
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="hopshift-deploy")
         self._lock = threading.RLock()
         self._runners: dict[str, TerraformRunner] = {}
         self._cancelled: set[str] = set()
