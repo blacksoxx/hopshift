@@ -405,7 +405,9 @@ def test_aws_sso_device_flow_expiry_and_denial(service: ConnectionService, monke
     monkeypatch.setattr(aws, "sso_create_token", lambda **kw: {"status": "denied", "message": "User denied the request"})
     connection = _sso(service)
     started = service.device_start(connection.id)
-    assert service.device_poll(connection.id, started["flow_id"]) == {"status": "error", "message": "User denied the request"}
+    polled = service.device_poll(connection.id, started["flow_id"])
+    assert polled["status"] == "error" and "last check" in polled["message"]  # generic over HTTP
+    assert service.get(connection.id).last_check["message"] == "User denied the request"  # detail kept on the connection
     assert service.store.get_flow(started["flow_id"]).status == "error"
 
     monkeypatch.setattr(aws, "sso_create_token", lambda **kw: {"status": "expired"})
@@ -568,7 +570,9 @@ def test_azure_device_code_failures(service: ConnectionService, monkeypatch: pyt
     started = service.device_start(connection.id)
     session = azure.device_session(connection.id)
     assert session is not None and session.done.wait(5)
-    assert service.device_poll(connection.id, started["flow_id"]) == {"status": "error", "message": "AADSTS70016: user declined"}
+    polled = service.device_poll(connection.id, started["flow_id"])
+    assert polled["status"] == "error" and "last check" in polled["message"]
+    assert service.get(connection.id).last_check["message"] == "AADSTS70016: user declined"
     assert service.get(connection.id).status == "unverified"
 
     # a flow from a previous process (no in-memory session) reports an error instead of hanging

@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
+# Base images are pinned by multi-arch index digest (Dependabot keeps them current).
 # ── Stage 1: build the web UI ──────────────────────────────────────────────────
-FROM node:22-alpine AS ui-build
+FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS ui-build
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -8,7 +9,7 @@ COPY ui/ ./
 RUN npm run build
 
 # ── Stage 2: platform (API + UI + pipeline tooling) ───────────────────────────
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 LABEL org.opencontainers.image.title="vmware-migration-agent" \
       org.opencontainers.image.description="Turn vSphere discovery into validated, compliant Terraform and deploy it with human approval." \

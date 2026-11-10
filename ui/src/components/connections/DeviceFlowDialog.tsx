@@ -95,9 +95,22 @@ export function DeviceFlowPanel({ connectionId, onComplete, onClose }: { connect
             pollTimer = setTimeout(() => void poll(), intervalMs);
             return;
           }
-          if (result.status === "complete") finish("complete", result.message);
-          else if (result.status === "expired") finish("expired", result.message || "The code expired; start again.");
-          else finish("error", result.message || "The sign-in failed.");
+          if (result.status === "complete") {
+            finish("complete", result.message);
+            return;
+          }
+          // The API answers with a generic sentence; the provider's own (sanitised) message is
+          // recorded on the connection's last check, so fetch it to show the actual reason.
+          let detail = "";
+          try {
+            const refreshed = await api.getConnection(connectionId);
+            detail = refreshed.last_check?.message ?? "";
+          } catch {
+            /* the generic message is still shown */
+          }
+          const text = detail || result.message;
+          if (result.status === "expired") finish("expired", text || "The code expired; start again.");
+          else finish("error", text || "The sign-in failed.");
         } catch (exc) {
           if (!cancelled) finish("error", describeApiError(exc).message);
         }

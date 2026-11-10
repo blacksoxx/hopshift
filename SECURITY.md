@@ -4,10 +4,13 @@
 
 Please do not open a public issue for security problems.
 
-Use GitHub's private vulnerability reporting: open the repository's **Security** tab and
-choose **Report a vulnerability**. You will get an acknowledgement within 3 working days and
-a fix or mitigation plan within 14 days for confirmed issues. Credit is given in the release
-notes unless you prefer otherwise.
+Use GitHub's private vulnerability reporting:
+https://github.com/blacksoxx/vmware-migration-agent/security/advisories/new (the repository's
+**Security** tab, **Report a vulnerability**). If that form is unavailable to you, contact the
+maintainer through the GitHub profile at https://github.com/blacksoxx and ask for a private
+channel before sharing details. You will get an acknowledgement within 3 working days and a fix
+or mitigation plan within 14 days for confirmed issues. Credit is given in the release notes
+unless you prefer otherwise.
 
 Include what you can: affected version or commit, the component (API, UI, CLI, generated
 Terraform, policies, container image), reproduction steps, impact, and a suggested fix.

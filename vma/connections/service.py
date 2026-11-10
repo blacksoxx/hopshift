@@ -254,9 +254,14 @@ class ConnectionService:
         if status == "pending":
             return {"status": "pending", "message": message}
         if status != "complete":
+            # The provider's (sanitised) message is kept on the flow, on the connection's last check
+            # and in the audit log; the HTTP response itself carries only a generic sentence so
+            # nothing derived from an exception reaches a caller directly.
             self._finish_flow(flow, status, message)
+            self.store.set_check(connection.id, connection.status, utcnow(), {"identity": {}, "message": message})  # status unchanged: nothing was verified
             self._audit("connection.device_completed", connection, actor or "system", actor_kind if actor else "system", audit_context, outcome="failure", flow_id=flow_id, status=status, message=message)
-            return {"status": status, "message": message}
+            generic = "the device code expired; start again" if status == "expired" else "device sign-in did not complete; the connection's last check has the details"
+            return {"status": status, "message": generic}
         if result.get("secret"):
             merged = {**self._decrypt_or_empty(connection), **result["secret"]}
             self.store.set_secret(connection.id, self._encrypt(merged), sorted(merged))
