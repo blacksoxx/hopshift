@@ -23,6 +23,7 @@ _PROVIDER_NAMESPACE_MAP: dict[str, str] = {
     "azure": "hashicorp/azurerm",
     "gcp": "hashicorp/google",
     "openstack": "terraform-provider-openstack/openstack",
+    "proxmox": "bpg/proxmox",
 }
 
 _RESOURCE_NAME_MAP: dict[str, dict[str, str]] = {
@@ -31,24 +32,28 @@ _RESOURCE_NAME_MAP: dict[str, dict[str, str]] = {
         "azure": "azurerm_linux_virtual_machine",
         "gcp": "google_compute_instance",
         "openstack": "openstack_compute_instance_v2",
+        "proxmox": "proxmox_virtual_environment_vm",
     },
     "storage": {
         "aws": "aws_ebs_volume",
         "azure": "azurerm_managed_disk",
         "gcp": "google_compute_disk",
         "openstack": "openstack_blockstorage_volume_v3",
+        "proxmox": "proxmox_virtual_environment_vm",
     },
     "network": {
         "aws": "aws_vpc",
         "azure": "azurerm_virtual_network",
         "gcp": "google_compute_network",
         "openstack": "openstack_networking_network_v2",
+        "proxmox": "proxmox_virtual_environment_network_linux_vlan",
     },
     "placement": {
         "aws": "aws_placement_group",
         "azure": "azurerm_proximity_placement_group",
         "gcp": "google_compute_resource_policy",
         "openstack": "openstack_compute_servergroup_v2",
+        "proxmox": "proxmox_virtual_environment_hagroup",
     },
 }
 

@@ -17,7 +17,7 @@ from loguru import logger
 from hopshift.services.errors import Conflict, Invalid, NotFound, Unavailable
 from hopshift.services.secrets import SecretsUnavailable
 
-from . import aws, azure, gcp, openstack
+from . import aws, azure, gcp, openstack, proxmox
 from .models import (
     CATALOG,
     Connection,
@@ -30,7 +30,7 @@ from .models import (
 )
 from .store import ConnectionStore, DeviceFlow, utcnow
 
-PROVIDER_MODULES: dict[str, Any] = {"aws": aws, "azure": azure, "gcp": gcp, "openstack": openstack}
+PROVIDER_MODULES: dict[str, Any] = {"aws": aws, "azure": azure, "gcp": gcp, "openstack": openstack, "proxmox": proxmox}
 CREDENTIAL_REFRESH_MARGIN = timedelta(minutes=5)
 MAX_NAME_LENGTH = 80
 ROTATION_MESSAGE = "generate one with `vma secrets generate-key`"

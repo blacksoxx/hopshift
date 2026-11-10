@@ -836,6 +836,7 @@ _PROVIDER_SOURCE_ALLOWLIST: dict[str, set[str]] = {
     "azure": {"hashicorp/azurerm", "hashicorp/azuread"},
     "gcp": {"hashicorp/google", "hashicorp/google-beta"},
     "openstack": {"terraform-provider-openstack/openstack"},
+    "proxmox": {"bpg/proxmox"},
 }
 _COMMON_PROVIDER_SOURCES: set[str] = {"hashicorp/random", "hashicorp/tls", "hashicorp/time"}
 # Negative lookbehind keeps `source_address_prefix = ...` and `image_source = ...` from matching.

@@ -24,6 +24,7 @@ const CLOUDS: Record<string, { label: string; blurb: string }> = {
   azure: { label: "Microsoft Azure", blurb: "Virtual machines, managed disks, VNets, NSGs, availability sets" },
   gcp: { label: "Google Cloud", blurb: "Compute Engine, persistent disks, VPC, firewall rules, placement policies" },
   openstack: { label: "OpenStack", blurb: "Nova, Cinder, Neutron networks, security groups, server groups" },
+  proxmox: { label: "Proxmox VE", blurb: "KVM virtual machines, VLAN-tagged bridges, disks on a datastore, HA groups and anti-affinity" },
 };
 
 interface Summary {

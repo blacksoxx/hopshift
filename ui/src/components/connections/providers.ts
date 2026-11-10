@@ -42,13 +42,20 @@ export const PROVIDERS: ProviderMeta[] = [
     blurb: "A Keystone password, an application credential or a named cloud from clouds.yaml.",
     tile: "bg-[#ed1944]/12 text-[#b8102f] dark:text-[#ff6b86]",
   },
+  {
+    key: "proxmox",
+    label: "Proxmox VE",
+    short: "PVE",
+    blurb: "An API token (user@realm!token) or a username and password against the Proxmox VE API.",
+    tile: "bg-[#e57000]/12 text-[#a85200] dark:text-[#ffa14a]",
+  },
 ];
 
 export function providerMeta(key: string): ProviderMeta {
   return PROVIDERS.find((item) => item.key === key) ?? { key, label: key.toUpperCase(), short: key.slice(0, 2), blurb: "", tile: "bg-muted text-muted-foreground" };
 }
 
-/** Sort provider keys in catalog order (AWS, Azure, GCP, OpenStack, then anything unknown). */
+/** Sort provider keys in catalog order (AWS, Azure, GCP, OpenStack, Proxmox, then anything unknown). */
 export function sortProviders(keys: string[]): string[] {
   const order = new Map(PROVIDERS.map((item, index) => [item.key, index]));
   return [...keys].sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99) || a.localeCompare(b));
@@ -60,6 +67,7 @@ const IDENTITY_KEYS: Record<string, string[]> = {
   azure: ["subscription_name", "subscription_id"],
   gcp: ["project_id", "principal"],
   openstack: ["project_name", "project_id"],
+  proxmox: ["principal", "endpoint"],
 };
 
 export function identitySummary(connection: Pick<Connection, "provider" | "last_check">): string | null {
@@ -216,6 +224,20 @@ export function terraformEnvNames(connection: Pick<Connection, "provider" | "aut
         case "clouds_yaml":
           vars.push({ name: "OS_CLOUD" });
           if (has("clouds_yaml_path")) vars.push({ name: "OS_CLIENT_CONFIG_FILE" });
+          break;
+        default:
+          break;
+      }
+      return vars;
+    }
+    case "proxmox": {
+      const vars: EnvVar[] = [{ name: "PROXMOX_VE_ENDPOINT" }, { name: "PROXMOX_VE_INSECURE" }];
+      switch (method) {
+        case "api_token":
+          vars.push({ name: "PROXMOX_VE_API_TOKEN", note: "user@realm!token=secret" });
+          break;
+        case "password":
+          vars.push({ name: "PROXMOX_VE_USERNAME" }, { name: "PROXMOX_VE_PASSWORD" });
           break;
         default:
           break;

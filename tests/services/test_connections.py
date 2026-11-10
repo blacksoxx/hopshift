@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from botocore.exceptions import ClientError
 
@@ -12,6 +13,7 @@ import hopshift.services.connections.aws as aws
 import hopshift.services.connections.azure as azure
 import hopshift.services.connections.gcp as gcp
 import hopshift.services.connections.openstack as openstack
+import hopshift.services.connections.proxmox as proxmox
 from hopshift.services.connections import ConnectionService, build_connection_service
 from hopshift.services.connections.models import CATALOG, FIELD_TYPES
 from hopshift.services.errors import Conflict, Invalid, NotFound, Unavailable
@@ -60,11 +62,12 @@ def _actions(platform: Platform) -> list[str]:
 
 def test_catalog_describes_every_provider_and_method(service: ConnectionService) -> None:
     catalog = service.catalog()
-    assert set(catalog) == {"aws", "azure", "gcp", "openstack"}
+    assert set(catalog) == {"aws", "azure", "gcp", "openstack", "proxmox"}
     assert [m["key"] for m in catalog["aws"]["methods"]] == ["access_keys", "profile", "assume_role", "environment", "sso", "web_identity"]
     assert [m["key"] for m in catalog["azure"]["methods"]] == ["service_principal_secret", "service_principal_certificate", "managed_identity", "oidc", "cli", "device_code"]
     assert [m["key"] for m in catalog["gcp"]["methods"]] == ["service_account_key", "adc", "impersonation", "workload_identity_federation"]
     assert [m["key"] for m in catalog["openstack"]["methods"]] == ["password", "application_credential", "clouds_yaml"]
+    assert [m["key"] for m in catalog["proxmox"]["methods"]] == ["api_token", "password"]
     for provider in catalog.values():
         assert provider["label"]
         for method in provider["methods"]:
@@ -122,6 +125,10 @@ def test_create_validates_encrypts_and_never_exposes_secrets(platform: Platform,
         ({"provider": "azure", "auth_method": "oidc", "config": {"subscription_id": "s", "tenant_id": "t", "client_id": "c"}, "secret": {}}, "one of oidc_token or oidc_token_file_path"),
         ({"provider": "azure", "auth_method": "cli", "config": {"subscription_id": "s", "tenant_id": "t", "environment": "mars"}, "secret": {}}, "environment must be one of"),
         ({"provider": "gcp", "auth_method": "service_account_key", "config": {"project_id": "p"}, "secret": {"key_json": "{not json"}}, "key_json is not valid JSON"),
+        ({"provider": "proxmox", "auth_method": "api_token", "config": {"endpoint": "pve.example.internal:8006", "token_id": "terraform@pve!hopshift"}, "secret": {"token_secret": "s"}}, "endpoint must be an http"),
+        ({"provider": "proxmox", "auth_method": "api_token", "config": {"endpoint": "https://pve:8006", "token_id": "terraform"}, "secret": {"token_secret": "s"}}, "token_id must look like user@realm!tokenname"),
+        ({"provider": "proxmox", "auth_method": "password", "config": {"endpoint": "https://pve:8006", "username": "root"}, "secret": {"password": "s"}}, "username must include the realm"),
+        ({"provider": "proxmox", "auth_method": "password", "config": {"endpoint": "https://pve:8006", "username": "root@pam", "insecure": "maybe"}, "secret": {"password": "s"}}, "insecure must be a boolean"),
     ],
 )
 def test_create_rejects_invalid_input(service: ConnectionService, kwargs: dict[str, Any], match: str) -> None:
@@ -717,6 +724,125 @@ def test_openstack_verify_and_env(service: ConnectionService, tmp_path: Path, mo
     missing = service.create(name="os-missing", provider="openstack", auth_method="clouds_yaml", config={"cloud": "nope", "clouds_yaml_path": str(clouds)}, secret={}, actor="alice")
     failed = service.test(missing.id)
     assert failed["ok"] is False and "cloud 'nope' is not defined" in failed["message"]
+
+
+# ── Proxmox VE ────────────────────────────────────────────────────────────────
+
+PVE_TOKEN_SECRET = "11111111-2222-3333-4444-555555555555"
+PVE_VERSION = {"version": "8.3.0", "release": "8.3", "repoid": "abc123"}
+PVE_NODES = [{"node": "pve2", "status": "online"}, {"node": "pve1", "status": "online"}]
+
+
+def _stub_proxmox(monkeypatch: pytest.MonkeyPatch, handler: Any, seen: dict[str, Any]) -> None:
+    def factory(insecure: bool) -> httpx.Client:
+        seen["insecure"] = insecure
+        return httpx.Client(transport=httpx.MockTransport(handler), headers={"Accept": "application/json"})
+
+    monkeypatch.setattr(proxmox, "_client", factory)
+
+
+def test_proxmox_api_token_verify_env_and_masking(platform: Platform, service: ConnectionService, monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.headers.get("Authorization") != f"PVEAPIToken=terraform@pve!hopshift={PVE_TOKEN_SECRET}":
+            return httpx.Response(401, json={"data": None})
+        if request.url.path == "/api2/json/version":
+            return httpx.Response(200, json={"data": PVE_VERSION})
+        if request.url.path == "/api2/json/nodes":
+            return httpx.Response(200, json={"data": PVE_NODES})
+        return httpx.Response(404, json={"data": None})
+
+    seen: dict[str, Any] = {}
+    _stub_proxmox(monkeypatch, handler, seen)
+    connection = service.create(
+        name="pve-lab", provider="proxmox", auth_method="api_token",
+        config={"endpoint": "https://pve.example.internal:8006/api2/json/", "token_id": "terraform@pve!hopshift", "insecure": True},
+        secret={"token_secret": PVE_TOKEN_SECRET}, actor="alice",
+    )
+    assert connection.config == {"endpoint": "https://pve.example.internal:8006/api2/json/", "token_id": "terraform@pve!hopshift", "insecure": True}
+
+    result = service.test(connection.id, actor="bob")
+    assert result["ok"] is True, result["message"]
+    assert result["identity"] == {
+        "endpoint": "https://pve.example.internal:8006", "principal": "terraform@pve!hopshift", "version": "8.3.0", "release": "8.3",
+        "repoid": "abc123", "insecure": True, "nodes": 2, "node_names": ["pve1", "pve2"],
+    }
+    assert result["message"] == "authenticated to Proxmox VE 8.3.0 as terraform@pve!hopshift"
+    assert seen["insecure"] is True
+    assert [str(r.url) for r in requests] == ["https://pve.example.internal:8006/api2/json/version", "https://pve.example.internal:8006/api2/json/nodes"]
+    assert service.get(connection.id).status == "ok"
+
+    assert service.terraform_env(connection.id) == {
+        "PROXMOX_VE_ENDPOINT": "https://pve.example.internal:8006/", "PROXMOX_VE_INSECURE": "true",
+        "PROXMOX_VE_API_TOKEN": f"terraform@pve!hopshift={PVE_TOKEN_SECRET}",
+    }
+    assert service.secret_values(connection.id) == [f"terraform@pve!hopshift={PVE_TOKEN_SECRET}", PVE_TOKEN_SECRET]
+    entries, _ = platform.audit.list(action="connection.tested")
+    assert entries[0].outcome == "success" and PVE_TOKEN_SECRET not in json.dumps(entries[0].details)
+
+    # a rejected token is a failed check with a short message, not an exception
+    wrong = service.update(connection.id, secret={"token_secret": "00000000-0000-0000-0000-000000000000"}, actor="alice")
+    assert wrong.status == "unverified"
+    failed = service.test(connection.id, actor="bob")
+    assert failed["ok"] is False and failed["message"] == "Proxmox VE rejected the credentials (401)"
+    assert service.get(connection.id).status == "failed"
+
+
+def test_proxmox_password_verify_env_and_failures(service: ConnectionService, monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import parse_qs
+
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/api2/json/access/ticket" and request.method == "POST":
+            form = parse_qs(request.content.decode())
+            if form == {"username": ["terraform@pve"], "password": ["pve-password-value"]}:
+                return httpx.Response(200, json={"data": {"ticket": "PVE:terraform@pve:AAAA::BBBB", "CSRFPreventionToken": "csrf-token", "username": "terraform@pve"}})
+            return httpx.Response(401, json={"data": None})
+        if request.headers.get("Cookie") != "PVEAuthCookie=PVE:terraform@pve:AAAA::BBBB":
+            return httpx.Response(401, json={"data": None})
+        if request.url.path == "/api2/json/version":
+            return httpx.Response(200, json={"data": PVE_VERSION})
+        if request.url.path == "/api2/json/nodes":
+            return httpx.Response(403, json={"data": None, "message": "permission check failed"})
+        return httpx.Response(404, json={"data": None})
+
+    seen: dict[str, Any] = {}
+    _stub_proxmox(monkeypatch, handler, seen)
+    connection = service.create(
+        name="pve-pw", provider="proxmox", auth_method="password",
+        config={"endpoint": "https://pve.example.internal:8006", "username": "terraform@pve"}, secret={"password": "pve-password-value"}, actor="alice",
+    )
+    assert connection.config["insecure"] is False  # catalog default
+
+    result = service.test(connection.id)
+    assert result["ok"] is True, result["message"]
+    assert seen["insecure"] is False
+    assert [r.url.path for r in requests] == ["/api2/json/access/ticket", "/api2/json/version", "/api2/json/nodes"]
+    assert requests[1].headers["CSRFPreventionToken"] == "csrf-token"
+    assert result["identity"]["principal"] == "terraform@pve" and result["identity"]["version"] == "8.3.0"
+    assert "nodes" not in result["identity"]  # listing nodes needs Sys.Audit; the check still succeeds
+
+    assert service.terraform_env(connection.id) == {
+        "PROXMOX_VE_ENDPOINT": "https://pve.example.internal:8006/", "PROXMOX_VE_INSECURE": "false",
+        "PROXMOX_VE_USERNAME": "terraform@pve", "PROXMOX_VE_PASSWORD": "pve-password-value",
+    }
+    assert service.secret_values(connection.id) == ["pve-password-value"]
+
+    service.update(connection.id, secret={"password": "wrong-password"}, actor="alice")
+    failed = service.test(connection.id)
+    assert failed["ok"] is False and failed["message"] == "Proxmox VE rejected the username or password (401)"
+    assert "wrong-password" not in json.dumps(failed)
+
+
+def test_proxmox_endpoint_normalisation() -> None:
+    assert proxmox.normalise_endpoint("https://pve:8006/") == "https://pve:8006"
+    assert proxmox.normalise_endpoint(" https://pve:8006/api2/json ") == "https://pve:8006"
+    assert proxmox.normalise_endpoint("https://pve:8006/API2/JSON/") == "https://pve:8006"
+    assert proxmox.api_token(" user@pam!tok ", "secret") == "user@pam!tok=secret"
 
 
 # ── rotation ──────────────────────────────────────────────────────────────────

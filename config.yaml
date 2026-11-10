@@ -51,7 +51,7 @@ llm:
   enable_fallbacks: true
 
 # ─── TARGET CLOUD ────────────────────────────────────────────────────────────
-# aws | azure | gcp | openstack
+# aws | azure | gcp | openstack | proxmox
 target_cloud: aws
 
 # ─── PIPELINE BEHAVIOUR ──────────────────────────────────────────────────────

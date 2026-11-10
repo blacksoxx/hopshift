@@ -59,7 +59,7 @@ def _discovery() -> dict[str, object]:
 def test_meta_and_health(client: TestClient) -> None:
     assert client.get("/api/health").json()["ok"] is True
     meta = client.get("/api/meta").json()
-    assert meta["clouds"] == ["aws", "azure", "gcp", "openstack"]
+    assert meta["clouds"] == ["aws", "azure", "gcp", "openstack", "proxmox"]
     assert meta["pause_points"]["review_cim"] == "hcl_generator"
     assert meta["nodes"][0] == "ingest"
 

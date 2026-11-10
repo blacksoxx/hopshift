@@ -89,3 +89,26 @@ deny contains msg if {
 	object.get(r.config, "remote_ip_prefix", "") in open_cidrs
 	msg := sprintf("no_open_ingress: %s allows ingress from the internet (%s)", [r.address, r.file])
 }
+
+# ── Proxmox VE ────────────────────────────────────────────────────────────────
+# Firewall rule sources are comma-separated lists; an empty source matches every address.
+
+proxmox_source_is_open(spec) if {
+	spec == ""
+}
+
+proxmox_source_is_open(spec) if {
+	is_string(spec)
+	some part in split(spec, ",")
+	trim_space(part) in open_cidrs
+}
+
+deny contains msg if {
+	some r in input.resources
+	r.type == "proxmox_virtual_environment_firewall_rules"
+	some rule in object.get(r.config, "rule", [])
+	lower(object.get(rule, "type", "")) == "in"
+	upper(object.get(rule, "action", "")) == "ACCEPT"
+	proxmox_source_is_open(object.get(rule, "source", ""))
+	msg := sprintf("no_open_ingress: %s accepts inbound traffic from the internet (%s)", [r.address, r.file])
+}

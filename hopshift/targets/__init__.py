@@ -19,3 +19,7 @@ register(TargetSpec(
     name="openstack", label="OpenStack", blurb="Nova, Cinder, Neutron networks, security groups, server groups",
     package="hopshift.targets.openstack", tier="validated", tflint=False, connection_provider="openstack", docs="docs/targets/openstack.md",
 ))
+register(TargetSpec(
+    name="proxmox", label="Proxmox VE", blurb="KVM virtual machines, VLAN-tagged bridges, disks on a datastore, HA groups and anti-affinity",
+    package="hopshift.targets.proxmox", tier="experimental", tflint=False, connection_provider="proxmox", docs="docs/targets/proxmox.md",
+))

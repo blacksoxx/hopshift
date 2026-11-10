@@ -68,7 +68,7 @@ def _sized_cim(fixture: Path, provider: str):
     return state["sized_cim"], state["quarantine_queue"]
 
 
-@pytest.mark.parametrize("provider", ["aws", "azure", "gcp", "openstack"])
+@pytest.mark.parametrize("provider", ["aws", "azure", "gcp", "openstack", "proxmox"])
 @pytest.mark.parametrize("fixture", FIXTURES, ids=lambda p: p.name)
 def test_deterministic_render_passes_terraform_validate(provider: str, fixture: Path) -> None:
     cim, _ = _sized_cim(fixture, provider)
@@ -87,7 +87,7 @@ def test_deterministic_render_passes_terraform_validate(provider: str, fixture: 
 
 
 @pytest.mark.skipif(OPA_BIN is None, reason="opa binary not installed")
-@pytest.mark.parametrize("provider", ["aws", "azure", "gcp", "openstack"])
+@pytest.mark.parametrize("provider", ["aws", "azure", "gcp", "openstack", "proxmox"])
 @pytest.mark.parametrize("fixture", FIXTURES, ids=lambda p: p.name)
 def test_deterministic_render_passes_every_enforce_compliance_control(provider: str, fixture: Path) -> None:
     """Secure-by-default renderers: the real policy bundle reports zero enforce violations and
