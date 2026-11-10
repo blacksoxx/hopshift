@@ -34,6 +34,8 @@ jobs:
           pip install --require-hashes -r requirements/dev.txt
           pip install --no-deps -e .
       - run: ruff check . --output-format github
+      - name: Support matrix (docs/support-matrix.md must match support.yaml)
+        run: hopshift matrix check
       - name: pre-commit hooks (gitleaks runs in the security job)
         run: SKIP=gitleaks pre-commit run --all-files --show-diff-on-failure
 

@@ -1,0 +1,47 @@
+# Support matrix: which source -> target pairs hopshift supports and how far each is proven.
+#
+# Rendered to docs/support-matrix.md by `hopshift matrix render`; CI runs `hopshift matrix check`
+# and fails when the document is stale. Every source and target name must be registered
+# (hopshift.sources / hopshift.targets, built in or plugin), otherwise the check fails.
+#
+# tier:      tested       exercised against real infrastructure (lab or cloud account)
+#            validated    rendered and validated by terraform validate, tflint and OPA in CI
+#            experimental renders, not yet validated end to end
+# evidence:  which suite or lab proves the tier (free text)
+# notes:     caveats worth knowing before relying on the pair (free text)
+#
+# A row for a target that is still being built can stay commented out; `hopshift matrix check`
+# hints when both names become registered.
+
+pairs:
+  - source: vmware
+    target: aws
+    tier: validated
+    evidence: tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate, tflint, OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py.
+    notes: Images (AMIs) come from AWS VM Import/Export and are passed through var.image_overrides; not yet exercised against an AWS account from CI.
+
+  - source: vmware
+    target: azure
+    tier: validated
+    evidence: tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate, tflint, OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py.
+    notes: Linux VMs only (azurerm_linux_virtual_machine); encryption at host stays advisory because it needs a subscription feature.
+
+  - source: vmware
+    target: gcp
+    tier: validated
+    evidence: tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate, tflint, OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py.
+    notes: Imported images must carry the UEFI_COMPATIBLE guest OS feature for Shielded VM.
+
+  - source: vmware
+    target: openstack
+    tier: validated
+    evidence: tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate and OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py.
+    notes: tflint has no ruleset for the OpenStack provider, so only terraform validate and OPA gate the output.
+
+  # The Proxmox target is being built in parallel. Uncomment once `hopshift targets list` shows
+  # proxmox; `hopshift matrix check` prints a hint when that is the case.
+  # - source: vmware
+  #   target: proxmox
+  #   tier: experimental
+  #   evidence: hopshift targets check proxmox (render, guards, OPA); no terraform validate in CI yet.
+  #   notes: Pending registration of the proxmox target.
