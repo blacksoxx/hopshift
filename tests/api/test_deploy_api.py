@@ -139,7 +139,8 @@ def test_plan_apply_destroy_over_http(client: TestClient, runtime: MigrationRunt
     created = client.post(f"/api/runs/{run_id}/deployments", json={"action": "plan", "connection_id": "conn-1"})
     assert created.status_code == 202, created.text
     plan_id = created.json()["id"]
-    assert created.json()["status"] == "queued" and created.json()["requested_by"] == "anonymous"
+    assert created.json()["status"] in {"queued", "running"}  # the worker may already have picked it up
+    assert created.json()["requested_by"] == "anonymous"
     plan = wait_done(client, run_id, plan_id)
     assert plan["status"] == "succeeded" and plan["summary"]["add"] == 2 and plan["exit_code"] == 2
 
