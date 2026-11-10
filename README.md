@@ -46,6 +46,19 @@ was applied without review. This project makes the boring path the default.
 - **AI where it helps.** Optional model-written review notes and generation modes. Never in the
   gate, never with your credentials.
 
+## What it is, and what it is not (yet)
+
+It **is** an assessment and provisioning platform for lift-and-shift migrations: it turns a
+vSphere inventory into a canonical model, renders and validates the target infrastructure as
+Terraform, checks it against compliance controls, lets people review and approve, and runs
+`terraform plan` and `apply` through stored cloud connections.
+
+It does **not yet** move the virtual machines themselves. Disk export and image import (VMDK to
+AMI, managed image or GCE image), data replication, cutover and rollback orchestration are the
+next capabilities on the roadmap; today the generated instances reference imported images through
+`image_overrides`. Treat the result as the landing zone and the target compute, ready for the
+data move you run with your tool of choice.
+
 ## Quick start
 
 ```bash
@@ -178,10 +191,20 @@ Prefer the published image? `docker pull ghcr.io/blacksoxx/vmware-migration-agen
 
 ## Roadmap
 
-- Additional source hypervisors through the translator registry (Hyper-V, Nutanix, IBM PowerVC)
-- Image import orchestration (VMDK to AMI / managed image / GCE image) feeding `image_overrides`
-- Remote Terraform state and workspaces per environment from the UI
-- Notifications (Slack, email) on pause points and deployment results
+In priority order:
+
+1. **Migration orchestration**: VMDK export and image import per cloud (VM Import/Export,
+   Azure managed images, GCE image import), replication and cutover runbooks with rollback,
+   feeding `image_overrides` automatically.
+2. **Dependency mapping**: discover relationships between VMs, networks and external services
+   (flows, DNS, shared storage) before rendering, and group migrations into waves.
+3. **Migration validation**: pre-flight checks on the source and post-apply checks on the target
+   (boot, reachability, agent health), recorded with the run.
+4. **Observability**: Prometheus metrics, OpenTelemetry traces for runs and deployments,
+   structured failure diagnostics.
+5. **State and environments from the UI**: remote state backends and workspaces managed per
+   environment, with locking visible in the deployment view.
+6. Additional source hypervisors (Hyper-V, Nutanix, IBM PowerVC), notifications (Slack, email).
 
 ## License
 

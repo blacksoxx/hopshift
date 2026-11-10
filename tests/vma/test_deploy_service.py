@@ -550,5 +550,17 @@ def test_remote_state_override_and_state_summary(tmp_path: Path, runtime: Migrat
     record = wait_done(service, run_id, service.create(run_id, action="plan", actor="alice")["id"])
     assert record["status"] == "succeeded"
     override = (runtime.store.run_dir(run_id) / "deploy" / "workspace" / "backend_override.tf").read_text(encoding="utf-8")
-    assert 'backend "gcs"' in override and 'bucket = "state-bucket"' in override and 'prefix = "vma"' in override
+    assert 'backend "gcs"' in override and 'bucket = "state-bucket"' in override and f'prefix = "vma/{run_id}"' in override  # namespaced per run
     assert service.state_summary(run_id) == {"exists": False, "remote": True, "backend": "gcs"}
+
+
+def test_remote_state_is_namespaced_per_run() -> None:
+    from vma.deploy.terraform import namespace_remote_state, render_backend_override
+
+    assert namespace_remote_state("s3", {"bucket": "b", "key": "envs/prod/terraform.tfstate"}, "run-1")["key"] == "envs/prod/run-1/terraform.tfstate"
+    assert namespace_remote_state("azurerm", {"key": "prod.tfstate"}, "run-1")["key"] == "prod/run-1/terraform.tfstate"
+    assert namespace_remote_state("gcs", {"bucket": "b"}, "run-1")["prefix"] == "vmware-migration-agent/run-1"
+    rendered = render_backend_override({"enabled": True, "type": "s3", "config": {"bucket": "b", "key": "states", "use_lockfile": True}}, "../state/terraform.tfstate", run_id="r9")
+    assert 'key = "states/r9/terraform.tfstate"' in rendered and "use_lockfile = true" in rendered
+    local = render_backend_override({"enabled": False}, "../state/terraform.tfstate", run_id="r9")
+    assert 'backend "local"' in local

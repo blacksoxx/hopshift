@@ -136,12 +136,14 @@ deploy:
       encrypt: true
 ```
 
-`config` is rendered verbatim as backend attributes (strings quoted, booleans and numbers bare).
-Use the connection's credentials for the backend too: Terraform's `s3`, `azurerm` and `gcs`
-backends read the same `AWS_*` / `ARM_*` / `GOOGLE_*` variables as the providers. Since every run
-shares one backend config, give the state a per-run key (for example through a workspace prefix
-or by changing `key` between runs) or keep remote state for one run at a time. With remote state
-enabled the state endpoint reports `{exists: false, remote: true, backend: "<type>"}`; inspect it
+`config` is rendered as backend attributes (strings quoted, booleans and numbers bare), with one
+addition: the platform namespaces the state per run so two runs can never share a state file.
+For `s3` and `azurerm` the `key` you configure becomes a prefix (`<key>/<run_id>/terraform.tfstate`);
+for `gcs` the `prefix` becomes `<prefix>/<run_id>`. Enable locking: `use_lockfile: true` on `s3`
+(Terraform 1.10+, no DynamoDB table needed; `dynamodb_table` still works), `azurerm` and `gcs`
+lock natively. Use the connection's credentials for the backend too: Terraform's `s3`, `azurerm`
+and `gcs` backends read the same `AWS_*` / `ARM_*` / `GOOGLE_*` variables as the providers. With
+remote state enabled the state endpoint reports `{exists: false, remote: true, backend: "<type>"}`; inspect it
 with `terraform state list` in the workspace.
 
 ## LocalStack: a real AWS plan and apply without an account

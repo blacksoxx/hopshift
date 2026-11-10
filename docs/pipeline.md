@@ -31,7 +31,7 @@ Edges:
 - cim_mapper: Builds CIM document from discovery payload.
 - sizer: Applies provider sizing lookup to each ComputeUnit.
 - mcp_client: Pulls provider resource documentation snippets from Terraform MCP server and stores mcp_context.
-- hcl_generator: Uses LLM to produce HCL, then runs deterministic pre-output validation feedback loop.
+- hcl_generator: Renders Terraform from the provider templates (`generation.mode: deterministic`, the default). In `llm`/`hybrid` modes the model proposes files inside a validation feedback loop; either way the output goes through the same validator gate.
 - validator: Runs the final deterministic gate via validation.tf_runner (terraform init/validate and tflint inside the provider root, e.g. aws-migration/) plus OPA, and sets validation_result and status.
 - reporter: Always runs. Writes quarantine_report.json and review_notes.md; writes HCL files only when validation_result.passed is true; writes nothing when output.dry_run is true. Sets the final status to succeeded or failed.
 

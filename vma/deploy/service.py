@@ -405,7 +405,7 @@ class DeployService:
             elif target.exists():
                 target.unlink()
         try:
-            override = render_backend_override(config.get("remote_state"), LOCAL_STATE_RELATIVE)
+            override = render_backend_override(config.get("remote_state"), LOCAL_STATE_RELATIVE, run_id=paths.run_id)
         except ValueError as exc:
             raise Invalid(str(exc)) from exc
         (paths.workspace / "backend_override.tf").write_text(override, encoding="utf-8")

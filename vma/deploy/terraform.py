@@ -78,14 +78,21 @@ def build_environment(
     return env
 
 
-def render_backend_override(remote_state: dict[str, Any] | None, local_state_path: str) -> str:
-    """`backend_override.tf`: Terraform merges *_override.tf over the generated providers.tf."""
+def render_backend_override(remote_state: dict[str, Any] | None, local_state_path: str, run_id: str | None = None) -> str:
+    """`backend_override.tf`: Terraform merges *_override.tf over the generated providers.tf.
+
+    With a remote backend the state is namespaced per run: the configured `key` (s3, azurerm)
+    or `prefix` (gcs) becomes a prefix and the run id is appended, so two runs never share a
+    state file even though they share one backend configuration.
+    """
     cfg = remote_state if isinstance(remote_state, dict) else {}
     if cfg.get("enabled"):
         backend_type = str(cfg.get("type") or "").strip()
         if backend_type not in SUPPORTED_BACKENDS:
             raise ValueError(f"deploy.remote_state.type must be one of {', '.join(SUPPORTED_BACKENDS)}")
-        config = cfg.get("config") if isinstance(cfg.get("config"), dict) else {}
+        config = dict(cfg.get("config")) if isinstance(cfg.get("config"), dict) else {}
+        if run_id:
+            config = namespace_remote_state(backend_type, config, run_id)
         lines = [f'  backend "{backend_type}" {{']
         for key in sorted(config):
             lines.append(f"    {key} = {_hcl_literal(config[key])}")
@@ -93,6 +100,20 @@ def render_backend_override(remote_state: dict[str, Any] | None, local_state_pat
     else:
         lines = ['  backend "local" {', f"    path = {_hcl_literal(local_state_path)}", "  }"]
     return "\n".join(["# Written by the platform before every deployment; do not edit.", "terraform {", *lines, "}", ""])
+
+
+def namespace_remote_state(backend_type: str, config: dict[str, Any], run_id: str) -> dict[str, Any]:
+    """Return the backend config with the run id appended to its key / prefix."""
+    namespaced = dict(config)
+    if backend_type in {"s3", "azurerm"}:
+        base = str(config.get("key") or "vmware-migration-agent").strip("/")
+        base = base[: -len("/terraform.tfstate")] if base.endswith("/terraform.tfstate") else base
+        base = base[: -len(".tfstate")] if base.endswith(".tfstate") else base
+        namespaced["key"] = f"{base}/{run_id}/terraform.tfstate"
+    elif backend_type == "gcs":
+        base = str(config.get("prefix") or "vmware-migration-agent").strip("/")
+        namespaced["prefix"] = f"{base}/{run_id}"
+    return namespaced
 
 
 def _hcl_literal(value: Any) -> str:
