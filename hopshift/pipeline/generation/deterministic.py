@@ -5,7 +5,7 @@ from collections import defaultdict
 from importlib import import_module
 from typing import Callable, cast
 
-from hopshift.cim.schema import SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS, CanonicalInfrastructureModel
+from hopshift.cim.schema import CanonicalInfrastructureModel
 from hopshift.targets import registry as targets
 from hopshift.targets.common import is_bare_expression, safe_file_stem
 
@@ -100,14 +100,16 @@ def _flatten(provider: str, logical: dict[str, str]) -> dict[str, str]:
 
 
 def _ensure_supported_architecture(cim: CanonicalInfrastructureModel) -> None:
-    """The four supported clouds run x86_64 instances; a Power or Z guest must not be sized onto one."""
+    """A guest whose architecture the target cannot host (per its `TargetSpec.architectures`) must
+    not be sized onto it; every built-in target hosts x86_64 only."""
+    hosted = targets.get(cim.target_provider).architectures
     unsupported = sorted(
         {f"{unit.name} ({unit.architecture.value})" for unit in cim.compute_units
-         if unit.architecture not in SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS}
+         if unit.architecture.value not in hosted}
     )
     if unsupported:
         raise DeterministicRenderError(
-            f"deterministic: {cim.target_provider} cannot host non-x86 ComputeUnits: {', '.join(unsupported)}"
+            f"deterministic: {cim.target_provider} cannot host ComputeUnits with these architectures: {', '.join(unsupported)}"
         )
 
 

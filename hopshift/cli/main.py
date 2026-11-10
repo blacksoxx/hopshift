@@ -22,7 +22,7 @@ DEFAULT_MCP_CHECK_SERVERS = ("terraform",)
 
 @click.group()
 def cli():
-    """VMware lift-and-shift migration hopshift.pipeline.
+    """hopshift: migrate workloads from any discovered source to any registered target.
 
     Args:
     Use the terragen command with --input to process a discovery JSON file.
@@ -121,14 +121,14 @@ def terragen(
     Examples:
       # Anthropic + AWS, API key from env
       export LLM_API_KEY=sk-ant-...
-        vma terragen --input discovery.json -c aws -p anthropic -e prod --owner platform-team
+        hopshift terragen --input discovery.json -c aws -p anthropic -e prod --owner platform-team
 
       # OpenAI with explicit model, targeting Azure
-            vma terragen --input any-file.json -c azure -p openai -m gpt-4o-mini \\
+            hopshift terragen --input any-file.json -c azure -p openai -m gpt-4o-mini \\
           -e staging --owner devops --llm-api-key $OPENAI_KEY
 
       # Azure OpenAI (custom base URL + deployment name as model)
-            vma terragen --input custom-discovery.json -c aws -p openai \\
+            hopshift terragen --input custom-discovery.json -c aws -p openai \\
           --llm-base-url https://my-instance.openai.azure.com/ \\
           -m my-gpt4o-deployment -e prod --owner sre
     """
@@ -625,7 +625,7 @@ def _string_list(value: object) -> list[str]:
 # Accounts, encryption keys, audit verification and retention live in the platform services;
 # these commands build the same Platform the API uses and act as the "cli" system actor.
 
-_CLI_AUDIT_CTX = {"ip": None, "user_agent": "vma-cli"}
+_CLI_AUDIT_CTX = {"ip": None, "user_agent": "hopshift-cli"}
 _CONFIG_OPTION = click.option(
     "--config", "config_file", default="config.yaml", type=click.Path(exists=True, path_type=Path),
     show_default=True, help="Path to config.yaml.",
@@ -716,7 +716,7 @@ def admin_list_users(fmt, config_file):
         click.echo(json.dumps(users, indent=2))
         return
     if not users:
-        click.echo("no users yet: run `vma admin create-user <name> --role admin` or open the UI for first-run setup")
+        click.echo("no users yet: run `hopshift admin create-user <name> --role admin` or open the UI for first-run setup")
         return
     click.echo(f"{'USERNAME':<32} {'ROLE':<9} {'AUTH':<9} {'MFA':<4} {'STATUS':<9} LAST LOGIN")
     for user in users:
