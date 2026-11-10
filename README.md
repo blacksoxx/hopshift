@@ -36,7 +36,7 @@
 | api/routes/settings.py               |       36 |       15 |     58% |22, 37-46, 55, 59-64 |
 | api/routes/users.py                  |       41 |        0 |    100% |           |
 | api/serialization.py                 |       13 |        2 |     85% |    11, 17 |
-| cim/blockers.py                      |       40 |        1 |     98% |       118 |
+| cim/blockers.py                      |       40 |        0 |    100% |           |
 | cim/schema.py                        |      147 |        2 |     99% |  169, 241 |
 | cim/schema\_export.py                |       29 |       13 |     55% |27, 31-41, 45 |
 | cim/translators/\_\_init\_\_.py      |       26 |        0 |    100% |           |
@@ -47,13 +47,13 @@
 | providers/aws/network.py             |      101 |       21 |     79% |13, 80, 102-115, 160, 162, 170, 177, 181 |
 | providers/aws/placement.py           |       50 |        5 |     90% |18, 46, 58, 69, 71 |
 | providers/aws/runtime.py             |       11 |        0 |    100% |           |
-| providers/aws/sizing\_table.py       |       23 |        8 |     65% |37, 39, 51, 58-65 |
+| providers/aws/sizing\_table.py       |       23 |        2 |     91% |    37, 39 |
 | providers/aws/storage.py             |       76 |        5 |     93% |64, 67, 98, 131, 133 |
 | providers/azure/compute.py           |      113 |        6 |     95% |105-106, 128, 144, 152, 154 |
 | providers/azure/network.py           |      133 |       23 |     83% |13, 74-81, 84-90, 129, 134, 152, 154, 162, 169, 173 |
 | providers/azure/placement.py         |       57 |        5 |     91% |22, 58, 70, 81, 83 |
 | providers/azure/runtime.py           |       11 |        0 |    100% |           |
-| providers/azure/sizing\_table.py     |       23 |        8 |     65% |37, 39, 50, 57-62 |
+| providers/azure/sizing\_table.py     |       23 |        2 |     91% |    37, 39 |
 | providers/azure/storage.py           |       74 |        7 |     91% |30-31, 72, 75, 104, 118, 120 |
 | providers/base.py                    |       31 |       31 |      0% |      1-52 |
 | providers/common.py                  |       46 |        4 |     91% |     75-78 |
@@ -61,13 +61,13 @@
 | providers/gcp/network.py             |      145 |       33 |     77% |13, 69-80, 83-93, 116, 155, 157, 168, 170, 180, 182, 197, 201 |
 | providers/gcp/placement.py           |       48 |        7 |     85% |22, 29, 48, 56, 58, 66, 68 |
 | providers/gcp/runtime.py             |       11 |        0 |    100% |           |
-| providers/gcp/sizing\_table.py       |       23 |        8 |     65% |37, 39, 50, 57-62 |
+| providers/gcp/sizing\_table.py       |       23 |        2 |     91% |    37, 39 |
 | providers/gcp/storage.py             |      105 |       14 |     87% |30-31, 76-77, 80-81, 106, 108, 125, 139, 141, 158, 160, 169 |
 | providers/openstack/compute.py       |       92 |       11 |     88% |63-64, 89, 106, 130, 136-140, 148, 150 |
 | providers/openstack/network.py       |      132 |       26 |     80% |13, 75-84, 87-95, 124, 152, 160, 162, 170, 174 |
 | providers/openstack/placement.py     |       34 |        4 |     88% |19, 38, 46, 48 |
 | providers/openstack/runtime.py       |       11 |        0 |    100% |           |
-| providers/openstack/sizing\_table.py |       23 |        8 |     65% |37, 39, 50, 57-62 |
+| providers/openstack/sizing\_table.py |       23 |        2 |     91% |    37, 39 |
 | providers/openstack/storage.py       |       69 |        5 |     93% |64, 67, 94, 113, 115 |
 | providers/runtime\_common.py         |       34 |        6 |     82% |39, 49, 51, 55-56, 58 |
 | validation/hcl\_parser.py            |       72 |       18 |     75% |36, 39-41, 49-51, 90, 107, 110, 115, 125-129, 134-135 |
@@ -85,7 +85,7 @@
 | vma/connections/gcp.py               |       87 |       25 |     71% |26, 38-44, 59-63, 68-71, 75-81, 111, 115, 122-123 |
 | vma/connections/models.py            |      232 |       27 |     88% |67, 75, 127, 206-207, 219, 234, 443, 457-462, 464-471, 473-474, 477, 482-483 |
 | vma/connections/openstack.py         |      110 |       25 |     77% |30-36, 48, 55-56, 83, 85-88, 92, 97, 105-106, 111-117, 165 |
-| vma/connections/service.py           |      304 |       23 |     92% |112, 114, 126, 188-189, 223-224, 248-251, 274-275, 305, 319, 321, 356-357, 378-379, 381, 392-393 |
+| vma/connections/service.py           |      307 |       23 |     93% |112, 114, 126, 188-189, 223-224, 248-252, 268-269, 299, 313, 315, 350-351, 372-373, 375, 386-387 |
 | vma/connections/store.py             |      109 |       13 |     88% |79-80, 119-120, 136-137, 139, 160, 171, 202, 207-209 |
 | vma/db.py                            |       72 |        4 |     94% | 33, 65-67 |
 | vma/deploy/\_\_init\_\_.py           |        9 |        0 |    100% |           |
@@ -105,7 +105,7 @@
 | vma/security/service.py              |      561 |       40 |     93% |84-85, 105-106, 137-140, 205, 251, 283-284, 286, 300-301, 323, 349, 359, 373, 420, 426, 442, 488, 502, 519, 530, 618, 631, 635, 640, 642, 653, 657, 665, 681, 691, 695, 711, 732, 756 |
 | vma/security/store.py                |      195 |       12 |     94% |146-147, 264, 272, 313-314, 330-332, 456-458 |
 | vma/settings.py                      |      112 |       37 |     67% |114-115, 119, 132-134, 138-139, 141, 150-169, 178-179, 185-190 |
-| **TOTAL**                            | **11024** | **1901** | **83%** |           |
+| **TOTAL**                            | **11027** | **1876** | **83%** |           |
 
 2 empty files skipped.
 
