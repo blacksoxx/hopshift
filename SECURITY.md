@@ -13,7 +13,8 @@ or mitigation plan within 14 days for confirmed issues. Credit is given in the r
 unless you prefer otherwise.
 
 Include what you can: affected version or commit, the component (API, UI, CLI, generated
-Terraform, policies, container image), reproduction steps, impact, and a suggested fix.
+Terraform, policies, a source or target package, container image), reproduction steps, impact,
+and a suggested fix.
 
 ## Supported versions
 
@@ -21,17 +22,23 @@ The `main` branch and the latest tagged release receive security fixes.
 
 ## What is in scope
 
-- The platform API, UI and CLI (`api/`, `ui/`, `cli/`, `vma/`).
-- The pipeline and the Terraform it generates (`agent/`, `cim/`, `providers/`): a generated
-  configuration that violates the documented security controls is a vulnerability.
-- The OPA policies in `hopshift/validation/policies/` and the compliance mapping in `vma/compliance/`.
+- The platform API, UI and CLI (`hopshift/api/`, `ui/`, `hopshift/cli/`, `hopshift/services/`).
+- The pipeline and the Terraform it generates (`hopshift/pipeline/`, `hopshift/cim/`,
+  `hopshift/sources/`, `hopshift/targets/`): a generated configuration that violates the
+  documented security controls is a vulnerability.
+- The OPA policies in `hopshift/validation/policies/` and the compliance mapping in
+  `hopshift/services/compliance/`.
 - The container image and compose file.
+
+Third-party source or target plugins installed through the `hopshift.sources` and
+`hopshift.targets` entry points are maintained by their authors; report problems in those
+packages to them, and report problems in the plugin loading itself here.
 
 ## Security design in one paragraph
 
 Authentication is required by default (local accounts with argon2id hashes, optional TOTP
 second factor and OIDC single sign-on); roles are viewer, operator and admin. Every mutating
-action is written to a hash-chained audit log. Cloud credentials are stored only encrypted at
+action is written to a hash-chained audit log. Target credentials are stored only encrypted at
 rest with a key that lives in the environment. The generated Terraform passes through terraform
 validate, tflint and OPA policies that implement CIS Benchmark, SOC 2 and HIPAA technical
 controls before anything is written; apply and destroy require an explicit, typed approval.

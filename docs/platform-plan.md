@@ -1,4 +1,6 @@
-# Phase 3 — the migration platform
+> Historical document: the phase 3 build contract as written before the hopshift rename. It is kept for reference and is not maintained; read [architecture.md](architecture.md) for the current design. Paths in the prose were updated to the current layout; the diagram keeps the old package names (`vma` is now `hopshift/services`, `agent` is `hopshift/pipeline`, `providers` is `hopshift/targets`, `cim/translators` is `hopshift/sources`).
+
+# Phase 3: the migration platform
 
 This document is the build contract for phase 3. It describes the target architecture, the
 API surface, the data model and the work breakdown. Each workstream below is self-contained
@@ -48,31 +50,31 @@ are preserved on files that already use them.
 
 ## Platform core (owned by the integrator, already in place)
 
-- `vma/db.py` — `Database(path)`, `with db.connect() as conn`, `register_migration(name, sql)`,
+- `hopshift/services/db.py`: `Database(path)`, `with db.connect() as conn`, `register_migration(name, sql)`,
   `db.migrate()`. Every service registers its own tables at import time.
-- `vma/secrets.py` — `SecretBox.from_env()` reads `HOPSHIFT_SECRET_KEY` (one or more comma-separated
+- `hopshift/services/secrets.py`: `SecretBox.from_env()` reads `HOPSHIFT_SECRET_KEY` (one or more comma-separated
   Fernet keys, first is primary). `encrypt_json` / `decrypt_json` / `rotate` / `generate_key()`.
   `available` is false without a key; services must refuse to store secrets in that case and
   explain how to set the key.
-- `vma/audit.py` — `AuditLog.record(action, actor=..., actor_kind=..., target_type=..., target_id=...,
+- `hopshift/services/audit.py`: `AuditLog.record(action, actor=..., actor_kind=..., target_type=..., target_id=...,
   outcome=..., details=..., ip=..., user_agent=...)`. Entries are hash-chained
   (`hash = sha256(prev_hash + canonical_json(entry))`). `list(...)`, `verify()`, `iter_all()`.
   Never put secrets in `details`.
-- `vma/settings.py` — editable overlay stored in SQLite and applied over `config.yaml`
+- `hopshift/services/settings.py`: editable overlay stored in SQLite and applied over `config.yaml`
   (`EDITABLE_SETTINGS` is the allow-list; everything else is file-only).
-- `vma/platform.py` — `Platform.from_config(config)` wires the services. Optional services are
+- `hopshift/services/platform.py`: `Platform.from_config(config)` wires the services. Optional services are
   attached by `build_auth_service(platform)`, `build_connection_service(platform)` and
   `build_deploy_service(platform)` when their packages exist.
-- `api/deps.py` — `Principal`, `current_principal`, `require_role("viewer"|"operator"|"admin")`,
+- `hopshift/api/deps.py`: `Principal`, `current_principal`, `require_role("viewer"|"operator"|"admin")`,
   `get_platform`, `get_runtime`, `audit_context(request)`.
-- `api/app.py` + `api/routes/*.py` — one router per area. Add a router by creating
-  `api/routes/<area>.py` exposing `router = APIRouter()` and listing it in `api/routes/__init__.py`.
+- `hopshift/api/app.py` + `hopshift/api/routes/*.py`: one router per area. Add a router by creating
+  `hopshift/api/routes/<area>.py` exposing `router = APIRouter()` and listing it in `hopshift/api/routes/__init__.py`.
 
 Roles: `viewer` reads runs, artifacts, connections (metadata only). `operator` adds run
 mutations, approvals, plan/apply/destroy, connection tests. `admin` adds users, tokens for others,
 connection management, settings, the audit log.
 
-## Workstream A — security (`vma/security/`, `api/routes/auth.py`, `users.py`, `audit.py`)
+## Workstream A: security (`hopshift/services/security/`, `hopshift/api/routes/auth.py`, `users.py`, `audit.py`)
 
 Users with argon2id password hashes, sessions (random 256-bit token, stored hashed, absolute and
 idle expiry, cookie `hopshift_session` HttpOnly SameSite=Lax, `Secure` on https), API tokens
@@ -83,10 +85,10 @@ middleware (CSP, HSTS on https, frame deny, nosniff, referrer policy, permission
 origin check for cookie-authenticated mutations, run and audit retention sweeps, and the
 `/settings/posture` checks. First-run setup creates the first admin when no users exist.
 
-Endpoints: see "API surface". CLI: `vma admin create-user`, `vma admin reset-password`,
-`vma secrets generate-key`, `vma secrets rotate`, `vma audit verify`, `vma runs prune`.
+Endpoints: see "API surface". CLI: `hopshift admin create-user`, `hopshift admin reset-password`,
+`hopshift secrets generate-key`, `hopshift secrets rotate`, `hopshift audit verify`, `hopshift runs prune`.
 
-## Workstream B — cloud connections (`vma/connections/`, `api/routes/connections.py`)
+## Workstream B: cloud connections (`hopshift/services/connections/`, `hopshift/api/routes/connections.py`)
 
 A connection is `{id, name, provider, auth_method, config (non-secret), secret (encrypted),
 status, last_checked_at, last_check, created_by, created_at, updated_at}`.
@@ -107,7 +109,7 @@ environment variables Terraform providers read (`AWS_*`, `ARM_*`, `GOOGLE_*`, `O
 and SSO resolve to temporary credentials first. Secrets never leave the service: API responses
 expose `has_secret` and field names only.
 
-## Workstream C — deployments (`vma/deploy/`, `api/routes/deploy.py`)
+## Workstream C: deployments (`hopshift/services/deploy/`, `hopshift/api/routes/deploy.py`)
 
 `DeployService` runs Terraform in the run's root module (`artifacts/<cloud>-migration/`) with the
 environment from a connection. Actions: `plan` (init, plan `-out=tfplan -detailed-exitcode`, `show
@@ -120,7 +122,7 @@ State stays local in the root module unless `deploy.remote_state` is configured,
 `backend.tf` is written. Cancel terminates the process. `deploy.allow_apply` and
 `deploy.allow_destroy` gate the actions globally.
 
-## Workstream D — compliance (`hopshift/validation/policies/compliance/`, `vma/compliance/`, renderers)
+## Workstream D: compliance (`hopshift/validation/policies/compliance/`, `hopshift/services/compliance/`, renderers)
 
 OPA policies with explicit control metadata, evaluated in the validator alongside the existing
 rules. Controls have a level: `enforce` (fails the gate) or `advisory` (reported only). The
@@ -131,7 +133,7 @@ HIPAA Security Rule references. Renderers are hardened so the deterministic outp
 default security groups, OS Login, shielded VMs, no IP forwarding, subnet flow logs, TLS-only
 storage, and so on). The integration tests (real `terraform validate`) stay green.
 
-## Workstream E — UI (`ui/`)
+## Workstream E: UI (`ui/`)
 
 Tailwind v4, Radix primitives, `motion`, lucide icons, cmdk palette, TanStack table and virtual,
 shiki for HCL, recharts for analytics. Pages: setup, login (password, TOTP step, SSO button),
@@ -143,7 +145,7 @@ confirmation, compliance tab, log tab), assess (readiness charts, per-VM table, 
 export), connections (list, generic form from the catalog, test, device-code flow), settings
 (general, users, tokens, audit, posture, profile with password and MFA), keyboard shortcuts.
 
-## Workstream F — repository (README, docs, CI, publication)
+## Workstream F: repository (README, docs, CI, publication)
 
 README with hero, badges, features, quickstart, screenshots. `docs/architecture.md`,
 `docs/setup.md`, `docs/security.md`, `docs/compliance.md`, `docs/connections.md`,

@@ -1,6 +1,6 @@
 # Run runtime
 
-`agent/runtime.py` is the service layer the API and UI drive. The CLI's `terragen` shares its
+`hopshift/pipeline/runtime.py` is the service layer the API and UI drive. The CLI's `terragen` shares its
 config-override logic but still runs the graph in one shot.
 
 ## Runs

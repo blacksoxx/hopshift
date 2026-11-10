@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping make VMware migrations boring. This page gets you from clone to green
+Thanks for helping make migrations boring. This page gets you from clone to green
 tests in a few minutes.
 
 ## Development setup
@@ -22,8 +22,8 @@ pre-commit install          # ruff, gitleaks and sanity hooks run on every commi
 cd ui && npm ci && cd ..
 
 # Run the platform (API + UI) on http://127.0.0.1:8080
-export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
-vma serve
+export HOPSHIFT_SECRET_KEY=$(hopshift secrets generate-key)
+hopshift serve
 ```
 
 During UI work run `cd ui && npm run dev` for Vite with hot reload (it proxies `/api` to
@@ -32,8 +32,8 @@ port 8080).
 ## Tests
 
 ```bash
-pytest -q --ignore=tests/integration      # unit: pipeline, CIM, policies, platform services, API
-pytest -q tests/integration               # real terraform validate + tflint + OPA on all four clouds
+pytest -q --ignore=tests/integration      # unit: pipeline, CIM, sources, targets, policies, platform services, API
+pytest -q tests/integration               # real terraform validate + tflint + OPA on every built-in target
 cd ui && npx vitest run && npx tsc --noEmit && npm run build
 cd ui && npx playwright test               # end-to-end against a real server
 ruff check .
@@ -60,11 +60,15 @@ Dependabot keeps the pins current.
 
 - Deterministic core: anything that can be computed must not call a model. The LLM is used
   only for review notes and the optional `llm`/`hybrid` generation modes.
+- The CIM is the boundary: sources never see a target resource type, targets never see a
+  source field name. Both are resolved through the registries in `hopshift/sources/registry.py`
+  and `hopshift/targets/registry.py`; do not hardcode a target name in the deterministic path.
 - Security rules in `AGENTS.md` are non-negotiable (no public ingress, encrypted volumes,
   required tags, no code-execution constructs in generated Terraform).
-- Services raise `vma.errors` exceptions; the API maps them to status codes. Never log or
-  return secret values.
-- New API areas get their own router in `api/routes/` and their own service package in `vma/`.
+- Services raise `hopshift.services.errors` exceptions; the API maps them to status codes. Never
+  log or return secret values.
+- New API areas get their own router in `hopshift/api/routes/` and their own service package in
+  `hopshift/services/`.
 - Type hints everywhere, `ruff` clean, tests next to the feature (`tests/<area>/`).
 - Line endings are LF everywhere (enforced by `.gitattributes`).
 - Commit messages and pull request titles: `type(scope): summary` with a lowercase subject
@@ -72,13 +76,23 @@ Dependabot keeps the pins current.
 
 ## Adding things
 
-- **A cloud provider**: implement `providers/<name>/{compute,network,storage,placement,runtime}.py`,
-  a sizing table, OPA controls in `hopshift/validation/policies/compliance/`, catalog entries in
-  `vma/connections/models.py`, and an integration test case.
-- **A source hypervisor**: add a translator under `cim/translators/` keyed by the discovery
-  `schema_name`, and blockers in `cim/blockers.py`.
-- **A compliance control**: add the rego rule and the catalog entry in `vma/compliance/controls.py`
-  with CIS, SOC 2 and HIPAA references, then a policy test.
+The plugin guide ([docs/plugins.md](docs/plugins.md)) has the full contract; the tier a new
+source or target lands in is defined in [docs/support-matrix.md](docs/support-matrix.md).
+
+- **A target**: a package with `network`, `compute`, `storage`, `placement`, `runtime` and
+  `sizing_table` modules, registered as a `TargetSpec` (built in: `hopshift/targets/__init__.py`;
+  external: a `hopshift.targets` entry point). For deployments add catalog entries in
+  `hopshift/services/connections/models.py`; for compliance add OPA controls in
+  `hopshift/validation/policies/compliance/` and `Control` entries in
+  `hopshift/services/compliance/controls.py`; add an integration test case and
+  `docs/targets/<name>.md`.
+- **A source**: a translator producing the CIM, registered as a `SourceSpec` keyed by the
+  discovery `schema_name` (built in: `hopshift/sources/__init__.py`; external: a
+  `hopshift.sources` entry point), blockers in `hopshift/cim/blockers.py` if its flags differ, a
+  fixture, a translator test and `docs/sources/<name>.md`.
+- **A compliance control**: add the rego rule and the catalog entry in
+  `hopshift/services/compliance/controls.py` with CIS, SOC 2 and HIPAA references, then a policy
+  test.
 
 ## Pull requests
 

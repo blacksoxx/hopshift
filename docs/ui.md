@@ -11,11 +11,11 @@ logic. Light and dark themes follow the system or the toggle in the top bar.
 | `/setup` | Shown once, while no user exists: create the first administrator. |
 | `/login` | Password sign-in, second-factor step, single sign-on button when OIDC is configured. |
 | `/` | Dashboard: run counts, success rate, 30-day activity, runs waiting for approval, connections, security posture. |
-| `/runs` | All runs with search, status and cloud filters, tag chips; cancel and delete from the row menu. |
-| `/runs/new` | Four-step wizard: upload the discovery JSON (summary of VMs, switches, clusters, vCenter), choose the target cloud and options, pick a cloud connection, review and start. |
+| `/runs` | All runs with search, status and target filters, tag chips; cancel and delete from the row menu. |
+| `/runs/new` | Four-step wizard: upload the discovery JSON (summary of VMs, switches, clusters, vCenter), choose the target and options, pick a connection, review and start. |
 | `/runs/:id` | Run detail: live timeline, overview (stats, validation, quarantine, review notes), CIM editor (table with inline edits, bulk actions, raw JSON), artifacts (file tree, highlighted viewer, diff against another run, zip download), deploy (variables, plan, apply and destroy with typed confirmation, live logs, state), compliance report, event log. |
 | `/assess` | Readiness assessment of an inventory without creating a run: risk per VM, charts, CSV and Markdown export. |
-| `/connections` | Cloud connections: add with a provider → method → form flow driven by the catalog, test, device-code sign-in, replace secrets, delete. |
+| `/connections` | Connections: add with a provider → method → form flow driven by the catalog, test, device-code sign-in, replace secrets, delete. |
 | `/settings` | General (editable configuration), users, API tokens, audit log, security posture, profile (password, second factor). |
 | `/audit` | The audit log with filters, chain verification and export (admin). |
 
@@ -43,7 +43,7 @@ Deployment logs stream the same way. Nothing on a page blocks while work is runn
 cd ui
 npm ci
 npm run dev            # Vite on :5173, proxies /api to :8080 (VITE_API_PROXY to change)
-npm run build          # production bundle in ui/dist (served by `vma serve`)
+npm run build          # production bundle in ui/dist (served by `hopshift serve`)
 npx tsc --noEmit       # type check
 npx vitest run         # unit tests (jsdom, Testing Library)
 npx playwright test    # end-to-end: starts an isolated server through e2e/serve.py

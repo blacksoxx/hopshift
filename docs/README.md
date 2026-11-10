@@ -1,167 +1,123 @@
-# hopshift Docs
+# hopshift docs
 
 Implementation-accurate documentation for the current codebase.
 
-Last refreshed: 2026-11-09
+Last refreshed: 2026-11-10
 
-## At A Glance
+## At a glance
 
-- Purpose: Transform VMware discovery JSON into deployable Terraform HCL.
-- Runtime shape: Deterministic LangGraph pipeline with limited LLM use.
-- LLM scope: optional. Default generation is deterministic templates from the CIM; the LLM is used for review notes and, in llm/hybrid modes, HCL generation.
-- Core contract: CIM (Canonical Infrastructure Model) is the system boundary between VMware input and provider output.
+- Purpose: migrate infrastructure from any source to any target through one canonical model.
+  A discovery payload is translated into the Canonical Infrastructure Model (CIM), rendered as
+  Terraform for the chosen target, validated, checked against compliance controls, reviewed by
+  people and deployed through stored connections.
+- Sources and targets are plugins. Built in today: the VMware vSphere source
+  (`vmware-discovery-stage1`) and the AWS, Azure, GCP and OpenStack targets. Both registries are
+  listed by `GET /api/meta`.
+- Runtime shape: a deterministic LangGraph pipeline with optional model use at the edges
+  (review notes, and the `llm`/`hybrid` generation modes).
+- Core contract: the CIM is the boundary. Nothing downstream of it knows a source field name;
+  nothing upstream of it knows a target resource type.
 
-## Current Pipeline
+The pipeline runs `ingest`, `blocker_parser`, `enricher`, `cim_mapper`, `sizer`, `mcp_client`,
+`hcl_generator`, `validator` and `reporter`, in that order. The reporter always runs; Terraform
+files are written only when validation passed. The diagrams live in
+[architecture.md](architecture.md).
 
-The active graph flow is:
+## Docs map
 
-1. ingest
-2. blocker_parser
-3. enricher
-4. cim_mapper
-5. sizer
-6. mcp_client
-7. hcl_generator
-8. validator
-9. reporter (always runs; HCL is written only when validation passes)
+Start here:
 
-Summary:
+- [architecture.md](architecture.md): sources, the CIM, targets, the two registries, the pipeline, platform services, API, UI, storage layout, threat model.
+- [setup.md](setup.md): Docker and local setup, configuration, first administrator, production checklist, operations.
 
-- Input: VMware discovery JSON.
-- Middle: blocker filtering, CIM translation, deterministic sizing, MCP docs retrieval.
-- Output: provider Terraform files, quarantine report, review notes.
+Extending:
 
-## Architecture Diagram (ASCII)
-
-```text
-                                +--------------------+
-                                |     config.yaml    |
-                                +----------+---------+
-                                           |
-                                           v
-+----------------------+         +---------+---------+
-| VMware discovery JSON| ------> | CLI: vma terragen |
-+----------+-----------+         +---------+---------+
-           |                                 |
-           |                                 v
-           |                    +------------+-------------+
-           |                    |     LangGraph Pipeline   |
-           |                    +------------+-------------+
-           |                                 |
-           |    ingest -> blocker_parser -> enricher -> cim_mapper -> sizer
-           |                                 |
-           |                                 v
-           |                           +-----+-----+
-           |                           | mcp_client|
-           |                           +-----+-----+
-           |                                 |
-           |                                 v
-           |                           +-----+-----+      +------------------+
-           |                           |hcl_generator| <---| LLMClient (HCL) |
-           |                           +-----+-----+      +------------------+
-           |                                 |
-           |                                 v
-           |                           +-----+-----+      +------------------+
-           |                           | validator | ---> |TF + TFLint + OPA |
-           |                           +-----+-----+      +------------------+
-           |                                 |
-           |                                 | (always)
-           |                                 v
-           |                           +-----+-----+
-           |                           | reporter  |
-           |                           +-----+-----+
-           |                                 |
-           v                                 v
-  +--------+----------+            +---------+-------------------------------+
-  | quarantine_report |            | output/{provider}-migration/** (only if |
-  | + review_notes    |            | validation passed)                      |
-  +-------------------+            +-----------------------------------------+
-```
-
-Notes:
-
-- CIM is produced at cim_mapper and transformed further by sizer.
-- LLM usage is restricted to hcl_generator and reporter.
-- reporter always runs. It writes quarantine_report.json and review_notes.md for every run and writes HCL files only when validation_result.passed is true.
-- The CLI exits with status 1 when the final status is not succeeded, so CI jobs fail on failed migrations.
-
-## Docs Map
+- [plugins.md](plugins.md): how to write and register a source or a target package.
+- [support-matrix.md](support-matrix.md): tiers (`tested`, `validated`, `experimental`), what each guarantees, evidence per source and target.
+- Sources: [sources/vmware.md](sources/vmware.md).
+- Targets: [targets/aws.md](targets/aws.md), [targets/azure.md](targets/azure.md), [targets/gcp.md](targets/gcp.md), [targets/openstack.md](targets/openstack.md), [targets/proxmox.md](targets/proxmox.md) (in progress).
 
 Platform:
 
-- [architecture.md](architecture.md): How the pipeline, the platform services, the API and the UI fit together; storage layout; threat model.
-- [setup.md](setup.md): Docker and local setup, configuration, first administrator, production checklist, operations.
-- [security.md](security.md): Accounts, MFA, single sign-on, API tokens, headers, retention, evidence for SOC 2 / HIPAA / CIS.
-- [compliance.md](compliance.md): Compliance-as-code on the generated Terraform: control matrix and report format.
-- [connections.md](connections.md): Cloud connections: providers, sign-in methods, fields, Terraform environment mapping.
+- [security.md](security.md): accounts, MFA, single sign-on, API tokens, headers, retention, evidence for SOC 2 / HIPAA / CIS.
+- [compliance.md](compliance.md): compliance-as-code on the generated Terraform: control matrix and report format.
+- [connections.md](connections.md): target connections: providers, sign-in methods, fields, Terraform environment mapping.
 - [deployments.md](deployments.md): Terraform plan / apply / destroy with approval gates, state, LocalStack recipe.
-- [api.md](api.md): The HTTP API, endpoint by endpoint, with roles.
-- [ui.md](ui.md): The web UI: pages, shortcuts, building and testing.
-- [ci.md](ci.md): Continuous integration, bots, release pipeline, and how to run the same checks locally.
-- [platform-plan.md](platform-plan.md): The build contract used for phase 3 (kept for reference).
+- [api.md](api.md): the HTTP API, endpoint by endpoint, with roles.
+- [ui.md](ui.md): the web UI: pages, shortcuts, building and testing.
+- [ci.md](ci.md): continuous integration, bots, release pipeline, and how to run the same checks locally.
 
 Core:
 
-- [pipeline.md](pipeline.md): Graph order, node responsibilities, routing, MigrationState.
-- [cli.md](cli.md): Commands, options, and practical examples.
-- [configuration.md](configuration.md): Runtime config contract and CLI override behavior.
-- [cim-and-translation.md](cim-and-translation.md): CIM models and VMware-to-CIM translation rules.
-- [output-and-validation.md](output-and-validation.md): Output layout, quarantine/report artifacts, validation gates.
-- [discovery-schema.md](discovery-schema.md): Discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
-- [ai-usage.md](ai-usage.md): Where the LLM is used today, where it is planned, and what is deliberately rule-based.
-- [runtime-and-api.md](runtime-and-api.md): Run service layer (pause points, state patching, re-run, events).
+- [pipeline.md](pipeline.md): graph order, node responsibilities, retries, `MigrationState`.
+- [cli.md](cli.md): commands, options, and practical examples.
+- [configuration.md](configuration.md): runtime config contract, environment overrides and CLI override behaviour.
+- [cim-and-translation.md](cim-and-translation.md): CIM models, the source registry and the VMware translation rules.
+- [output-and-validation.md](output-and-validation.md): output layout, quarantine and report artifacts, validation gates, policies.
+- [discovery-schema.md](discovery-schema.md): the VMware discovery JSON contract, gaps in the current output, and the proposed 1.1.0 fields.
+- [ai-usage.md](ai-usage.md): where a model is used today, where it is planned, and what is deliberately rule-based.
+- [runtime-and-api.md](runtime-and-api.md): the run service layer (pause points, state patching, re-run, events).
 
-## Command Line Overview
+History:
 
-Primary command group: `vma`
+- [platform-plan.md](platform-plan.md): the phase 3 build contract (kept for reference, not maintained).
+
+## Command line overview
+
+Primary command: `hopshift` (also `python -m hopshift.cli.main`).
 
 Core commands:
 
-- `terragen`: Run the full migration pipeline from discovery JSON to Terraform output (deterministic by default; `--mode llm|hybrid` for LLM generation).
-- `assess`: Deterministic per-resource risk assessment of the whole inventory, written as JSON and markdown.
-- `report`: Read generated artifacts from an existing output directory.
-- `mcp-check`: Validate Terraform MCP connectivity before generation runs.
+- `terragen`: run the full pipeline from a discovery JSON to Terraform output (deterministic by default; `--mode llm|hybrid` for model-written generation).
+- `assess`: deterministic per-resource risk assessment of the whole inventory, written as JSON and Markdown.
+- `serve`: start the platform (API, Swagger UI and the built web UI).
+- `report`: read generated artifacts from an existing output directory.
+- `mcp-check`: validate Terraform MCP connectivity before an `llm`/`hybrid` run.
+- `admin`, `secrets`, `audit`, `runs`: platform administration from the shell.
 
 Quick-start examples:
 
 ```bash
 # Full pipeline run
-vma terragen --input discovery.json --cloud aws --llm-provider anthropic --environment prod --owner platform-team
+hopshift terragen --input discovery.json --cloud aws --environment prod --owner platform-team
 
-# Read output summary from the output directory
-vma report output --format text
+# Read the output summary from the output directory
+hopshift report output --format text
 
-# Check Terraform MCP connectivity
-vma mcp-check --servers terraform --timeout 10 --format text
+# Check Terraform MCP connectivity (llm/hybrid modes only)
+hopshift mcp-check --servers terraform --timeout 10 --format text
 ```
 
 Most-used `terragen` flags:
 
-- Required: `--input`, `--cloud`, `--llm-provider`, `--environment`, `--owner`
-- Useful optional: `--llm-model`, `--output-dir`, `--config`
+- Required: `--input`, `--cloud` (a registered target name), `--environment`, `--owner`
+- Useful optional: `--mode`, `--llm-provider`, `--llm-model`, `--output-dir`, `--config`
 - Control flags: `--dry-run`, `--skip-validation`, `--skip-opa`, `--no-mcp`
 
 For complete option details, see [cli.md](cli.md).
 
-## Important Architecture Notes
+## Important architecture notes
 
-- The active graph uses mcp_client, not rag_retriever.
-- Validation happens in two phases:
-  - Internal generation feedback loop in hcl_generator.
-  - Final deterministic gate in validator.
-- reporter runs after validator on every path; unvalidated HCL is never written to output.
-- MCP retrieval can be disabled with mcp.enabled=false or the terragen --no-mcp flag; hcl_generator then runs without documentation context.
+- Targets and sources are resolved through `hopshift/targets/registry.py` and
+  `hopshift/sources/registry.py`. The CLI `--cloud` choices, the API `cloud` option, the sizer,
+  the deterministic renderer and the validator all read the target registry.
+- The active graph uses `mcp_client`, not `rag_retriever` (which exists in source but is not wired).
+- Validation happens in two phases: the generation feedback loop inside `hcl_generator`
+  (`llm`/`hybrid` modes) and the final deterministic gate in `validator`.
+- `reporter` runs after `validator` on every path; unvalidated Terraform is never written to output.
+- MCP retrieval can be disabled with `mcp.enabled: false` or `terragen --no-mcp`; it is only used by the `llm`/`hybrid` modes.
 
-## Canonical Terms
+## Canonical terms
 
 Use these terms consistently in code, docs, and review notes:
 
 - CIM
+- source, target (not "hypervisor" and "cloud" when the generic thing is meant)
+- SourceSpec, TargetSpec
 - ComputeUnit
 - StorageVolume
 - NetworkTopology
 - ClusterSemantics
-- ProviderModule
 - MigrationState
 - blocker
 - quarantine queue

@@ -1,15 +1,15 @@
 # CLI Reference
 
-CLI entrypoint is cli/main.py.
+The entry point is the `hopshift` console script (`hopshift/cli/main.py`); `python -m hopshift.cli.main` is equivalent and is what the container uses.
 
 ## Command: terragen
 
-Converts VMware discovery JSON into provider HCL via the full pipeline.
+Runs the full pipeline from a discovery JSON to a Terraform root module for one target.
 
 Required options:
 
 - --input
-- --cloud (aws|azure|gcp|openstack)
+- --cloud: a registered target name (`aws`, `azure`, `gcp`, `openstack` built in; plugins add their own; `--help` lists them)
 - --environment
 - --owner
 
@@ -41,7 +41,7 @@ Exit status:
 Example:
 
 ```bash
-vma terragen --input discovery.json --cloud aws --llm-provider anthropic --environment prod --owner platform-team
+hopshift terragen --input discovery.json --cloud aws --llm-provider anthropic --environment prod --owner platform-team
 ```
 
 ## Command: assess
@@ -49,7 +49,7 @@ vma terragen --input discovery.json --cloud aws --llm-provider anthropic --envir
 Runs the deterministic risk assessment over the whole inventory (blocked VMs are assessed, not quarantined) and writes assessment_report.json and assessment_report.md plus a terminal table. No LLM, no cloud access, no docker.
 
 ```bash
-vma assess --input discovery.json --cloud aws --output-dir output
+hopshift assess --input discovery.json --cloud aws --output-dir output
 ```
 
 ## Command: serve
@@ -57,10 +57,10 @@ vma assess --input discovery.json --cloud aws --output-dir output
 Starts the platform: the HTTP API under `/api`, Swagger UI at `/docs` and the built web UI at `/`.
 
 ```bash
-export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
-vma serve --host 0.0.0.0 --port 8080
-vma serve --ssl-certfile cert.pem --ssl-keyfile key.pem           # direct TLS
-vma serve --forwarded-allow-ips 10.0.0.5                           # behind a reverse proxy
+export HOPSHIFT_SECRET_KEY=$(hopshift secrets generate-key)
+hopshift serve --host 0.0.0.0 --port 8080
+hopshift serve --ssl-certfile cert.pem --ssl-keyfile key.pem           # direct TLS
+hopshift serve --forwarded-allow-ips 10.0.0.5                           # behind a reverse proxy
 ```
 
 Options: `--config`, `--host` (default 127.0.0.1), `--port` (default 8080), `--ssl-certfile`,
@@ -73,10 +73,10 @@ Local accounts (`security.auth.mode: required`). Works before first-run setup, s
 bootstrap the first administrator on a headless server.
 
 ```bash
-vma admin create-user admin --role admin --name "Platform admin"   # prompts for the password
-vma admin list-users
-vma admin reset-password alice                                      # revokes her sessions
-vma admin set-role alice operator                                   # the last admin cannot be demoted
+hopshift admin create-user admin --role admin --name "Platform admin"   # prompts for the password
+hopshift admin list-users
+hopshift admin reset-password alice                                      # revokes her sessions
+hopshift admin set-role alice operator                                   # the last admin cannot be demoted
 ```
 
 Options: `--config` (default config.yaml); `create-user` also takes `--password` (prompted
@@ -85,8 +85,8 @@ when omitted so it stays out of shell history).
 ## Command group: secrets
 
 ```bash
-vma secrets generate-key          # print a new Fernet key for HOPSHIFT_SECRET_KEY
-HOPSHIFT_SECRET_KEY=<new>,<old> vma secrets rotate   # re-encrypt every stored secret with <new>, then drop <old>
+hopshift secrets generate-key          # print a new Fernet key for HOPSHIFT_SECRET_KEY
+HOPSHIFT_SECRET_KEY=<new>,<old> hopshift secrets rotate   # re-encrypt every stored secret with <new>, then drop <old>
 ```
 
 `rotate` reports the number of rows rewritten per service (credentials, MFA secrets, device
@@ -99,8 +99,8 @@ Recomputes the audit log hash chain and exits non-zero when an entry was altered
 ## Command: runs prune
 
 ```bash
-vma runs prune --older-than-days 30 --dry-run
-vma runs prune --older-than-days 30
+hopshift runs prune --older-than-days 30 --dry-run
+hopshift runs prune --older-than-days 30
 ```
 
 Deletes runs through the runtime (never running or paused ones) and audits the sweep. The
@@ -123,7 +123,7 @@ Expected files:
 Example:
 
 ```bash
-vma report output --format text
+hopshift report output --format text
 ```
 
 ## Command: mcp-check
@@ -141,14 +141,14 @@ Options:
 Example:
 
 ```bash
-vma mcp-check --servers terraform --timeout 10 --format text
+hopshift mcp-check --servers terraform --timeout 10 --format text
 ```
 
 ## Runtime Overrides Applied By CLI
 
 Before graph execution, terragen injects overrides into runtime config:
 
-- target_cloud from --cloud.
+- target_cloud from --cloud (validated against the target registry).
 - llm.provider and llm.model from CLI values.
 - llm.base_url when provided.
 - output.base_dir from --output-dir; output.dry_run from --dry-run.
