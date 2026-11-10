@@ -96,4 +96,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
 # Default: API + UI. For the CLI: docker compose run --rm agent python -m hopshift.cli.main terragen ...
-CMD ["python", "-m", "cli.main", "serve", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "hopshift.cli.main", "serve", "--host", "0.0.0.0", "--port", "8080"]

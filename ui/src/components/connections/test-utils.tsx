@@ -138,6 +138,24 @@ export const CATALOG: ConnectionCatalog = {
       },
     ],
   },
+  // A provider the UI has no hand-written metadata for (what a target plugin registers).
+  proxmox: {
+    label: "Proxmox VE",
+    methods: [
+      {
+        key: "api_token",
+        label: "API token",
+        description: "A Proxmox VE API token with its secret.",
+        terraform_ready: true,
+        device_flow: false,
+        fields: [
+          { key: "host", label: "API URL", type: "text", required: true, secret: false, placeholder: "https://pve1.example.com:8006" },
+          { key: "token_id", label: "Token ID", type: "text", required: true, secret: false },
+          { key: "secret", label: "Token secret", type: "password", required: true, secret: true },
+        ],
+      },
+    ],
+  },
 };
 
 export function makeConnection(overrides: Partial<Connection> = {}): Connection {

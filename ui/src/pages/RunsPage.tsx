@@ -1,8 +1,10 @@
 import * as React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Cloud, ListChecks, MoreHorizontal, Plus, Search, StopCircle, Tag, Trash2, X } from "lucide-react";
+import { ListChecks, MoreHorizontal, Plus, Search, StopCircle, Tag, Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { useAsync, useDebounced } from "@/hooks/useAsync";
+import { useTargets } from "@/hooks/useTargets";
+import { TargetBadge } from "@/components/TargetBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +37,7 @@ export function RunsPage() {
     [debounced, status, cloud, tag],
     { pollMs: (data) => (data?.some((run) => run.status === "running" || run.executing) ? 3000 : 15000) },
   );
-  const meta = useAsync(() => api.meta(), []);
+  const { targets } = useTargets();
 
   const allTags = React.useMemo(() => Array.from(new Set((runs.data ?? []).flatMap((run) => run.tags ?? []))).sort(), [runs.data]);
 
@@ -84,7 +86,7 @@ export function RunsPage() {
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, id, file or tag…" className="pl-8" data-testid="runs-search" />
         </div>
         <SimpleSelect value={status} onValueChange={setStatus} className="w-40" options={[{ value: "all", label: "Any status" }, ...STATUSES.map((item) => ({ value: item, label: item }))]} testId="runs-status-filter" />
-        <SimpleSelect value={cloud} onValueChange={setCloud} className="w-36" options={[{ value: "all", label: "Any cloud" }, ...(meta.data?.clouds ?? []).map((item) => ({ value: item, label: item.toUpperCase() }))]} />
+        <SimpleSelect value={cloud} onValueChange={setCloud} className="w-44" options={[{ value: "all", label: "Any target" }, ...targets.map((item) => ({ value: item.name, label: item.label }))]} testId="runs-target-filter" />
         {allTags.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <Tag className="size-3.5 text-muted-foreground" />
@@ -117,7 +119,7 @@ export function RunsPage() {
           <EmptyState
             icon={ListChecks}
             title={filtersActive ? "No runs match these filters" : "No runs yet"}
-            description={filtersActive ? "Try a different search or clear the filters." : "Upload a vSphere discovery JSON and the agent turns it into validated Terraform."}
+            description={filtersActive ? "Try a different search or clear the filters." : "Upload a discovery JSON from any registered source and hopshift turns it into validated Terraform for the target you choose."}
             action={!filtersActive && can("operator") ? <Button asChild><Link to="/runs/new">Create the first run</Link></Button> : undefined}
             testId="runs-empty"
           />
@@ -126,7 +128,7 @@ export function RunsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-4">Run</TableHead>
-                <TableHead>Cloud</TableHead>
+                <TableHead>Target</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden md:table-cell">Mode</TableHead>
                 <TableHead className="hidden lg:table-cell">Tags</TableHead>
@@ -147,9 +149,7 @@ export function RunsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-xs uppercase text-muted-foreground">
-                        <Cloud className="size-3.5" /> {run.cloud}
-                      </span>
+                      <TargetBadge name={run.cloud} />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

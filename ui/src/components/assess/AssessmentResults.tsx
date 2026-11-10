@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/providers/AuthProvider";
 import { useCssVar } from "@/providers/ThemeProvider";
+import { useTargets } from "@/hooks/useTargets";
 import { cn, downloadText } from "@/lib/utils";
 import { formatDateTime, pluralize, titleCase } from "@/lib/format";
 import type { AssessmentResource, AssessmentResult } from "@/types";
@@ -114,6 +115,7 @@ export function topFindings(resources: AssessmentResource[], limit = 5): { reaso
 
 export function AssessmentResults({ result, cloud }: { result: AssessmentResult; cloud: string }) {
   const { can } = useAuth();
+  const { labelOf } = useTargets();
   const [filter, setFilter] = React.useState<RiskLevel | "all">("all");
   const success = useCssVar("--success");
   const warning = useCssVar("--warning");
@@ -146,9 +148,9 @@ export function AssessmentResults({ result, cloud }: { result: AssessmentResult;
     <div className="space-y-4" data-testid="assessment">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Readiness for {cloud.toUpperCase()}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Readiness for {labelOf(cloud)}</h2>
           <p className="text-sm text-muted-foreground">
-            {result.source_vcenter || "unknown vCenter"} · {pluralize(result.summary.total_resources, "resource")} · generated {formatDateTime(result.generated_at)}
+            {result.source_vcenter || "unknown source"} · {pluralize(result.summary.total_resources, "resource")} · generated {formatDateTime(result.generated_at)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

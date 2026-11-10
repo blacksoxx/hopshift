@@ -341,7 +341,7 @@ function MfaEnrollDialog({ open, onOpenChange, onEnrolled }: { open: boolean; on
               </CodeBlock>
               <div className="flex flex-wrap gap-2">
                 <CopyButton text={recoveryText} label="Copy codes" testId="recovery-copy" />
-                <Button variant="outline" size="sm" onClick={() => downloadText("vma-recovery-codes.txt", `${recoveryText}\n`)} data-testid="recovery-download">
+                <Button variant="outline" size="sm" onClick={() => downloadText("hopshift-recovery-codes.txt", `${recoveryText}\n`)} data-testid="recovery-download">
                   <Download /> Download
                 </Button>
               </div>

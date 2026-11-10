@@ -8,7 +8,7 @@
 #
 # `evaluated` lists the control ids that apply to the input, derived from the cloud(s) whose
 # provider types are present; `controls` maps every known control id to its level so the
-# Python catalog (vma/compliance/controls.py) can be checked against the policy bundle.
+# Python catalog (hopshift/services/compliance/controls.py) can be checked against the policy bundle.
 package hopshift.compliance
 
 import rego.v1

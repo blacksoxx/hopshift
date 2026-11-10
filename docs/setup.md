@@ -44,11 +44,11 @@ and `clouds_yaml` connection methods), uncomment the matching volume lines in
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 (cd ui && npm ci && npm run build)       # or `npm run dev` for hot reload on :5173
-export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
-vma serve                                 # http://127.0.0.1:8080
+export HOPSHIFT_SECRET_KEY=$(hopshift secrets generate-key)
+hopshift serve                                 # http://127.0.0.1:8080
 ```
 
-`vma serve` serves the API under `/api`, Swagger UI at `/docs` and the built UI at `/`.
+`hopshift serve` serves the API under `/api`, Swagger UI at `/docs` and the built UI at `/`.
 Useful flags: `--host`, `--port`, `--config`, `--ssl-certfile/--ssl-keyfile`,
 `--forwarded-allow-ips` (proxies whose `X-Forwarded-*` headers are trusted).
 
@@ -81,8 +81,8 @@ Environment variables (see `.env.example`): `HOPSHIFT_SECRET_KEY`, `HOPSHIFT_OID
 ## 5. First administrator, users, tokens
 
 - UI: the setup screen appears while no user exists.
-- CLI: `vma admin create-user --username admin --role admin` (prompts for the password),
-  `vma admin reset-password`, `vma admin list-users`, `vma admin set-role`.
+- CLI: `hopshift admin create-user --username admin --role admin` (prompts for the password),
+  `hopshift admin reset-password`, `hopshift admin list-users`, `hopshift admin set-role`.
 - API tokens for automation: Settings → Tokens, or `POST /api/tokens`. Send them as
   `Authorization: Bearer hs_...`. A token never has more rights than the user who created it.
 - Roles: `viewer` reads, `operator` runs and approves, `admin` manages users, connections and
@@ -94,11 +94,11 @@ it mandatory for everyone. See [security.md](security.md) for OIDC single sign-o
 ## 6. Production checklist
 
 1. **TLS.** Terminate TLS in front of the API (nginx, Caddy, a cloud load balancer) and pass
-   `X-Forwarded-Proto`; start `vma serve --forwarded-allow-ips <proxy-ip>`. Or give uvicorn the
+   `X-Forwarded-Proto`; start `hopshift serve --forwarded-allow-ips <proxy-ip>`. Or give uvicorn the
    certificate directly with `--ssl-certfile/--ssl-keyfile`. HSTS and `upgrade-insecure-requests`
    are emitted only on HTTPS.
 2. **Secrets.** Generate `HOPSHIFT_SECRET_KEY` once, store it in your secret manager, back it up
-   with the database. Rotate with `vma secrets rotate` after adding a new key in front of the
+   with the database. Rotate with `hopshift secrets rotate` after adding a new key in front of the
    old one (comma-separated).
 3. **Accounts.** Keep `security.auth.mode: required`, consider `mfa: required`, configure OIDC
    for your identity provider, give operators the smallest role that works.
@@ -115,9 +115,9 @@ it mandatory for everyone. See [security.md](security.md) for OIDC single sign-o
 - Logs: structured console logs (`logging.format: json` for log shippers) plus the detailed log
   file under `output/`.
 - Health: `GET /api/health`; the container's HEALTHCHECK uses it.
-- Audit: Settings → Audit, `GET /api/audit`, `vma audit verify` to check the hash chain,
+- Audit: Settings → Audit, `GET /api/audit`, `hopshift audit verify` to check the hash chain,
   `GET /api/audit/export` for ndjson.
-- Prune: `vma runs prune --older-than-days 30 --dry-run`.
+- Prune: `hopshift runs prune --older-than-days 30 --dry-run`.
 - Upgrade: pull the new image or code, restart; migrations apply automatically at start.
 
 ## 8. Troubleshooting

@@ -1,1 +1,1 @@
-"""HTTP API over hopshift.pipeline.runtime. Start with `vma serve` or `uvicorn hopshift.api.app:app`."""
+"""HTTP API over hopshift.pipeline.runtime. Start with `hopshift serve` or `uvicorn hopshift.api.app:app`."""

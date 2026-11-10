@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Meta, Role } from "@/types";
 
@@ -29,7 +29,18 @@ import { api } from "@/api";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
 import { CATALOG, installDomPolyfills, makeConnection, renderWithProviders } from "./test-utils";
 
-const META: Meta = { version: "0", clouds: ["aws"], modes: [], pause_points: {}, nodes: [], default_pause_points: [], auth_mode: "disabled", features: { connections: true, deployments: true, secrets: true } };
+const META: Meta = {
+  version: "0",
+  clouds: ["aws"],
+  targets: [{ name: "aws", label: "Amazon Web Services", blurb: "EC2", tier: "tested", root: "aws-migration", tflint: true, connection_provider: "aws", architectures: ["x86_64"], docs: "" }],
+  sources: [],
+  modes: [],
+  pause_points: {},
+  nodes: [],
+  default_pause_points: [],
+  auth_mode: "disabled",
+  features: { connections: true, deployments: true, secrets: true },
+};
 
 const VERIFIED = makeConnection({
   status: "ok",
@@ -108,9 +119,71 @@ describe("ConnectionsPage role gating", () => {
       { route: "/connections" },
     );
     const empty = await screen.findByTestId("connections-empty");
-    expect(empty).toHaveTextContent("No cloud connections yet");
+    expect(empty).toHaveTextContent("No connections yet");
     expect(empty.querySelector("a[href*='docs/connections.md']")).not.toBeNull();
     expect(screen.getByTestId("add-connection-empty")).toBeInTheDocument();
+  });
+});
+
+describe("providers the UI has no hand-written metadata for", () => {
+  beforeAll(installDomPolyfills);
+  afterEach(() => vi.clearAllMocks());
+
+  // A target plugin (proxmox, say) registers its provider in the catalog; the UI must render it
+  // without a code change: catalog label, monogram tile, generic identity summary, no env map.
+  const PROXMOX = makeConnection({
+    id: "c9",
+    name: "pve-lab",
+    provider: "proxmox",
+    provider_label: "Proxmox VE",
+    auth_method: "api_token",
+    method_label: "API token",
+    config: { host: "https://pve1.lab:8006", token_id: "root@pam!hopshift" },
+    secret_fields: ["secret"],
+    status: "ok",
+    last_checked_at: "2026-11-09T09:00:00Z",
+    last_check: { identity: { node: "pve1", version: "8.2.4", cluster: { name: "lab" } }, message: "" },
+  });
+
+  function setupProxmox(route: string) {
+    role = "operator";
+    vi.mocked(api.meta).mockResolvedValue(META);
+    vi.mocked(api.connectionCatalog).mockResolvedValue(CATALOG);
+    vi.mocked(api.listConnections).mockResolvedValue([VERIFIED, PROXMOX]);
+    vi.mocked(api.getConnection).mockResolvedValue(PROXMOX);
+    return renderWithProviders(
+      <Routes>
+        <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/connections/:connectionId" element={<ConnectionsPage />} />
+      </Routes>,
+      { route },
+    );
+  }
+
+  it("lists the connection with the catalog label, a generic monogram and a generic identity", async () => {
+    setupProxmox("/connections");
+    const rows = await screen.findAllByTestId("connection-row");
+    const row = rows.find((item) => item.textContent?.includes("pve-lab"));
+    expect(row).toBeDefined();
+    expect(row).toHaveTextContent("Proxmox VE · API token");
+    expect(row).toHaveTextContent("pve1 · 8.2.4");
+    const icon = within(row as HTMLElement).getByTestId("provider-icon-proxmox");
+    expect(icon).toHaveAttribute("data-generic", "true");
+    expect(icon).toHaveTextContent("Pr");
+    const awsRow = rows.find((item) => item.textContent?.includes("lab") && !item.textContent?.includes("pve-lab")) as HTMLElement;
+    expect(within(awsRow).getByTestId("provider-icon-aws")).not.toHaveAttribute("data-generic");
+    // the filter chips use the catalog label for the unknown provider too
+    expect(screen.getByTestId("filter-proxmox")).toHaveTextContent("Proxmox VE");
+  });
+
+  it("shows the detail page with the raw configuration and points at the target's documentation for Terraform", async () => {
+    setupProxmox("/connections/c9");
+    expect(await screen.findByTestId("connection-title")).toHaveTextContent("pve-lab");
+    expect(screen.getByTestId("config-list")).toHaveTextContent("https://pve1.lab:8006");
+    expect(screen.getByTestId("identity-list")).toHaveTextContent("pve1");
+    expect(screen.getByTestId("terraform-env-unknown")).toHaveTextContent("see the target's documentation");
+    expect(screen.queryByTestId("terraform-env")).not.toBeInTheDocument();
+    expect(screen.getByTestId("detail-new-run")).toHaveAttribute("href", "/runs/new?cloud=proxmox&connection=c9");
   });
 });
 

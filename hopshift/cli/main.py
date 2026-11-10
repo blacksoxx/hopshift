@@ -22,7 +22,7 @@ DEFAULT_MCP_CHECK_SERVERS = ("terraform",)
 
 @click.group()
 def cli():
-    """VMware lift-and-shift migration hopshift.pipeline.
+    """hopshift: migrate workloads from any discovered source to any registered target.
 
     Args:
     Use the terragen command with --input to process a discovery JSON file.
@@ -121,14 +121,14 @@ def terragen(
     Examples:
       # Anthropic + AWS, API key from env
       export LLM_API_KEY=sk-ant-...
-        vma terragen --input discovery.json -c aws -p anthropic -e prod --owner platform-team
+        hopshift terragen --input discovery.json -c aws -p anthropic -e prod --owner platform-team
 
       # OpenAI with explicit model, targeting Azure
-            vma terragen --input any-file.json -c azure -p openai -m gpt-4o-mini \\
+            hopshift terragen --input any-file.json -c azure -p openai -m gpt-4o-mini \\
           -e staging --owner devops --llm-api-key $OPENAI_KEY
 
       # Azure OpenAI (custom base URL + deployment name as model)
-            vma terragen --input custom-discovery.json -c aws -p openai \\
+            hopshift terragen --input custom-discovery.json -c aws -p openai \\
           --llm-base-url https://my-instance.openai.azure.com/ \\
           -m my-gpt4o-deployment -e prod --owner sre
     """
@@ -625,7 +625,7 @@ def _string_list(value: object) -> list[str]:
 # Accounts, encryption keys, audit verification and retention live in the platform services;
 # these commands build the same Platform the API uses and act as the "cli" system actor.
 
-_CLI_AUDIT_CTX = {"ip": None, "user_agent": "vma-cli"}
+_CLI_AUDIT_CTX = {"ip": None, "user_agent": "hopshift-cli"}
 _CONFIG_OPTION = click.option(
     "--config", "config_file", default="config.yaml", type=click.Path(exists=True, path_type=Path),
     show_default=True, help="Path to config.yaml.",
@@ -716,7 +716,7 @@ def admin_list_users(fmt, config_file):
         click.echo(json.dumps(users, indent=2))
         return
     if not users:
-        click.echo("no users yet: run `vma admin create-user <name> --role admin` or open the UI for first-run setup")
+        click.echo("no users yet: run `hopshift admin create-user <name> --role admin` or open the UI for first-run setup")
         return
     click.echo(f"{'USERNAME':<32} {'ROLE':<9} {'AUTH':<9} {'MFA':<4} {'STATUS':<9} LAST LOGIN")
     for user in users:
@@ -819,6 +819,189 @@ def runs_prune(older_than_days, dry_run, config_file):
     )
     verb = "would delete" if dry_run else "deleted"
     click.echo(f"{verb} {result['runs_deleted']} run(s) older than {older_than_days} day(s)")
+
+
+# ── registries: targets, sources, plugins, support matrix ─────────────────────
+
+_FORMAT_OPTION = click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text", show_default=True)
+
+
+def _text_table(headers: list[str], rows: list[list[str]]) -> str:
+    cells = [[str(value) for value in row] for row in rows]
+    widths = [max(len(header), *(len(row[index]) for row in cells)) if cells else len(header) for index, header in enumerate(headers)]
+
+    def line(values: list[str]) -> str:
+        return "  ".join(value.ljust(width) for value, width in zip(values, widths)).rstrip()
+
+    return "\n".join([line(headers), line(["-" * width for width in widths]), *(line(row) for row in cells)])
+
+
+def _echo_report(report, fmt: str) -> None:
+    click.echo(json.dumps(report.to_dict(), indent=2) if fmt == "json" else report.render())
+    if not report.passed:
+        raise click.exceptions.Exit(1)
+
+
+@cli.group(name="targets")
+def targets_group():
+    """Registered targets (built in and plugins) and their conformance."""
+
+
+@targets_group.command(name="list")
+@_FORMAT_OPTION
+def targets_list(fmt):
+    """Every registered target: name, label, tier, tflint ruleset, connection provider."""
+    specs = targets.all_specs()
+    if fmt == "json":
+        click.echo(json.dumps([spec.to_dict() for spec in specs], indent=2))
+        return
+    rows = [
+        [spec.name, spec.label, spec.tier, "yes" if spec.tflint else "no", spec.connection_provider or "-", spec.package]
+        for spec in specs
+    ]
+    click.echo(_text_table(["NAME", "LABEL", "TIER", "TFLINT", "CONNECTION", "PACKAGE"], rows))
+
+
+@targets_group.command(name="check")
+@click.argument("name")
+@click.option("--terraform", "run_terraform", is_flag=True, default=False,
+              help="Also run terraform init/validate (and tflint when the target declares a ruleset).")
+@click.option("--input", "input_file", default=None, type=click.Path(exists=True, path_type=Path),
+              help="Discovery JSON to render instead of the bundled fixtures.")
+@_FORMAT_OPTION
+def targets_check(name, run_terraform, input_file, fmt):
+    """Run the conformance kit (hopshift.testing.check_target) for one target; exit 1 on any failure."""
+    from hopshift.testing.targets import check_target
+
+    try:
+        report = check_target(name, discovery_fixture=input_file, run_terraform=run_terraform)
+    except targets.UnknownTarget as exc:
+        raise click.ClickException(str(exc)) from exc
+    _echo_report(report, fmt)
+
+
+@cli.group(name="sources")
+def sources_group():
+    """Registered sources (discovery translators) and their conformance."""
+
+
+@sources_group.command(name="list")
+@_FORMAT_OPTION
+def sources_list(fmt):
+    """Every registered source: name, label, tier, platform, accepted schema names."""
+    from hopshift.sources import registry as sources
+
+    specs = sources.all_specs()
+    if fmt == "json":
+        click.echo(json.dumps([spec.to_dict() for spec in specs], indent=2))
+        return
+    rows = [[spec.name, spec.label, spec.tier, spec.platform or "-", ", ".join(spec.schema_names)] for spec in specs]
+    click.echo(_text_table(["NAME", "LABEL", "TIER", "PLATFORM", "SCHEMAS"], rows))
+
+
+@sources_group.command(name="check")
+@click.argument("name")
+@click.option("--input", "input_file", required=True, type=click.Path(exists=True, path_type=Path),
+              help="Discovery JSON produced by this source's collector.")
+@_FORMAT_OPTION
+def sources_check(name, input_file, fmt):
+    """Run the conformance kit (hopshift.testing.check_source) for one source; exit 1 on any failure."""
+    from hopshift.sources import registry as sources
+    from hopshift.testing.sources import check_source
+
+    try:
+        report = check_source(name, input_file)
+    except sources.UnknownSource as exc:
+        raise click.ClickException(str(exc)) from exc
+    _echo_report(report, fmt)
+
+
+@cli.group(name="plugins")
+def plugins_group():
+    """Entry-point plugins (groups hopshift.targets and hopshift.sources)."""
+
+
+@plugins_group.command(name="list")
+@_FORMAT_OPTION
+def plugins_list(fmt):
+    """Entry points discovered for both groups, with their load status."""
+    from importlib.metadata import entry_points
+
+    from hopshift.sources import registry as sources
+    from hopshift.sources.registry import SourceSpec
+    from hopshift.targets.registry import TargetSpec
+
+    found: list[dict[str, str]] = []
+    for group, spec_type in ((targets.ENTRY_POINT_GROUP, TargetSpec), (sources.ENTRY_POINT_GROUP, SourceSpec)):
+        for entry_point in sorted(entry_points(group=group), key=lambda item: item.name):
+            distribution = getattr(entry_point, "dist", None)
+            status, detail = _load_plugin_entry_point(entry_point, spec_type)
+            found.append({
+                "group": group, "name": entry_point.name, "value": entry_point.value,
+                "distribution": f"{distribution.name} {distribution.version}" if distribution is not None else "-",
+                "status": status, "detail": detail,
+            })
+
+    if fmt == "json":
+        click.echo(json.dumps(found, indent=2))
+        return
+    if not found:
+        click.echo(f"no plugins installed (entry-point groups: {targets.ENTRY_POINT_GROUP}, {sources.ENTRY_POINT_GROUP})")
+        return
+    rows = [[item["group"], item["name"], item["value"], item["distribution"], item["status"], item["detail"]] for item in found]
+    click.echo(_text_table(["GROUP", "NAME", "ENTRY POINT", "DISTRIBUTION", "STATUS", "DETAIL"], rows))
+    if any(item["status"] != "ok" for item in found):
+        raise click.exceptions.Exit(1)
+
+
+def _load_plugin_entry_point(entry_point, spec_type) -> tuple[str, str]:
+    try:
+        loaded = entry_point.load()
+        spec = loaded() if callable(loaded) and not isinstance(loaded, spec_type) else loaded
+    except Exception as exc:  # noqa: BLE001 - report, do not crash the listing
+        return "error", f"{type(exc).__name__}: {exc}"
+    if not isinstance(spec, spec_type):
+        return "error", f"produced {type(spec).__name__}, expected {spec_type.__name__}"
+    return "ok", f"{spec.name} ({spec.label}, {spec.tier})"
+
+
+@cli.group(name="matrix")
+def matrix_group():
+    """Support matrix: support.yaml -> docs/support-matrix.md."""
+
+
+@matrix_group.command(name="render")
+@click.option("--support", "support_file", default=None, type=click.Path(path_type=Path), help="support.yaml to read (default: repository root).")
+@click.option("--output", "output_file", default=None, type=click.Path(path_type=Path), help="Markdown file to write (default: docs/support-matrix.md).")
+def matrix_render(support_file, output_file):
+    """Validate support.yaml against the registries and write the Markdown matrix."""
+    from hopshift.testing import matrix
+
+    try:
+        written = matrix.write(output_file or matrix.MATRIX_DOC, support_file or matrix.SUPPORT_FILE)
+    except matrix.SupportMatrixError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"wrote {written}")
+    for hint in matrix.hints(support_file or matrix.SUPPORT_FILE):
+        click.echo(f"hint: {hint}")
+
+
+@matrix_group.command(name="check")
+@click.option("--support", "support_file", default=None, type=click.Path(path_type=Path), help="support.yaml to read (default: repository root).")
+@click.option("--output", "output_file", default=None, type=click.Path(path_type=Path), help="Markdown file to compare (default: docs/support-matrix.md).")
+def matrix_check(support_file, output_file):
+    """Exit 1 when support.yaml is invalid or docs/support-matrix.md is stale."""
+    from hopshift.testing import matrix
+
+    support = support_file or matrix.SUPPORT_FILE
+    problems = matrix.check(output_file or matrix.MATRIX_DOC, support)
+    for hint in matrix.hints(support):
+        click.echo(f"hint: {hint}")
+    if problems:
+        for problem in problems:
+            click.echo(f"error: {problem}", err=True)
+        raise click.exceptions.Exit(1)
+    click.echo("support matrix is current")
 
 
 def main():

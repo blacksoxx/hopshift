@@ -14,6 +14,8 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
+    # Scorecard publishes and uploads to code scanning, both public-repository features.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     permissions:
       security-events: write

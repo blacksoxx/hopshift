@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// In development the API runs separately (`vma serve`); /api is proxied to it.
+// In development the API runs separately (`hopshift serve`); /api is proxied to it.
 // In production FastAPI serves ui/dist itself, so the same relative /api base works.
 export default defineConfig({
   plugins: [react(), tailwindcss()],

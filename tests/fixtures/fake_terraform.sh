@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fake `terraform` for unit tests (tests/vma/test_deploy_service.py, tests/api/test_deploy_api.py).
+# Fake `terraform` for unit tests (tests/services/test_deploy_service.py, tests/api/test_deploy_api.py).
 #
 # Records every invocation to $FAKE_TF_LOG (one tab-separated line: cwd, argv, selected env)
 # and emits output shaped like the real binary. Behaviour is selected with FAKE_TF_MODE:

@@ -54,7 +54,7 @@ describe("ProfilePanel", () => {
     expect(done).toBeDisabled();
 
     await user.click(screen.getByTestId("recovery-download"));
-    expect(mocks.downloadText).toHaveBeenCalledWith("vma-recovery-codes.txt", "aaaa-1111\nbbbb-2222\ncccc-3333\n");
+    expect(mocks.downloadText).toHaveBeenCalledWith("hopshift-recovery-codes.txt", "aaaa-1111\nbbbb-2222\ncccc-3333\n");
 
     await user.click(screen.getByTestId("recovery-saved"));
     expect(done).toBeEnabled();

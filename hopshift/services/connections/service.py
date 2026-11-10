@@ -33,7 +33,7 @@ from .store import ConnectionStore, DeviceFlow, utcnow
 PROVIDER_MODULES: dict[str, Any] = {"aws": aws, "azure": azure, "gcp": gcp, "openstack": openstack, "proxmox": proxmox}
 CREDENTIAL_REFRESH_MARGIN = timedelta(minutes=5)
 MAX_NAME_LENGTH = 80
-ROTATION_MESSAGE = "generate one with `vma secrets generate-key`"
+ROTATION_MESSAGE = "generate one with `hopshift secrets generate-key`"
 
 
 class ConnectionService:

@@ -1,12 +1,14 @@
 // Captures the README / docs screenshots against a running server.
 //
 //   cd ui && npm run build
-//   (cd .. && .venv/bin/python ui/e2e/serve.py --port 8765 --state-dir /tmp/vma-shots &)
+//   (cd .. && .venv/bin/python ui/e2e/serve.py --port 8765 --state-dir /tmp/hopshift-shots &)
 //   node scripts/screenshots.mjs http://127.0.0.1:8765
 //
 // The script creates the first administrator when the server is fresh (or signs in), creates
-// and approves a run from the bundled fixture, adds an environment connection, and writes PNGs
-// to docs/images/. Run it from the ui/ folder so @playwright/test resolves.
+// and approves a run from the bundled VMware fixture, adds an environment connection, and writes
+// PNGs to docs/images/. Run it from the ui/ folder so @playwright/test resolves. Target cards,
+// labels and tier badges come from the server's registry (/api/meta), so a server with extra
+// target or source plugins installed produces screenshots that show them.
 import { chromium } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -58,8 +60,10 @@ async function createRun(name, { approve = true, tags = ["lab"], validate = fals
   await page.goto(`${base}/#/runs/new`, { waitUntil: "networkidle" });
   await page.waitForSelector("[data-testid=dropzone]");
   await page.getByTestId("discovery-file").setInputFiles(fixture);
-  await page.waitForSelector('[data-testid="discovery-summary"]');
+  // the wizard matches metadata.schema_name against the registered sources before it lets you continue
+  await page.waitForSelector('[data-testid="source-detected"]');
   await page.getByTestId("wizard-next").click();
+  await page.waitForSelector('[data-testid="target-cards"]');
   await page.getByTestId("run-name").fill(name);
   await page.getByTestId("owner").fill("platform-team");
   for (const tag of tags) {
@@ -108,6 +112,15 @@ await page.emulateMedia({ colorScheme: "light" });
 await page.goto(`${base}/#/runs`, { waitUntil: "networkidle" });
 await page.waitForSelector('[data-testid="run-row"]');
 await shot("runs");
+
+// the wizard's target step: cards and tier badges straight from the registry
+await page.goto(`${base}/#/runs/new`, { waitUntil: "networkidle" });
+await page.getByTestId("discovery-file").setInputFiles(fixture);
+await page.waitForSelector('[data-testid="source-detected"]');
+await page.getByTestId("wizard-next").click();
+await page.waitForSelector('[data-testid="target-cards"]');
+await page.waitForTimeout(400);
+await shot("new-run");
 
 await page.goto(`${base}/#/runs/${succeeded}`, { waitUntil: "networkidle" });
 await page.waitForSelector('[data-testid="step-reporter"]');

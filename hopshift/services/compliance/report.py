@@ -228,7 +228,7 @@ def _unknown_control(control_id: str, level: str) -> Control:
     return Control(
         id=control_id,
         title=f"Unknown control {control_id}",
-        description="Reported by the policy bundle but missing from vma/compliance/controls.py.",
+        description="Reported by the policy bundle but missing from hopshift/services/compliance/controls.py.",
         clouds=ALL_CLOUDS,
         level=normalized_level,  # type: ignore[arg-type]
         remediation="Add this control to the catalog so it carries a title, framework references and remediation.",

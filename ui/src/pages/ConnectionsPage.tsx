@@ -16,7 +16,7 @@ import { describeApiError } from "@/components/connections/errors";
 import { identitySummary } from "@/components/connections/providers";
 import type { Connection } from "@/types";
 
-/** `/connections` lists the cloud connections; `/connections/:connectionId` shows one. */
+/** `/connections` lists the stored connections; `/connections/:connectionId` shows one. */
 export function ConnectionsPage() {
   const { connectionId } = useParams<{ connectionId: string }>();
   if (connectionId) return <ConnectionDetail key={connectionId} connectionId={connectionId} />;
@@ -60,7 +60,7 @@ function ConnectionsIndex() {
     <div>
       <PageHeader
         title="Connections"
-        description="Cloud accounts the platform verifies and hands to Terraform for plan and apply."
+        description="Target accounts hopshift verifies and hands to Terraform for plan and apply."
         actions={
           can("admin") && connectionsEnabled ? (
             <Button onClick={() => setAddOpen(true)} data-testid="add-connection">
@@ -78,13 +78,14 @@ function ConnectionsIndex() {
 
       {connectionsEnabled && !secretsAvailable ? (
         <Alert variant="warning" title="Credentials cannot be stored yet" className="mb-4" testId="secrets-warning">
-          Set <code className="font-mono text-[12px]">HOPSHIFT_SECRET_KEY</code> on the server (generate one with <code className="font-mono text-[12px]">vma secrets generate-key</code>) and restart it to add methods that store secrets. Methods that use the
+          Set <code className="font-mono text-[12px]">HOPSHIFT_SECRET_KEY</code> on the server (generate one with <code className="font-mono text-[12px]">hopshift secrets generate-key</code>) and restart it to add methods that store secrets. Methods that use the
           host's own identity, such as the process environment, a named profile, managed identity, the Azure CLI, application default credentials or clouds.yaml, still work.
         </Alert>
       ) : null}
 
       <ConnectionList
         connections={items}
+        catalog={catalog.data}
         loading={connections.loading}
         error={connections.error}
         onRetry={() => void connections.reload()}

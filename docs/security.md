@@ -4,9 +4,9 @@ This page describes the access-control and hardening features of the platform (w
 `docs/platform-plan.md`), how to set them up, the threat model they address, and the evidence
 they produce for SOC 2, HIPAA and CIS reviews.
 
-Code: `vma/security/` (service, store, passwords, OIDC, rate limiting, retention, posture),
-`api/routes/auth.py`, `api/routes/users.py`, `api/routes/audit.py`, `api/middleware.py`, and the
-`vma admin|secrets|audit|runs` CLI groups in `cli/main.py`.
+Code: `hopshift/services/security/` (service, store, passwords, OIDC, rate limiting, retention, posture),
+`hopshift/api/routes/auth.py`, `hopshift/api/routes/users.py`, `hopshift/api/routes/audit.py`, `hopshift/api/middleware.py`, and the
+`hopshift admin|secrets|audit|runs` CLI groups in `hopshift/cli/main.py`.
 
 ## What is implemented
 
@@ -36,8 +36,8 @@ Start the server and open the UI, or call the API. While no user exists, `POST /
 creates the first admin and signs them in; afterwards it answers `409`.
 
 ```bash
-export HOPSHIFT_SECRET_KEY="$(vma secrets generate-key)"   # encrypts TOTP secrets and cloud credentials
-vma serve --host 127.0.0.1 --port 8080
+export HOPSHIFT_SECRET_KEY="$(hopshift secrets generate-key)"   # encrypts TOTP secrets and target credentials
+hopshift serve --host 127.0.0.1 --port 8080
 
 curl -s http://127.0.0.1:8080/api/auth/status
 # {"setup_required": true, "auth_mode": "required", "oidc_enabled": false, "mfa_policy": "optional", "user": null}
@@ -50,10 +50,10 @@ curl -s -c cookies.txt -H 'Content-Type: application/json' -H 'Origin: http://12
 The CLI can do the same without the HTTP API (useful in provisioning scripts):
 
 ```bash
-vma admin create-user admin --role admin --name "Admin"      # prompts for the password
-vma admin list-users
-vma admin set-role alice operator
-vma admin reset-password alice                                 # revokes alice's sessions
+hopshift admin create-user admin --role admin --name "Admin"      # prompts for the password
+hopshift admin list-users
+hopshift admin set-role alice operator
+hopshift admin reset-password alice                                 # revokes alice's sessions
 ```
 
 ### Signing in and using a session
@@ -108,14 +108,14 @@ security:
     oidc:
       enabled: true
       issuer: https://login.example.com          # must equal the `issuer` in the discovery document
-      client_id: vma-platform
+      client_id: hopshift-platform
       client_secret_env: HOPSHIFT_OIDC_CLIENT_SECRET  # the secret itself lives in the environment
       scopes: [openid, profile, email, groups]
       allowed_domains: [example.com]             # empty = any verified email
       default_role: viewer
       admin_groups: [platform-admins]
       groups_claim: groups
-      # redirect_uri: https://vma.example.com/api/auth/oidc/callback   # optional; derived from the request by default
+      # redirect_uri: https://hopshift.example.com/api/auth/oidc/callback   # optional; derived from the request by default
 ```
 
 Register `https://<host>/api/auth/oidc/callback` as the redirect URI at the provider. The UI's SSO
@@ -139,12 +139,12 @@ Provider notes:
   or use app roles and set `groups_claim: roles`.
 - **Google Workspace**: issuer `https://accounts.google.com`. Google does not emit groups; use
   `allowed_domains: [example.com]` with `default_role` and promote admins locally
-  (`vma admin set-role`). The `hd` claim is not relied upon; the email domain is checked instead.
+  (`hopshift admin set-role`). The `hd` claim is not relied upon; the email domain is checked instead.
 
 ### TLS
 
 Terminate TLS in front of the API (reverse proxy) or pass `--ssl-certfile/--ssl-keyfile` to
-`vma serve`. Behind a proxy, forward `X-Forwarded-Proto` and `X-Forwarded-For` and keep
+`hopshift serve`. Behind a proxy, forward `X-Forwarded-Proto` and `X-Forwarded-For` and keep
 `--forwarded-allow-ips` restricted to the proxy addresses: the `Secure` cookie flag, HSTS and the
 `transport.tls` posture check follow the forwarded scheme, and the rate limiter and audit log use
 the forwarded client IP. Add the public origin to `security.allowed_origins` if the UI is served
@@ -159,7 +159,7 @@ security:
     audit_days: 365   # prune audit entries older than a year (the prune is itself audited)
 ```
 
-Both values are editable from Settings. The sweeper runs hourly inside the server; `vma runs prune
+Both values are editable from Settings. The sweeper runs hourly inside the server; `hopshift runs prune
 --older-than-days N [--dry-run]` runs the run part on demand and records a `retention.sweep` entry.
 
 ### Key rotation
@@ -167,20 +167,20 @@ Both values are editable from Settings. The sweeper runs hourly inside the serve
 `HOPSHIFT_SECRET_KEY` holds one or more comma-separated Fernet keys; the first encrypts, all decrypt.
 
 ```bash
-NEW="$(vma secrets generate-key)"
+NEW="$(hopshift secrets generate-key)"
 export HOPSHIFT_SECRET_KEY="$NEW,$OLD"
-vma secrets rotate          # re-encrypts TOTP secrets (and connection credentials when that service is present)
+hopshift secrets rotate          # re-encrypts TOTP secrets (and connection credentials when that service is present)
 export HOPSHIFT_SECRET_KEY="$NEW" # drop the old key once the rotation printed the row counts
 ```
 
 If secrets were stored before a key existed (posture `mfa.secrets_encrypted` fails), setting the key
-and running `vma secrets rotate` encrypts them in place.
+and running `hopshift secrets rotate` encrypts them in place.
 
 ### Audit log
 
 `GET /api/audit?limit&offset&action&actor&since&target_id&target_type&outcome` (admin) pages the
 log newest first; `GET /api/audit/verify` recomputes the chain; `GET /api/audit/export` streams every
-entry as NDJSON for evidence collection. `vma audit verify` does the same from the shell and exits
+entry as NDJSON for evidence collection. `hopshift audit verify` does the same from the shell and exits
 non-zero when the chain is broken.
 
 ## Threat model
@@ -225,10 +225,10 @@ references; each is `pass`, `warn` or `fail` and carries a human-readable detail
 Further evidence auditors typically ask for and where it comes from:
 
 - **Access reviews** (SOC 2 CC6.2/CC6.3, HIPAA 164.308(a)(3)): `GET /api/users`, `GET /api/auth/tokens?all=true`,
-  `vma admin list-users` (roles, MFA state, last login, disabled accounts).
+  `hopshift admin list-users` (roles, MFA state, last login, disabled accounts).
 - **Authentication events** (SOC 2 CC6.1, HIPAA 164.312(b), CIS 8.5): `auth.*` audit entries with actor, IP and user agent.
 - **Change history** (SOC 2 CC8.1): `user.*`, `settings.updated`, `run.*` and deployment entries in the same chain.
-- **Integrity of the evidence** (SOC 2 CC7.2): `GET /api/audit/verify`, `vma audit verify`, NDJSON export.
+- **Integrity of the evidence** (SOC 2 CC7.2): `GET /api/audit/verify`, `hopshift audit verify`, NDJSON export.
 - **Data disposal** (HIPAA 164.310(d)(2)(i)): `retention.sweep` entries list how many runs and audit rows were removed.
 - **Key management** (HIPAA 164.312(a)(2)(iv)): `secrets.rotated` entries with the primary key fingerprint.
 

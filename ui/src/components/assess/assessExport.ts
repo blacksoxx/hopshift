@@ -19,7 +19,7 @@ function mdCell(value: unknown): string {
 
 export function exportFilename(result: AssessmentResult, extension: string): string {
   const day = result.generated_at ? result.generated_at.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  return `assessment-${result.target_provider || "cloud"}-${day}.${extension}`;
+  return `assessment-${result.target_provider || "target"}-${day}.${extension}`;
 }
 
 /** One row per resource; list fields joined with "; " so the file opens cleanly in a spreadsheet. */
@@ -51,8 +51,8 @@ export function assessmentToMarkdown(result: AssessmentResult): string {
   const lines = [
     "# Migration readiness assessment",
     "",
-    `- Source vCenter: ${result.source_vcenter || "unknown"}`,
-    `- Target provider: ${result.target_provider}`,
+    `- Source: ${result.source_vcenter || "unknown"}`,
+    `- Target: ${result.target_provider}`,
     `- Generated: ${result.generated_at}`,
     "",
     "## Summary",

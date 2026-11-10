@@ -1,11 +1,11 @@
-# Cloud Connections
+# Connections
 
-A connection stores how the platform authenticates to a cloud account: the provider, an auth
+A connection stores how the platform authenticates to a target account: the provider, an auth
 method from the catalog, non-secret configuration, and (encrypted) secrets. Runs reference a
 connection, `terraform plan/apply` receives its credentials as environment variables, and the
-**Test** action verifies the identity against the cloud without touching any resources.
+**Test** action verifies the identity against the target without touching any resources.
 
-Code: `vma/connections/` (service, catalog, provider modules) and `api/routes/connections.py`.
+Code: `hopshift/services/connections/` (service, catalog, provider modules) and `hopshift/api/routes/connections.py`.
 
 ## Record
 
@@ -24,7 +24,7 @@ Code: `vma/connections/` (service, catalog, provider modules) and `api/routes/co
 
 ## API
 
-All paths under `/api`; roles as in `docs/platform-plan.md`.
+All paths under `/api`; roles as in [api.md](api.md).
 
 ```
 GET    /connections/methods                 catalog (viewer)
@@ -188,7 +188,7 @@ as `appuser`, home `/home/appuser`); mount them read-only in `docker-compose.yml
 
 ```yaml
 services:
-  vma:
+  agent:
     volumes:
       - ~/.aws:/home/appuser/.aws:ro                        # aws profile, sso cache
       - ~/.azure:/home/appuser/.azure:ro                    # azure cli
@@ -216,11 +216,11 @@ recipe.
 ## Security model
 
 - Secrets are encrypted at rest with Fernet (AES-128-CBC + HMAC-SHA256) using the key in
-  `HOPSHIFT_SECRET_KEY` (generate one with `vma secrets generate-key`). The plaintext never reaches
+  `HOPSHIFT_SECRET_KEY` (generate one with `hopshift secrets generate-key`). The plaintext never reaches
   SQLite: `connections.secret_token` and `device_flows.secret_token` hold the ciphertext, and
   `connections.secret_keys` holds only field names. Without a key, connections with secret
   fields cannot be created (503 with instructions); methods without secrets still work.
-- Key rotation: set `HOPSHIFT_SECRET_KEY=<new>,<old>` and run `vma secrets rotate`
+- Key rotation: set `HOPSHIFT_SECRET_KEY=<new>,<old>` and run `hopshift secrets rotate`
   (`ConnectionService.rotate_secrets()` re-encrypts every token with the first key).
 - The API never returns a secret value: responses carry `has_secret` and `secret_fields` only;
   `GET` after a `PATCH` shows which fields are stored, not their contents. Device flow

@@ -103,7 +103,7 @@ def start_background_sweeper(app: Any, interval_seconds: int = DEFAULT_INTERVAL_
             except Exception as exc:  # pragma: no cover - defensive; the loop must survive
                 logger.warning("retention: sweep failed: {}", exc)
 
-    thread = threading.Thread(target=loop, name="vma-retention", daemon=True)
+    thread = threading.Thread(target=loop, name="hopshift-retention", daemon=True)
     app.state.retention_stop = stop
     app.state.retention_thread = thread
     thread.start()

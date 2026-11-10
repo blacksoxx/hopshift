@@ -8,7 +8,7 @@ type Condition = (values: FormValues) => boolean;
 
 /**
  * Fields that only apply for a given base method. The catalog lists every field of a method;
- * the server validates the relevant ones (see the method validators in vma/connections/models.py).
+ * the server validates the relevant ones (see the method validators in hopshift/services/connections/models.py).
  */
 const VISIBLE_WHEN: Record<string, Record<string, Condition>> = {
   "aws/assume_role": {

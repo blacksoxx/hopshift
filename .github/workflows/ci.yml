@@ -34,6 +34,8 @@ jobs:
           pip install --require-hashes -r requirements/dev.txt
           pip install --no-deps -e .
       - run: ruff check . --output-format github
+      - name: Support matrix (docs/support-matrix.md must match support.yaml)
+        run: hopshift matrix check
       - name: pre-commit hooks (gitleaks runs in the security job)
         run: SKIP=gitleaks pre-commit run --all-files --show-diff-on-failure
 
@@ -227,7 +229,7 @@ jobs:
           # the SARIF upload must honour the severity filter, otherwise every finding lands in code scanning
           limit-severities-for-sarif: true
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
-        if: always()
+        if: always() && github.event.repository.private == false   # code scanning is public-only on this plan
         with:
           sarif_file: trivy-fs.sarif
 
@@ -255,6 +257,16 @@ jobs:
           docker run --rm hopshift:ci terraform version
           docker run --rm hopshift:ci opa version
           docker run --rm hopshift:ci id -u | grep -qx 10001
+      - name: Boot the image and check /api/health
+        run: |
+          docker run -d --name smoke -p 18080:8080 hopshift:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/api/health >/dev/null 2>&1; then echo "healthy after ${i}s"; break; fi
+            if [ "$i" = 30 ]; then echo "::error::container never became healthy"; docker logs smoke; exit 1; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18080/api/health
+          docker rm -f smoke >/dev/null
       - name: "Image scan (trivy: fixed critical vulnerabilities only)"
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -266,7 +278,7 @@ jobs:
           exit-code: "0"
           limit-severities-for-sarif: true
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
-        if: always()
+        if: always() && github.event.repository.private == false   # code scanning is public-only on this plan
         with:
           sarif_file: trivy-image.sarif
 

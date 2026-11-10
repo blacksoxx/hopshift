@@ -24,6 +24,11 @@ describe("AddConnectionDialog", () => {
 
     expect(screen.getByTestId("provider-aws")).toBeInTheDocument();
     expect(screen.getByTestId("provider-azure")).toBeInTheDocument();
+    // a provider without hand-written metadata renders from the catalog alone
+    const generic = screen.getByTestId("provider-proxmox");
+    expect(generic).toHaveTextContent("Proxmox VE");
+    expect(generic).toHaveTextContent("API token.");
+    expect(screen.getByTestId("provider-icon-proxmox")).toHaveAttribute("data-generic", "true");
     await user.click(screen.getByTestId("provider-aws"));
     expect(screen.getByTestId("method-access_keys")).toHaveTextContent("terraform ready");
     expect(screen.getByTestId("method-access_keys")).toHaveTextContent("stores secrets");
@@ -95,7 +100,7 @@ describe("AddConnectionDialog", () => {
     expect(alert).toHaveTextContent("a connection named 'lab' already exists");
     expect(api.testConnection).not.toHaveBeenCalled();
 
-    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set HOPSHIFT_SECRET_KEY (generate one with `vma secrets generate-key`)"));
+    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set HOPSHIFT_SECRET_KEY (generate one with `hopshift secrets generate-key`)"));
     await user.click(screen.getByTestId("connection-submit"));
     await waitFor(() => expect(screen.getByTestId("add-error")).toHaveTextContent("Secrets cannot be stored"));
   });

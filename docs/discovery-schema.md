@@ -1,14 +1,16 @@
 # Discovery JSON Contract (proposal)
 
-Status: **draft for discussion**. The agent, the Ansible playbook that produces the discovery
+Status: **draft for discussion**. hopshift, the Ansible playbook that produces the discovery
 JSON, and this schema are being designed together. Nothing here is enforced yet beyond the
-checks listed under "What the agent validates today".
+checks listed under "What hopshift validates today".
+
+The source that consumes this schema is documented in [sources/vmware.md](sources/vmware.md).
 
 ## Why a contract
 
 "Works on any provided JSON" only has a meaning once the allowed shape is written down. The
-contract lets the playbook and the agent evolve independently: the playbook promises to emit
-these fields, the agent promises to consume them, and property-based tests can generate any
+contract lets the playbook and hopshift evolve independently: the playbook promises to emit
+these fields, hopshift promises to consume them, and property-based tests can generate any
 payload the contract allows.
 
 Two files in the repo are real samples of the current output: `discovery.json` (one encrypted
@@ -19,15 +21,15 @@ with a cluster and two distributed switches lives in `tests/fixtures/discovery_m
 
 Top level:
 
-| Field | Type | Used by the agent |
+| Field | Type | Used by hopshift |
 |---|---|---|
-| `metadata.schema_name` | string | logged only (proposed: validated) |
-| `metadata.schema_version` | string | logged only (proposed: validated) |
+| `metadata.schema_name` | string | selects the source translator; warning when it is not `vmware-discovery-stage1` |
+| `metadata.schema_version` | string | warning when the major version is not 1 |
 | `metadata.generated_at` | string | `GeneratedAt` tag (stable per discovery run) |
 | `metadata.vcenters_queried` | list[string] | fallback `source_vcenter` |
 | `virtual_machines` | list[object] | required |
 
-Per VM, fields the agent reads today:
+Per VM, fields hopshift reads today:
 
 | Field | Type | Effect |
 |---|---|---|
@@ -56,7 +58,7 @@ Per VM, fields the agent reads today:
 | `networks[].distributed_switch` / `switch_name` / `vds_name` / `dvs_name` | string | DistributedSwitch name |
 | `networks[].mac_address` | string | NIC MAC |
 
-Fields present in the real samples but currently ignored: `guest_os`, `guest_os_id`,
+Other fields present in the real samples (read into CIM 1.1 when present, see the 1.1.0 section): `guest_os`, `guest_os_id`,
 `firmware`, `power_state`, `is_template`, `snapshot_count`, `snapshots`, `all_ip_addresses`,
 `ip_address`, `tags`, `custom_attributes`, `annotation`, `resource_pool`, `datacenter`,
 `esxi_host`, `hw_version`, `cores_per_socket`, `cpu_reservation_mhz`, `memory_reservation_mb`,
@@ -65,21 +67,23 @@ Fields present in the real samples but currently ignored: `guest_os`, `guest_os_
 ## Gaps in the current output that block correct rendering
 
 1. **No switch name per NIC.** The real samples carry `network_name`, `portgroup_key` and an
-   empty `vlan_id`, but no distributed switch field. The agent looks for `distributed_switch`,
+   empty `vlan_id`, but no distributed switch field. hopshift looks for `distributed_switch`,
    `switch_name`, `vds_name` or `dvs_name` and otherwise collapses everything into
    `default-dvs`. The 1:1 switch-to-VPC mapping cannot work until the playbook emits the switch.
 2. **No DRS rules.** `cluster` is a name only, so every cluster has `semantics: unknown` and
    placement falls back to spread/anti-affinity. Rules are needed for affinity vs anti-affinity.
 3. **Missing `vcpus`/`ram_mb` silently default to 1** and size to the smallest instance. They
    should be required, or their absence should be a `needs_review`.
-4. **Blocker vocabulary is inconsistent** between the playbook (`rdm_disk_present`), the
-   agent (`rdm_disk`) and the config. One canonical list is needed.
-5. **Guest OS is dropped**, so every VM gets a generic Ubuntu/Debian/AL2023 image reference.
+4. **Blocker vocabulary was inconsistent** between the playbook (`rdm_disk_present`), the
+   code (`rdm_disk`) and the config. Resolved: `hopshift/cim/blockers.py` normalises every
+   spelling to one canonical list.
+5. **Guest OS is not used for image selection**, so every VM gets the target's default image
+   reference unless `image_overrides` or `image_ref` names one.
    The OS and firmware are needed to choose the imported image and boot mode.
 
 ## Proposed 1.1.0 additions
 
-Status of consumption by the agent: the per-VM fields below that already exist in the 1.0.0 output
+Status of consumption by hopshift: the per-VM fields below that already exist in the 1.0.0 output
 (`guest_os`, `guest_os_id`, `firmware`, `power_state`, `is_template`, `snapshot_count`, `all_ip_addresses`,
 `tags`, `custom_attributes`, `annotation`, reservations, `cores_per_socket`) are now read into CIM 1.1.
 The new top-level `clusters[]` (with `drs_rules`) and `distributed_switches[]` collections and the
@@ -160,15 +164,22 @@ New top-level collections so topology does not have to be inferred from VMs:
 Per disk: add `"controller_type"`, `"disk_mode"` (persistent / independent_persistent /
 independent_nonpersistent) and keep `"backing_type"` as the raw vSphere class name.
 
-## What the agent validates today
+## What hopshift validates today
 
-- Root must be an object with a `virtual_machines` list. Anything else is rejected at ingest.
-- Non-object entries in `virtual_machines` are skipped by the enricher.
+`ingest` (`hopshift/pipeline/nodes/ingest.py`) enforces the minimum contract and warns about drift:
+
+- The root must be an object with a `virtual_machines` list, and every entry must be an object.
+  Anything else stops the run with a clear error.
+- `metadata` missing, `metadata.schema_name` missing or different from
+  `vmware-discovery-stage1`, or a `metadata.schema_version` whose major version is not 1: a
+  warning in the run messages.
+- `vcpus` or `ram_mb` missing on a VM: a warning naming the VMs (they default to 1 and sizing
+  will be wrong).
+- An empty `virtual_machines` list: a warning ("nothing to migrate").
 - Everything else is optional and defaulted.
 
-Proposed for Phase 1: validate `metadata.schema_name` and a supported `schema_version` range,
-require `vm_name`, `vcpus`, `ram_mb` per VM, and reject or flag a payload that yields zero
-migratable VMs as a distinct outcome rather than a plain success.
+Still proposed: make `vm_name`, `vcpus` and `ram_mb` required, and treat a payload that yields
+zero migratable VMs as a distinct outcome rather than a plain success.
 
 ## Open questions for the playbook
 
@@ -177,4 +188,4 @@ migratable VMs as a distinct outcome rather than a plain success.
 - Should DRS rules be emitted per cluster or per VM (`drs_rule_names` on the VM)? Per cluster is
   proposed above.
 - Are `annotation` and `custom_attributes` safe to emit? They are free text authored inside
-  vSphere; the agent treats them as untrusted and quotes them, but they will reach cloud tags.
+  vSphere; hopshift treats them as untrusted and quotes them, but they will reach cloud tags.

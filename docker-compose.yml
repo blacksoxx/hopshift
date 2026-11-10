@@ -1,6 +1,6 @@
 # hopshift — single-container stack (API + UI + terraform/tflint/opa).
 #
-#   cp .env.example .env               # set HOPSHIFT_SECRET_KEY (vma secrets generate-key)
+#   cp .env.example .env               # set HOPSHIFT_SECRET_KEY (hopshift secrets generate-key)
 #   docker compose up -d --build       # UI at http://localhost:8080 (HOPSHIFT_PORT changes the host port)
 #
 # Hardened per the CIS Docker Benchmark: non-root user, read-only root filesystem, no new

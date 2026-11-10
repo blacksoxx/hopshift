@@ -1,6 +1,6 @@
 """FastAPI application factory.
 
-Every write path goes through hopshift.pipeline.runtime.MigrationRuntime (runs) or a vma service
+Every write path goes through hopshift.pipeline.runtime.MigrationRuntime (runs) or a platform service
 (connections, deployments, users), so the same guards apply as for the CLI. API routes live
 under /api; the built UI (ui/dist) is served at /. Runs execute in a thread pool; clients poll
 or subscribe to server-sent events.
@@ -120,5 +120,5 @@ def is_executing(app: FastAPI, run_id: str) -> bool:
 
 
 # No module-level application: importing this module must not touch the filesystem or the
-# database. Serve with `vma serve`, or with uvicorn's factory mode:
+# database. Serve with `hopshift serve`, or with uvicorn's factory mode:
 #   uvicorn --factory hopshift.api.app:create_app

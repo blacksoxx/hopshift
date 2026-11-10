@@ -1,7 +1,7 @@
 # CIM And Translation
 
-The Canonical Infrastructure Model (CIM) is defined in cim/schema.py and is the contract between any
-source hypervisor and any target cloud. Translators produce it; sizing, placement, blockers, the
+The Canonical Infrastructure Model (CIM) is defined in hopshift/cim/schema.py and is the contract between any
+source and any target. Translators produce it; sizing, placement, blockers, the
 assessment and every renderer consume it. Nothing downstream of the CIM knows a source field name.
 
 `hopshift/cim/cim.schema.json` is generated from the models (`python -m hopshift.cim.schema_export`); a test fails
@@ -28,7 +28,7 @@ VMware-specific term also has a neutral alias so other translators can use neutr
   - cim_schema_version: "1.1" ("1.0" documents still validate)
   - source: SourceEndpoint (platform, name, hostname, schema_name, schema_version, discovered_at)
   - source_vcenter: deprecated alias of source.name, kept for tags and renderers
-  - target_provider
+  - target_provider: a lower-case target name validated against the target registry (not an enum)
   - network_topology, clusters, compute_units
   - migrated_from (property): value of the MigratedFrom tag derived from source.platform
 
@@ -53,32 +53,39 @@ VMware-specific term also has a neutral alias so other translators can use neutr
 - NetworkSegment: name, vlan_id, 1.1: segment_type, key
 - ComputeCluster: name, semantics, 1.1: ha_enabled, drs_enabled, datacenter
 
-## Translators
+## Sources and translators
 
-`cim/translators/` holds one module per source. A translator is a function
-`(discovery_data, target_provider) -> CanonicalInfrastructureModel` registered under the discovery
-`metadata.schema_name`. `cim_mapper` resolves it with `cim.translators.resolve_translator` and fails
-with the list of known schemas when none matches.
+A source is a `SourceSpec` in `hopshift/sources/registry.py`: a name, the `metadata.schema_name`
+values it accepts, a translator `translate(discovery_data, target) -> CanonicalInfrastructureModel`,
+the `SourcePlatform` it sets, a tier and a docs path. Built-in sources register in
+`hopshift/sources/__init__.py`; third-party packages register through the `hopshift.sources`
+entry-point group. `cim_mapper` resolves the translator with
+`hopshift.sources.resolve_translator` (which calls `registry.for_schema`) and fails with the list
+of known schemas when none matches. `GET /api/meta` lists the registered sources.
 
-Registered today: `vmware-discovery-stage1` (cim/translators/vmware.py). `cim/vmware_translator.py`
-re-exports it for older imports.
+Registered today: `vmware` for `vmware-discovery-stage1` (hopshift/sources/vmware.py, see
+[sources/vmware.md](sources/vmware.md)). `hopshift/cim/vmware_translator.py` re-exports it for
+older imports.
 
-### Adding a source hypervisor
+### Adding a source
 
-1. Write `cim/translators/<platform>.py` producing the CIM; set `source.platform` and each unit's
-   `architecture`.
-2. Register it in `cim/translators/__init__.py` under the collector's schema name.
-3. Add the platform's flag-to-blocker table to `cim/blockers.py` if its collector emits different flags.
+1. Write a translator producing the CIM; set `source.platform` and each unit's `architecture`.
+2. Register a `SourceSpec` under the collector's schema name (built in:
+   `hopshift/sources/__init__.py`; external: a `hopshift.sources` entry point).
+3. Add the platform's flag-to-blocker table to `hopshift/cim/blockers.py` if its collector emits
+   different flags.
 4. Add a fixture under tests/fixtures and a translator test. No renderer or policy changes are needed.
+
+The full plugin contract is in [plugins.md](plugins.md).
 
 ## VMware Translation Rules
 
 - `virtual_machines[]` drives ComputeUnit creation; id from discovery_key, moid, uuid; name from vm_name, name.
 - vcpus and ram_mb default to 1 when absent (ingest warns).
 - architecture is x86_64 unless the record says otherwise; non-x86 records get the hard blocker
-  `unsupported_architecture` and the deterministic renderer refuses them for the four x86 clouds.
+  `unsupported_architecture` and the deterministic assembler refuses them (every built-in target hosts x86_64 only).
 - guest_family is derived from guest_os / guest_os_id; firmware and power_state are normalized.
-- Blockers come from cim/blockers.py: the explicit `migration_blockers` list plus VM flags
+- Blockers come from hopshift/cim/blockers.py: the explicit `migration_blockers` list plus VM flags
   (is_encrypted, has_rdm_disks, has_shared_disks, is_template, vapp_config_present, has_vtpm,
   mounted_iso_present), plus powered_off and snapshots_present derived from power_state and snapshots.
   Hard blockers -> blocked; soft blockers -> needs_review.
