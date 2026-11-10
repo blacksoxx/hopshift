@@ -17,18 +17,34 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 CIM_SCHEMA_VERSION = "1.1"
 
 _STRICT = ConfigDict(extra="forbid", str_strip_whitespace=True, populate_by_name=True)
 
 
-class TargetProvider(str, Enum):
-    AWS = "aws"
-    AZURE = "azure"
-    GCP = "gcp"
-    OPENSTACK = "openstack"
+class TargetProvider(str):
+    """Target name (lower-case identifier). Not an enum: targets are plugins, see hopshift.targets.registry.
+
+    `TargetProvider("AWS") == "aws"`; `.value` is kept so older call sites keep working.
+    """
+
+    def __new__(cls, value: object) -> "TargetProvider":
+        text = str(value.value if hasattr(value, "value") else value).strip().lower()
+        if not text:
+            raise ValueError("target provider must not be empty")
+        return super().__new__(cls, text)
+
+    @property
+    def value(self) -> str:
+        return str(self)
+
+
+TargetProvider.AWS = TargetProvider("aws")  # type: ignore[attr-defined]
+TargetProvider.AZURE = TargetProvider("azure")  # type: ignore[attr-defined]
+TargetProvider.GCP = TargetProvider("gcp")  # type: ignore[attr-defined]
+TargetProvider.OPENSTACK = TargetProvider("openstack")  # type: ignore[attr-defined]
 
 
 class MigrationStatus(str, Enum):
@@ -75,8 +91,7 @@ MIGRATED_FROM_TAG: dict[SourcePlatform, str] = {
     SourcePlatform.UNKNOWN: "unknown-source",
 }
 
-# Architectures the x86 public clouds can run without an emulation or a specialised offering.
-X86_TARGET_PROVIDERS: frozenset[TargetProvider] = frozenset(TargetProvider)
+# Architectures the x86 targets can run without an emulation or a specialised offering.
 SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS: frozenset[Architecture] = frozenset({Architecture.X86_64, Architecture.UNKNOWN})
 
 
@@ -227,7 +242,12 @@ class CanonicalInfrastructureModel(BaseModel):
     # Deprecated alias for source.name, kept because tags and renderers reference it.
     source_vcenter: str = ""
     source: SourceEndpoint = Field(default_factory=SourceEndpoint)
-    target_provider: TargetProvider
+    target_provider: str = Field(description="Target name registered in hopshift.targets (lower-case identifier)")
+
+    @field_validator("target_provider", mode="before")
+    @classmethod
+    def _normalize_target(cls, value: object) -> str:
+        return str(TargetProvider(value))
     network_topology: NetworkTopology
     clusters: list[ComputeCluster] = Field(default_factory=list)
     compute_units: list[ComputeUnit] = Field(default_factory=list)

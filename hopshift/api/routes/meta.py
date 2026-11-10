@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends
 
 from hopshift.api.deps import Principal, get_platform, get_runtime, require_role
 from hopshift.api.serialization import jsonable
-from hopshift.cim.schema import TargetProvider
 from hopshift.pipeline.graph import NODE_ORDER
 from hopshift.pipeline.runtime import GENERATION_MODES, PAUSE_POINTS, MigrationRuntime
 from hopshift.services import __version__
 from hopshift.services.platform import Platform
+from hopshift.sources import registry as sources
+from hopshift.targets import registry as targets
 
 router = APIRouter(tags=["meta"])
 
@@ -24,7 +25,9 @@ def health(runtime: MigrationRuntime = Depends(get_runtime)) -> dict[str, Any]:
 def meta(runtime: MigrationRuntime = Depends(get_runtime), platform: Platform = Depends(get_platform)) -> dict[str, Any]:
     return {
         "version": __version__,
-        "clouds": [provider.value for provider in TargetProvider],
+        "clouds": targets.names(),
+        "targets": [spec.to_dict() for spec in targets.all_specs()],
+        "sources": [spec.to_dict() for spec in sources.all_specs()],
         "modes": list(GENERATION_MODES),
         "pause_points": PAUSE_POINTS,
         "nodes": list(NODE_ORDER),

@@ -379,7 +379,7 @@ def mcp_client(state: MigrationState) -> MigrationState:
         logger.info("mcp_client: skipped retrieval because CIM workload is empty")
         return next_state
 
-    provider_key = str(cim_doc.target_provider.value).strip().lower()
+    provider_key = str(cim_doc.target_provider).strip().lower()
     provider_namespace = _provider_namespace(provider_key)
     provider_namespace_name, provider_name = _provider_namespace_parts(provider_namespace)
     timeout_seconds = _get_int(mcp_cfg, "tool_timeout_seconds", 30)

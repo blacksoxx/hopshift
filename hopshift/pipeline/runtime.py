@@ -34,11 +34,11 @@ from pydantic import BaseModel
 
 from hopshift.cim.schema import (
     CanonicalInfrastructureModel,
-    TargetProvider,
 )
 from hopshift.pipeline import graph as graph_module
 from hopshift.pipeline.graph import NODE_ORDER
 from hopshift.pipeline.nodes.ingest import validate_discovery_payload
+from hopshift.targets import registry as targets
 
 PAUSE_POINTS: dict[str, str] = {
     "review_cim": "hcl_generator",
@@ -47,7 +47,7 @@ PAUSE_POINTS: dict[str, str] = {
 NODE_TO_PAUSE_POINT: dict[str, str] = {node: name for name, node in PAUSE_POINTS.items()}
 TERMINAL_STATUSES: frozenset[str] = frozenset({"succeeded", "failed", "error", "cancelled"})
 
-SUPPORTED_CLOUDS = ("aws", "azure", "gcp", "openstack")
+SUPPORTED_CLOUDS = tuple(targets.names())  # registered targets (built-in and plugins)
 GENERATION_MODES = ("deterministic", "llm", "hybrid")
 LLM_PROVIDERS = ("anthropic", "openai", "google")
 PROVIDER_DEFAULT_MODELS = {"anthropic": "claude-opus-5", "openai": "gpt-4o", "google": "gemini-2.0-flash"}
@@ -61,7 +61,6 @@ PATCHABLE_KEYS: dict[str, type[BaseModel] | None] = {
 
 _CHECKPOINT_TYPES = (
     ("hopshift.cim.schema", "CanonicalInfrastructureModel"),
-    ("hopshift.cim.schema", "TargetProvider"),
     ("hopshift.cim.schema", "SourcePlatform"),
     ("hopshift.cim.schema", "MigrationStatus"),
     ("hopshift.cim.schema", "Architecture"),
@@ -196,7 +195,7 @@ def initial_state(discovery: dict[str, Any], cfg: dict[str, Any], cloud: str) ->
     return {
         "discovery_data": discovery,
         "config": cfg,
-        "target_provider": TargetProvider(cloud.lower()),
+        "target_provider": targets.get(cloud).name,
         "quarantine_queue": [],
         "messages": [],
         "retry_count": 0,

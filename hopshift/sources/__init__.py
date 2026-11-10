@@ -1,27 +1,26 @@
-"""Source translators: one per hypervisor / discovery schema, all producing the same CIM.
+"""Sources: one translator per discovery format, all producing the same CIM.
 
-A translator is selected from `metadata.schema_name` in the discovery payload. Adding a source
-means adding a module here and registering it; nothing downstream of the CIM changes.
+The translator is selected from `metadata.schema_name` in the discovery payload. Adding a
+source means registering a `SourceSpec` (built in below, or through the `hopshift.sources`
+entry-point group); nothing downstream of the CIM changes.
 """
 from __future__ import annotations
 
-from typing import Callable
-
-from hopshift.cim.schema import CanonicalInfrastructureModel, TargetProvider
-
-Translator = Callable[[dict, TargetProvider | str], CanonicalInfrastructureModel]
+from hopshift.cim.schema import CanonicalInfrastructureModel
+from hopshift.sources import registry
+from hopshift.sources.registry import SourceSpec, Translator, UnknownSource
 
 DEFAULT_SCHEMA_NAME = "vmware-discovery-stage1"
 
-_REGISTRY: dict[str, Translator] = {}
 
-
-def register_translator(schema_name: str, translator: Translator) -> None:
-    _REGISTRY[schema_name.strip().lower()] = translator
+def register_translator(schema_name: str, translator: Translator, *, name: str | None = None, **meta: object) -> None:
+    """Compatibility helper: register a bare translator under one schema name."""
+    key = schema_name.strip().lower()
+    registry.register(SourceSpec(name=name or key, label=name or key, blurb="", schema_names=(key,), translate=translator, **meta), replace=True)  # type: ignore[arg-type]
 
 
 def registered_schemas() -> list[str]:
-    return sorted(_REGISTRY)
+    return registry.schema_names()
 
 
 def resolve_translator(discovery_data: dict) -> tuple[str, Translator]:
@@ -30,16 +29,14 @@ def resolve_translator(discovery_data: dict) -> tuple[str, Translator]:
     if isinstance(metadata, dict):
         schema_name = str(metadata.get("schema_name") or "").strip().lower()
     schema_name = schema_name or DEFAULT_SCHEMA_NAME
-
-    translator = _REGISTRY.get(schema_name)
-    if translator is None:
-        raise ValueError(
-            f"No translator registered for discovery schema '{schema_name}'; known: {', '.join(registered_schemas())}"
-        )
-    return schema_name, translator
+    try:
+        spec = registry.for_schema(schema_name)
+    except UnknownSource as exc:
+        raise ValueError(str(exc)) from exc
+    return schema_name, spec.translate
 
 
-def translate(discovery_data: dict, target_provider: TargetProvider | str) -> CanonicalInfrastructureModel:
+def translate(discovery_data: dict, target_provider: str) -> CanonicalInfrastructureModel:
     _, translator = resolve_translator(discovery_data)
     return translator(discovery_data, target_provider)
 
@@ -47,5 +44,9 @@ def translate(discovery_data: dict, target_provider: TargetProvider | str) -> Ca
 # Built-in sources
 from hopshift.sources import vmware as _vmware  # noqa: E402  (import for side effect: registration)
 
-register_translator(_vmware.SCHEMA_NAME, _vmware.translate_vmware_discovery_to_cim)
-register_translator("vmware-discovery", _vmware.translate_vmware_discovery_to_cim)
+registry.register(SourceSpec(
+    name="vmware", label="VMware vSphere", blurb="VMs, disks, port groups, distributed switches, DRS clusters",
+    schema_names=(_vmware.SCHEMA_NAME, "vmware-discovery"), translate=_vmware.translate_vmware_discovery_to_cim,
+    platform=str(_vmware.PLATFORM.value), tier="tested",
+    collector="Ansible collection (vmware-discovery-stage1 schema)", docs="docs/sources/vmware.md",
+))

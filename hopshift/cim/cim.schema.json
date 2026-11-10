@@ -650,16 +650,6 @@
       "title": "StorageVolume",
       "type": "object"
     },
-    "TargetProvider": {
-      "enum": [
-        "aws",
-        "azure",
-        "gcp",
-        "openstack"
-      ],
-      "title": "TargetProvider",
-      "type": "string"
-    },
     "VirtualSwitch": {
       "additionalProperties": false,
       "properties": {
@@ -714,7 +704,9 @@
       "$ref": "#/$defs/SourceEndpoint"
     },
     "target_provider": {
-      "$ref": "#/$defs/TargetProvider"
+      "description": "Target name registered in hopshift.targets (lower-case identifier)",
+      "title": "Target Provider",
+      "type": "string"
     },
     "network_topology": {
       "$ref": "#/$defs/NetworkTopology"

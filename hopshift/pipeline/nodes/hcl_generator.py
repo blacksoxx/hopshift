@@ -62,7 +62,7 @@ def hcl_generator(state: MigrationState) -> MigrationState:
     if not isinstance(config, dict):
         config = {}
 
-    provider = str(sized_cim.target_provider.value)
+    provider = str(sized_cim.target_provider)
     mode = generation_mode(config)
 
     if mode in {"deterministic", "hybrid"}:

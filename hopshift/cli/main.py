@@ -5,11 +5,11 @@ from pathlib import Path
 import click
 from loguru import logger
 
-from hopshift.cim.schema import TargetProvider
 from hopshift.pipeline.nodes.mcp_client import _MCPStdioClient
+from hopshift.targets import registry as targets
 
 SUPPORTED_PROVIDERS = ["anthropic", "openai", "google"]
-SUPPORTED_CLOUDS    = ["aws", "azure", "gcp", "openstack"]
+SUPPORTED_CLOUDS    = targets.names()  # registered targets, built in and plugins
 GENERATION_MODES    = ["deterministic", "llm", "hybrid"]
 
 PROVIDER_DEFAULT_MODELS = {
@@ -247,7 +247,7 @@ def assess(input_file, cloud, output_dir, config_file):
     initial_state = {
         "discovery_data": discovery,
         "config": cfg,
-        "target_provider": TargetProvider(cloud.lower()),
+        "target_provider": targets.get(cloud).name,
         "quarantine_queue": [],
         "messages": [],
         "retry_count": 0,

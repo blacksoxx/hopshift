@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import Callable, cast
 
 from hopshift.cim.schema import SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS, CanonicalInfrastructureModel
+from hopshift.targets import registry as targets
 from hopshift.targets.common import is_bare_expression, safe_file_stem
 
 # Renderers emit logical keys like "<root>/<resource_type>/<name>.tf". Terraform only loads .tf
@@ -20,7 +21,6 @@ _RENDERER_SPECS: tuple[tuple[str, str, bool], ...] = (
     ("placement", "render_placement", True),
 )
 
-SUPPORTED_PROVIDERS = ("aws", "azure", "gcp", "openstack")
 
 
 class DeterministicRenderError(ValueError):
@@ -38,9 +38,11 @@ def render_deterministic(
     DeterministicRenderError for unsupported providers or CIMs that cannot produce
     unambiguous file names.
     """
-    normalized_provider = provider.strip().lower()
-    if normalized_provider not in SUPPORTED_PROVIDERS:
-        raise DeterministicRenderError(f"deterministic: unsupported provider '{provider}'")
+    try:
+        spec = targets.get(provider)
+    except targets.UnknownTarget as exc:
+        raise DeterministicRenderError(f"deterministic: unsupported provider '{provider}'") from exc
+    normalized_provider = spec.name
 
     _ensure_unique_compute_unit_names(cim)
     _ensure_supported_architecture(cim)
@@ -105,7 +107,7 @@ def _ensure_supported_architecture(cim: CanonicalInfrastructureModel) -> None:
     )
     if unsupported:
         raise DeterministicRenderError(
-            f"deterministic: {cim.target_provider.value} cannot host non-x86 ComputeUnits: {', '.join(unsupported)}"
+            f"deterministic: {cim.target_provider} cannot host non-x86 ComputeUnits: {', '.join(unsupported)}"
         )
 
 
@@ -130,7 +132,7 @@ def _ensure_unique_compute_unit_names(cim: CanonicalInfrastructureModel) -> None
 
 
 def _load_renderer(provider: str, module_suffix: str, function_name: str) -> Callable[..., dict[str, str]]:
-    module_name = f"hopshift.targets.{provider}.{module_suffix}"
+    module_name = f"{targets.get(provider).package}.{module_suffix}"
     try:
         module = import_module(module_name)
     except ModuleNotFoundError as exc:

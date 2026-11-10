@@ -9,7 +9,8 @@ from typing import Mapping, cast
 import yaml
 from loguru import logger
 
-ALLOWED_TARGET_CLOUDS = {"aws", "azure", "gcp", "openstack"}
+from hopshift.targets import registry as targets
+
 ALLOWED_LLM_PROVIDERS = {"anthropic", "openai", "google"}
 ALLOWED_GENERATION_MODES = {"deterministic", "llm", "hybrid"}
 ALLOWED_EFFORT_LEVELS = {"low", "medium", "high", "xhigh", "max"}
@@ -145,10 +146,8 @@ def _apply_environment_overrides(config: dict[str, object]) -> None:
 
 def _validate_config(config: dict[str, object]) -> None:
     target_cloud = str(config.get("target_cloud", "")).strip().lower()
-    if target_cloud not in ALLOWED_TARGET_CLOUDS:
-        raise ConfigLoadError(
-            "target_cloud must be one of: aws, azure, gcp, openstack"
-        )
+    if target_cloud not in targets.names():
+        raise ConfigLoadError(f"target_cloud must be one of: {', '.join(targets.names())}")
 
     generation = _ensure_mapping(config, "generation")
     mode = str(generation.get("mode", DEFAULT_GENERATION_MODE)).strip().lower() or DEFAULT_GENERATION_MODE

@@ -408,10 +408,8 @@ def _cluster_semantics(spec: dict[str, Any]) -> ClusterSemantics:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
-def _to_target_provider(provider: TargetProvider | str) -> TargetProvider:
-    if isinstance(provider, TargetProvider):
-        return provider
-    return TargetProvider(str(provider).strip().lower())
+def _to_target_provider(provider: object) -> str:
+    return str(TargetProvider(provider))
 
 
 def _optional_str(value: object) -> str | None:

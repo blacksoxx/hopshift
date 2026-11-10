@@ -7,6 +7,7 @@ from loguru import logger
 
 from hopshift.pipeline.state import MigrationState, QuarantineItem
 from hopshift.services.compliance.report import build_report
+from hopshift.targets import registry as targets
 from hopshift.validation.opa_client import evaluate_policies, resolve_policies_dir
 from hopshift.validation.tf_runner import validate_hcl
 
@@ -74,10 +75,12 @@ def validator(state: MigrationState) -> MigrationState:
     run_tflint = _get_bool(validation_cfg, "run_tflint", True)
     run_opa = _get_bool(validation_cfg, "run_opa", True)
 
-    if run_tflint and _is_openstack_hcl_output(hcl_output):
-        if not _get_bool(validation_cfg, "run_tflint_openstack", False):
+    target_spec = _target_for_output(hcl_output)
+    if run_tflint and target_spec is not None and not target_spec.tflint:
+        if not _get_bool(validation_cfg, f"run_tflint_{target_spec.name}", False):
             logger.info(
-                "validator: skipping tflint for openstack output (set validation.run_tflint_openstack=true to enable)"
+                "validator: skipping tflint for {} output (no tflint ruleset; set validation.run_tflint_{}=true to force)",
+                target_spec.name, target_spec.name,
             )
             run_tflint = False
 
@@ -203,8 +206,12 @@ def _is_empty_workload(state: MigrationState) -> bool:
     )
 
 
-def _is_openstack_hcl_output(hcl_output: dict[str, str]) -> bool:
-    return any(str(path).replace("\\", "/").startswith("openstack-migration/") for path in hcl_output)
+def _target_for_output(hcl_output: dict[str, str]):
+    for path in hcl_output:
+        spec = targets.by_root(str(path))
+        if spec is not None:
+            return spec
+    return None
 
 
 _CLOUD_ROOTS = {

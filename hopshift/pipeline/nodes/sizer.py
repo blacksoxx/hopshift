@@ -5,8 +5,8 @@ from typing import Callable, cast
 
 from loguru import logger
 
-from hopshift.cim.schema import TargetProvider
 from hopshift.pipeline.state import MigrationState
+from hopshift.targets import registry as targets
 
 SizingLookup = Callable[[int, int], str]
 
@@ -56,23 +56,16 @@ def sizer(state: MigrationState) -> MigrationState:
     return next_state
 
 
-def _provider_key(provider: TargetProvider | str) -> str:
-    if isinstance(provider, TargetProvider):
-        return provider.value
+def _provider_key(provider: object) -> str:
     return str(provider).strip().lower()
 
 
 def _load_sizing_lookup(provider_key: str) -> SizingLookup:
-    module_map = {
-        "aws": "hopshift.targets.aws.sizing_table",
-        "azure": "hopshift.targets.azure.sizing_table",
-        "gcp": "hopshift.targets.gcp.sizing_table",
-        "openstack": "hopshift.targets.openstack.sizing_table",
-    }
-
-    module_name = module_map.get(provider_key)
-    if not module_name:
-        raise ValueError(f"sizer: unsupported target_provider '{provider_key}'")
+    try:
+        spec = targets.get(provider_key)
+    except targets.UnknownTarget as exc:
+        raise ValueError(f"sizer: unsupported target_provider '{provider_key}'") from exc
+    module_name = f"{spec.package}.sizing_table"
 
     try:
         module = import_module(module_name)

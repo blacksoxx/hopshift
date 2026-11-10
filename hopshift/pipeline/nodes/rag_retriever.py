@@ -100,7 +100,7 @@ def _provider_key(state: MigrationState) -> str:
 
     cim_doc = state.get("sized_cim") or state.get("cim")
     if cim_doc is not None:
-        return str(cim_doc.target_provider.value).strip().lower()
+        return str(cim_doc.target_provider).strip().lower()
 
     raise ValueError("rag_retriever: cannot determine target provider")
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal, TypedDict
 
-from hopshift.cim.schema import CanonicalInfrastructureModel, TargetProvider
+from hopshift.cim.schema import CanonicalInfrastructureModel
 
 JSONValue = (
     None
@@ -62,7 +62,7 @@ class AssessmentResult(TypedDict):
 class MigrationState(TypedDict, total=False):
     discovery_data: dict[str, JSONValue]
     config: dict[str, JSONValue]
-    target_provider: TargetProvider
+    target_provider: str
 
     cim: CanonicalInfrastructureModel
     sized_cim: CanonicalInfrastructureModel

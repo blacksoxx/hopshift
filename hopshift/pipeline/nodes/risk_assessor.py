@@ -31,7 +31,7 @@ def risk_assessor(state: MigrationState) -> MigrationState:
     result: AssessmentResult = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_vcenter": cim.source_vcenter,
-        "target_provider": cim.target_provider.value,
+        "target_provider": str(cim.target_provider),
         "summary": summary,
         "resources": resources,
     }
@@ -54,7 +54,7 @@ def risk_assessor(state: MigrationState) -> MigrationState:
     logger.info(
         "risk_assessor: assessed {} resources for provider {}",
         len(resources),
-        cim.target_provider.value,
+        str(cim.target_provider),
     )
 
     return next_state
