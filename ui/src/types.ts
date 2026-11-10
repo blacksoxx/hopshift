@@ -139,9 +139,42 @@ export interface RunState {
   };
 }
 
+/** Support tier of a registered source or target (see docs/ui.md, "Targets and tiers"). */
+export type SupportTier = "tested" | "validated" | "experimental";
+
+/** A destination hopshift renders for, as served by GET /api/meta (`targets`). */
+export interface TargetSpec {
+  name: string;
+  label: string;
+  blurb: string;
+  tier: SupportTier;
+  root: string;
+  tflint: boolean;
+  /** Key in the connection catalog; null when the target cannot be deployed to. */
+  connection_provider: string | null;
+  architectures: string[];
+  docs: string;
+}
+
+/** A discovery format hopshift can translate into the canonical model (`sources` in GET /api/meta). */
+export interface SourceSpec {
+  name: string;
+  label: string;
+  blurb: string;
+  /** `metadata.schema_name` values this source accepts. */
+  schema_names: string[];
+  platform: string;
+  tier: SupportTier;
+  collector: string;
+  docs: string;
+}
+
 export interface Meta {
   version: string;
+  /** Target names; kept for compatibility with older clients, `targets` carries the details. */
   clouds: string[];
+  targets: TargetSpec[];
+  sources: SourceSpec[];
   modes: string[];
   pause_points: Record<string, string>;
   nodes: string[];

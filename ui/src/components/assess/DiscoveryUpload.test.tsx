@@ -22,7 +22,7 @@ describe("discovery parsing", () => {
   it("rejects non-JSON, non-objects and empty inventories", () => {
     expect(() => parseDiscovery("{nope", "x.json", 5)).toThrow(/not valid JSON/);
     expect(() => parseDiscovery("[1,2]", "x.json", 5)).toThrow(/not a JSON object/);
-    expect(() => parseDiscovery('{"virtual_machines": []}', "x.json", 5)).toThrow(/No virtual machines/);
+    expect(() => parseDiscovery('{"virtual_machines": []}', "x.json", 5)).toThrow(/No workloads/);
   });
 });
 
@@ -44,7 +44,8 @@ describe("DiscoveryUpload", () => {
     const loaded = parseDiscovery(JSON.stringify(discovery), "lab.json", 10);
     renderWithProviders(<DiscoveryUpload file={loaded} onChange={() => {}} />);
     const summary = screen.getByTestId("discovery-summary");
-    expect(summary).toHaveTextContent("Virtual machines");
+    expect(summary).toHaveTextContent("Workloads");
+    expect(summary).toHaveTextContent("Discovered from");
     expect(summary).toHaveTextContent("3");
     expect(summary).toHaveTextContent("vc-a +1");
     expect(summary).toHaveTextContent("1 powered off");

@@ -89,10 +89,10 @@ export function DiscoveryUpload({ file, onChange }: { file: LoadedDiscovery | nu
       {summary ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="discovery-summary">
           {[
-            ["Virtual machines", summary.vms],
+            ["Workloads", summary.vms],
             ["Blocked at source", summary.blocked],
             ["Clusters", summary.clusters],
-            ["vCenter", summary.vcenter],
+            ["Discovered from", summary.vcenter],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-lg border border-border bg-muted/40 px-3 py-2">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>

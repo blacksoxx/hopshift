@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { api } from "@/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
+import { useTargets } from "@/hooks/useTargets";
 import { relativeTime, shortId } from "@/lib/format";
 import type { RunRecord } from "@/types";
 
@@ -15,6 +16,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const navigate = useNavigate();
   const { resolved, toggle } = useTheme();
   const { can } = useAuth();
+  const { labelOf } = useTargets();
   const [runs, setRuns] = React.useState<RunRecord[]>([]);
 
   React.useEffect(() => {
@@ -56,11 +58,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             {runs.length > 0 ? (
               <Command.Group heading="Recent runs">
                 {runs.map((run) => (
-                  <Item key={run.run_id} onSelect={() => go(`/runs/${run.run_id}`)} value={`${run.name ?? ""} ${run.run_id} ${run.cloud} ${run.status}`}>
+                  <Item key={run.run_id} onSelect={() => go(`/runs/${run.run_id}`)} value={`${run.name ?? ""} ${run.run_id} ${run.cloud} ${labelOf(run.cloud)} ${run.status}`}>
                     <span className="flex min-w-0 flex-1 items-center gap-2">
                       <span className="truncate">{run.name || run.input_filename}</span>
                       <span className="font-mono text-[11px] text-muted-foreground">{shortId(run.run_id)}</span>
-                      <span className="text-[11px] text-muted-foreground">{run.cloud}</span>
+                      <span className="text-[11px] text-muted-foreground">{labelOf(run.cloud)}</span>
                     </span>
                     <span className="ml-auto flex items-center gap-2">
                       <span className="text-[11px] text-muted-foreground">{relativeTime(run.updated_at)}</span>

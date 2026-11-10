@@ -60,7 +60,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
 
   const providers = catalog ? sortProviders(Object.keys(catalog)) : [];
   const methods = provider && catalog ? (catalog[provider]?.methods ?? []) : [];
-  const providerLabel = provider ? (catalog?.[provider]?.label ?? providerMeta(provider).label) : "";
+  const providerLabel = provider ? providerMeta(provider, catalog).label : "";
 
   function chooseProvider(key: string) {
     setProvider(key);
@@ -140,7 +140,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
 
   const description =
     step === 0
-      ? "Pick the cloud this connection authenticates to."
+      ? "Pick the provider this connection authenticates to. The list comes from the connection catalog, so target plugins appear here too."
       : step === 1
         ? `How should the platform authenticate to ${providerLabel}?`
         : step === 2
@@ -185,7 +185,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
               {!catalog
                 ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-[76px]" />)
                 : providers.map((key) => {
-                    const meta = providerMeta(key);
+                    const meta = providerMeta(key, catalog);
                     return (
                       <button
                         key={key}
@@ -196,7 +196,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
                       >
                         <ProviderIcon provider={key} size="lg" />
                         <span className="min-w-0">
-                          <span className="block text-sm font-medium">{catalog[key]?.label ?? meta.label}</span>
+                          <span className="block text-sm font-medium">{meta.label}</span>
                           <span className="block text-xs text-muted-foreground">{meta.blurb}</span>
                         </span>
                       </button>

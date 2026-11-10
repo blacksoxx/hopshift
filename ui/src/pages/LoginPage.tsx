@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { KeyRound, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+import { KeyRound, Puzzle, Rocket, ShieldCheck, Workflow } from "lucide-react";
 import { ApiError, api } from "@/api";
 import { Wordmark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,13 @@ export function AuthLayout({ children, title, subtitle }: { children: React.Reac
       <div className="relative hidden overflow-hidden border-r border-border bg-sidebar lg:flex lg:flex-col lg:justify-between lg:p-12">
         <Wordmark />
         <div className="space-y-8">
-          <h2 className="max-w-md text-balance text-3xl font-semibold tracking-tight">From vSphere discovery to deployed, compliant cloud infrastructure.</h2>
-          <ul className="space-y-4 text-sm text-muted-foreground">
+          <h2 className="max-w-md text-balance text-3xl font-semibold tracking-tight">Migrate anything from X to Y.</h2>
+          <ul className="space-y-4 text-sm text-muted-foreground" data-testid="marketing-points">
             {[
-              { icon: Workflow, title: "Deterministic pipeline", text: "Discovery JSON becomes a canonical model, then Terraform that is validated by terraform, tflint and OPA." },
-              { icon: ShieldCheck, title: "Compliance built in", text: "CIS, SOC 2 and HIPAA controls are checked on every run, with evidence in a tamper-evident audit log." },
-              { icon: Sparkles, title: "AI where it helps", text: "Optional model-written review notes and generation modes; never in the gate." },
+              { icon: Puzzle, title: "Sources and targets are plugins", text: "Any registered source feeds the pipeline; any registered target renders from it. Adding a platform never touches what sits in between." },
+              { icon: Workflow, title: "One canonical model", text: "Discovery becomes a typed, diffable infrastructure model that people can read and edit before a single line of Terraform exists." },
+              { icon: ShieldCheck, title: "Validated and compliant by construction", text: "Every run passes terraform validate, tflint and OPA policies; CIS, SOC 2 and HIPAA controls leave evidence in a tamper-evident audit log." },
+              { icon: Rocket, title: "Humans approve, hopshift deploys", text: "Review the model, approve the output, then plan and apply through a stored connection with a typed confirmation." },
             ].map((item) => (
               <li key={item.title} className="flex gap-3">
                 <item.icon className="mt-0.5 size-4 shrink-0 text-primary" />

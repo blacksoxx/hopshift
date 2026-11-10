@@ -23,7 +23,7 @@ import { ProviderIcon, TerraformBadge } from "./ProviderBadge";
 import { IdentityList } from "./TestResult";
 import { describeApiError } from "./errors";
 import { displayValue, fieldVisible, initialValues } from "./form";
-import { NOT_TERRAFORM_READY, hasDeviceFlow, identitySummary, providerMeta, terraformEnvNames } from "./providers";
+import { NOT_TERRAFORM_READY, TERRAFORM_ENV_UNKNOWN, hasDeviceFlow, identitySummary, providerMeta, terraformEnvNames } from "./providers";
 
 /** Secret keys written by the service itself (device flows); listed, never replaceable here. */
 const INTERNAL_SECRET_LABELS: Record<string, string> = {
@@ -110,7 +110,7 @@ export function ConnectionDetail({ connectionId }: { connectionId: string }) {
     );
   }
 
-  const provider = providerMeta(connection.provider);
+  const provider = providerMeta(connection.provider, catalog.data);
   const providerLabel = connection.provider_label ?? provider.label;
   const methodLabel = connection.method_label ?? method?.label ?? connection.auth_method.replace(/_/g, " ");
   const env = terraformEnvNames(connection);
@@ -258,7 +258,11 @@ export function ConnectionDetail({ connectionId }: { connectionId: string }) {
               <CardDescription>Variables plan and apply receive from this connection. Values are resolved on the server and never shown.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              {env === null ? (
+              {env === undefined ? (
+                <p className="text-sm text-muted-foreground" data-testid="terraform-env-unknown">
+                  {TERRAFORM_ENV_UNKNOWN}
+                </p>
+              ) : env === null ? (
                 <Alert variant="warning" title="Verify only" testId="terraform-env-blocked">
                   {NOT_TERRAFORM_READY}
                 </Alert>

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { ConnectionCatalog } from "@/types";
 import { NOT_TERRAFORM_READY, providerMeta } from "./providers";
 
 const SIZES = {
@@ -9,22 +10,31 @@ const SIZES = {
   lg: "size-10 rounded-lg text-sm",
 };
 
-/** Monogram tile in the provider's brand tint. Decorative: the label next to it carries the meaning. */
+/**
+ * Monogram tile: brand tint for the providers the UI knows, a neutral tile with a monogram
+ * derived from the key for everything else. Decorative: the label next to it carries the meaning.
+ */
 export function ProviderIcon({ provider, size = "md", className }: { provider: string; size?: keyof typeof SIZES; className?: string }) {
   const meta = providerMeta(provider);
   return (
-    <span aria-hidden data-testid={`provider-icon-${provider}`} className={cn("inline-flex shrink-0 select-none items-center justify-center font-semibold leading-none tracking-tight", SIZES[size], meta.tile, className)}>
+    <span
+      aria-hidden
+      data-testid={`provider-icon-${provider}`}
+      data-generic={meta.known ? undefined : "true"}
+      className={cn("inline-flex shrink-0 select-none items-center justify-center font-semibold leading-none tracking-tight", SIZES[size], meta.tile, className)}
+    >
       {meta.short}
     </span>
   );
 }
 
-export function ProviderBadge({ provider, size = "sm", className }: { provider: string; size?: keyof typeof SIZES; className?: string }) {
-  const meta = providerMeta(provider);
+/** Icon plus label. The label comes from the catalog when given (or an explicit `label`), the UI fallback otherwise. */
+export function ProviderBadge({ provider, label, catalog, size = "sm", className }: { provider: string; label?: string | null; catalog?: ConnectionCatalog | null; size?: keyof typeof SIZES; className?: string }) {
+  const meta = providerMeta(provider, catalog);
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-sm", className)}>
+    <span className={cn("inline-flex items-center gap-1.5 text-sm", className)} data-testid={`provider-badge-${provider}`}>
       <ProviderIcon provider={provider} size={size} />
-      <span>{meta.label}</span>
+      <span>{label ?? meta.label}</span>
     </span>
   );
 }

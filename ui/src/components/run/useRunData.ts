@@ -1,6 +1,9 @@
 import * as React from "react";
 import { TERMINAL_STATUSES, api, subscribeEvents } from "@/api";
+import { loadMeta, peekMeta } from "@/lib/meta";
 import type { Meta, RunEvent, RunRecord, RunState } from "@/types";
+
+export { loadMeta };
 
 interface Snapshot {
   run: RunRecord | null;
@@ -12,22 +15,6 @@ interface Snapshot {
 // cache keyed by run id lets the remounted page paint instantly and resume the stream from
 // where it was instead of flashing skeletons on each tab switch.
 const snapshots = new Map<string, Snapshot>();
-let metaPromise: Promise<Meta> | null = null;
-let cachedMeta: Meta | null = null;
-
-export function loadMeta(): Promise<Meta> {
-  if (!metaPromise) {
-    const pending = api.meta().then((meta) => {
-      cachedMeta = meta;
-      return meta;
-    });
-    pending.catch(() => {
-      metaPromise = null;
-    });
-    metaPromise = pending;
-  }
-  return metaPromise;
-}
 
 export function isExecuting(run: RunRecord | null): boolean {
   return !!run && (run.status === "running" || run.executing === true);
@@ -51,7 +38,7 @@ export function useRunData(runId: string): RunData {
   const [run, setRunState] = React.useState<RunRecord | null>(cached?.run ?? null);
   const [events, setEvents] = React.useState<RunEvent[]>(cached?.events ?? []);
   const [state, setState] = React.useState<RunState | null>(cached?.state ?? null);
-  const [meta, setMeta] = React.useState<Meta | null>(cachedMeta);
+  const [meta, setMeta] = React.useState<Meta | null>(peekMeta());
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(!cached?.run);
   const [generation, setGeneration] = React.useState(0);

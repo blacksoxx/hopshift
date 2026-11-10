@@ -9,12 +9,14 @@ import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDateTime, relativeTime } from "@/lib/format";
-import type { Connection } from "@/types";
+import type { Connection, ConnectionCatalog } from "@/types";
 import { ProviderIcon, TerraformBadge } from "./ProviderBadge";
 import { DOCS_URL, identitySummary, providerMeta, sortProviders } from "./providers";
 
 export interface ConnectionListProps {
   connections: Connection[];
+  /** Provider labels come from here; the list still renders before it has loaded. */
+  catalog?: ConnectionCatalog | null;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
@@ -33,12 +35,17 @@ export function runUrlFor(connection: Pick<Connection, "provider" | "id">): stri
   return `/runs/new?cloud=${encodeURIComponent(connection.provider)}&connection=${encodeURIComponent(connection.id)}`;
 }
 
-export function ConnectionList({ connections, loading, error, onRetry, canTest, canManage, testingId, onTest, onEdit, onDelete, onAdd }: ConnectionListProps) {
+export function ConnectionList({ connections, catalog, loading, error, onRetry, canTest, canManage, testingId, onTest, onEdit, onDelete, onAdd }: ConnectionListProps) {
   const navigate = useNavigate();
   const [provider, setProvider] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
 
   const providersPresent = React.useMemo(() => sortProviders(Array.from(new Set(connections.map((item) => item.provider)))), [connections]);
+  // The API labels each connection's provider; the catalog covers providers no connection names yet.
+  const labelOf = React.useCallback(
+    (key: string) => catalog?.[key]?.label ?? connections.find((item) => item.provider === key && item.provider_label)?.provider_label ?? providerMeta(key).label,
+    [catalog, connections],
+  );
   const needle = query.trim().toLowerCase();
   const filtered = React.useMemo(
     () =>
@@ -46,11 +53,11 @@ export function ConnectionList({ connections, loading, error, onRetry, canTest, 
         .filter((item) => !provider || item.provider === provider)
         .filter((item) => {
           if (!needle) return true;
-          const haystack = [item.name, item.method_label ?? item.auth_method, item.provider_label ?? providerMeta(item.provider).label, identitySummary(item) ?? "", item.created_by ?? ""].join(" ").toLowerCase();
+          const haystack = [item.name, item.method_label ?? item.auth_method, labelOf(item.provider), identitySummary(item) ?? "", item.created_by ?? ""].join(" ").toLowerCase();
           return haystack.includes(needle);
         })
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [connections, provider, needle],
+    [connections, provider, needle, labelOf],
   );
   const filtersActive = provider !== null || needle !== "";
   const showMenu = canTest || canManage;
@@ -86,8 +93,8 @@ export function ConnectionList({ connections, loading, error, onRetry, canTest, 
       <div className="surface">
         <EmptyState
           icon={Cable}
-          title="No cloud connections yet"
-          description="A connection stores how the platform authenticates to a cloud account. Test verifies the identity without touching resources, and Terraform plan and apply receive the credentials as environment variables."
+          title="No connections yet"
+          description="A connection stores how hopshift authenticates to a target account. Test verifies the identity without touching resources, and Terraform plan and apply receive the credentials as environment variables."
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
               {canManage && onAdd ? (
@@ -121,7 +128,7 @@ export function ConnectionList({ connections, loading, error, onRetry, canTest, 
               <button key={key} type="button" onClick={() => setProvider(provider === key ? null : key)} className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-pressed={provider === key} data-testid={`filter-${key}`}>
                 <Badge variant={provider === key ? "default" : "outline"} className="cursor-pointer gap-1.5 pl-1">
                   <ProviderIcon provider={key} size="sm" />
-                  {providerMeta(key).label}
+                  {labelOf(key)}
                 </Badge>
               </button>
             ))}
@@ -169,7 +176,7 @@ export function ConnectionList({ connections, loading, error, onRetry, canTest, 
                         <div className="min-w-0">
                           <div className="truncate font-medium">{connection.name}</div>
                           <div className="truncate text-xs text-muted-foreground">
-                            {connection.provider_label ?? providerMeta(connection.provider).label} · {connection.method_label ?? connection.auth_method.replace(/_/g, " ")}
+                            {connection.provider_label ?? labelOf(connection.provider)} · {connection.method_label ?? connection.auth_method.replace(/_/g, " ")}
                           </div>
                         </div>
                       </div>

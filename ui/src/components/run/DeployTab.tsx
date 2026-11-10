@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDownToLine, Bomb, Braces, Cable, Database, Hammer, Play, Save, StopCircle } from "lucide-react";
 import { ApiError, api, subscribeDeploymentLog } from "@/api";
 import { useAsync } from "@/hooks/useAsync";
+import { useTargets } from "@/hooks/useTargets";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -468,8 +469,11 @@ export function DeployTab({ run, connections, connectionsEnabled, canOperate }: 
   const { toast } = useToast();
   const runId = run.run_id;
   const succeeded = run.status === "succeeded";
-  const sameCloud = React.useMemo(() => connections.filter((connection) => connection.provider === run.cloud), [connections, run.cloud]);
-  const [connectionId, setConnectionId] = React.useState<string>(() => (run.connection_id && sameCloud.some((item) => item.id === run.connection_id) ? run.connection_id : (sameCloud[0]?.id ?? "")));
+  const { labelOf, providerOf } = useTargets();
+  const targetLabel = labelOf(run.cloud);
+  const provider = providerOf(run.cloud);
+  const sameTarget = React.useMemo(() => connections.filter((connection) => connection.provider === provider), [connections, provider]);
+  const [connectionId, setConnectionId] = React.useState<string>(() => (run.connection_id && sameTarget.some((item) => item.id === run.connection_id) ? run.connection_id : (sameTarget[0]?.id ?? "")));
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [dialog, setDialog] = React.useState<Exclude<DeploymentAction, "plan"> | null>(null);
   const [confirmation, setConfirmation] = React.useState("");
@@ -477,8 +481,8 @@ export function DeployTab({ run, connections, connectionsEnabled, canOperate }: 
   const [gateError, setGateError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!connectionId && sameCloud.length > 0) setConnectionId(run.connection_id && sameCloud.some((item) => item.id === run.connection_id) ? run.connection_id : sameCloud[0].id);
-  }, [sameCloud, connectionId, run.connection_id]);
+    if (!connectionId && sameTarget.length > 0) setConnectionId(run.connection_id && sameTarget.some((item) => item.id === run.connection_id) ? run.connection_id : sameTarget[0].id);
+  }, [sameTarget, connectionId, run.connection_id]);
 
   const deployments = useAsync(() => api.listDeployments(runId), [runId], { pollMs: (data) => (data?.some((item) => ACTIVE.has(item.status)) ? 2500 : null) });
   const list = React.useMemo(() => deployments.data ?? [], [deployments.data]);
@@ -536,22 +540,22 @@ export function DeployTab({ run, connections, connectionsEnabled, canOperate }: 
       <Card>
         <CardHeader>
           <CardTitle>Target</CardTitle>
-          <CardDescription>Plan against a cloud connection, review the plan, then apply with a typed confirmation.</CardDescription>
+          <CardDescription>Plan against a {targetLabel} connection, review the plan, then apply with a typed confirmation.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
           {connectionsEnabled ? (
             <div className="grid gap-2 md:max-w-md">
               <Label htmlFor="deploy-connection">Connection</Label>
-              {sameCloud.length === 0 ? (
+              {sameTarget.length === 0 ? (
                 <Alert variant="warning" testId="deploy-no-connection">
-                  No {run.cloud.toUpperCase()} connection yet.{" "}
+                  No {targetLabel} connection yet.{" "}
                   <Link to="/connections" className="font-medium text-primary hover:underline">
                     Add one in Connections
                   </Link>{" "}
                   to plan or apply.
                 </Alert>
               ) : (
-                <SimpleSelect id="deploy-connection" value={connectionId} onValueChange={setConnectionId} options={sameCloud.map((item) => ({ value: item.id, label: `${item.name} · ${item.auth_method}${item.status === "ok" ? "" : ` (${item.status})`}` }))} disabled={!canOperate} testId="deploy-connection" />
+                <SimpleSelect id="deploy-connection" value={connectionId} onValueChange={setConnectionId} options={sameTarget.map((item) => ({ value: item.id, label: `${item.name} · ${item.auth_method}${item.status === "ok" ? "" : ` (${item.status})`}` }))} disabled={!canOperate} testId="deploy-connection" />
               )}
             </div>
           ) : (
@@ -710,7 +714,7 @@ export function DeployTab({ run, connections, connectionsEnabled, canOperate }: 
             <DialogTitle>{dialog === "destroy" ? "Destroy the deployed infrastructure?" : "Apply this plan?"}</DialogTitle>
             <DialogDescription>
               {dialog === "destroy"
-                ? `terraform destroy removes every resource in this run's state${connectionsEnabled ? ` using ${sameCloud.find((item) => item.id === connectionId)?.name ?? "the selected connection"}` : ""}. This cannot be undone.`
+                ? `terraform destroy removes every resource in this run's state${connectionsEnabled ? ` using ${sameTarget.find((item) => item.id === connectionId)?.name ?? "the selected connection"}` : ""}. This cannot be undone.`
                 : `terraform apply executes the saved plan${latestPlan ? ` ${latestPlan.id.slice(0, 8)}` : ""} without re-planning. Variables changed since then have no effect.`}
             </DialogDescription>
           </DialogHeader>

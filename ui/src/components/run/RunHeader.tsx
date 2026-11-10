@@ -1,7 +1,9 @@
 import * as React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Cable, Check, ChevronDown, Cloud, Copy, Download, FileJson, Pencil, Play, Plus, RefreshCw, RotateCcw, StopCircle, Tag, Trash2, User, X } from "lucide-react";
+import { ArrowLeft, Cable, Check, ChevronDown, Copy, Download, FileJson, Pencil, Play, Plus, RefreshCw, RotateCcw, StopCircle, Tag, Trash2, User, X } from "lucide-react";
 import { TERMINAL_STATUSES, api } from "@/api";
+import { useTargets } from "@/hooks/useTargets";
+import { TargetBadge } from "@/components/TargetBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +41,8 @@ export function RunHeader({ run, meta, connections, canOperate, executing, onCha
   const terminal = TERMINAL_STATUSES.has(run.status) && !executing;
   const cancellable = (run.status === "running" || run.status === "paused" || run.status === "created") && !run.cancel_requested;
   const nodes = meta?.nodes ?? [];
-  const sameCloud = connections.filter((connection) => connection.provider === run.cloud);
+  const { labelOf, providerOf } = useTargets();
+  const sameTarget = connections.filter((connection) => connection.provider === providerOf(run.cloud));
   const current = connections.find((connection) => connection.id === run.connection_id) ?? null;
 
   async function mutate(key: string, action: () => Promise<unknown>, success: { title: string; description?: string; variant?: "success" | "warning" | "default" }, after: "refresh" | "none" = "refresh") {
@@ -98,9 +101,7 @@ export function RunHeader({ run, meta, connections, canOperate, executing, onCha
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
             <RunId id={run.run_id} />
-            <span className="inline-flex items-center gap-1 uppercase">
-              <Cloud className="size-3.5" /> {run.cloud}
-            </span>
+            <TargetBadge name={run.cloud} className="gap-1 text-xs" />
             <span>{run.mode}</span>
             <span className="inline-flex items-center gap-1">
               <FileJson className="size-3.5" /> {run.input_filename}
@@ -113,7 +114,7 @@ export function RunHeader({ run, meta, connections, canOperate, executing, onCha
                 <User className="size-3.5" /> {run.created_by}
               </span>
             ) : null}
-            <ConnectionChip run={run} current={current} options={sameCloud} enabled={canOperate && meta?.features.connections !== false} busy={busy === "patch"} onSelect={(id) => (id ? patch({ connection_id: id }, "Connection set") : patch({ clear_connection: true }, "Connection cleared"))} />
+            <ConnectionChip run={run} targetLabel={labelOf(run.cloud)} current={current} options={sameTarget} enabled={canOperate && meta?.features.connections !== false} busy={busy === "patch"} onSelect={(id) => (id ? patch({ connection_id: id }, "Connection set") : patch({ clear_connection: true }, "Connection cleared"))} />
           </div>
 
           <TagsEditor tags={run.tags ?? []} editable={canOperate} saving={busy === "patch"} onSave={(tags) => patch({ tags }, "Tags updated")} />
@@ -277,7 +278,7 @@ function RunId({ id }: { id: string }) {
   );
 }
 
-function ConnectionChip({ run, current, options, enabled, busy, onSelect }: { run: RunRecord; current: Connection | null; options: Connection[]; enabled: boolean; busy: boolean; onSelect: (id: string | null) => void }) {
+function ConnectionChip({ run, targetLabel, current, options, enabled, busy, onSelect }: { run: RunRecord; targetLabel: string; current: Connection | null; options: Connection[]; enabled: boolean; busy: boolean; onSelect: (id: string | null) => void }) {
   if (!enabled) {
     return (
       <span className="inline-flex items-center gap-1">
@@ -298,7 +299,7 @@ function ConnectionChip({ run, current, options, enabled, busy, onSelect }: { ru
             {connection.name} <span className="text-muted-foreground">· {connection.auth_method}</span>
           </SelectItem>
         ))}
-        {options.length === 0 ? <div className="px-2 py-1.5 text-xs text-muted-foreground">No {run.cloud.toUpperCase()} connections yet.</div> : null}
+        {options.length === 0 ? <div className="px-2 py-1.5 text-xs text-muted-foreground">No {targetLabel} connections yet.</div> : null}
       </SelectContent>
     </Select>
   );

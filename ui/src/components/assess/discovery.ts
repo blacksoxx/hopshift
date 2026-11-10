@@ -19,7 +19,11 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-/** Counts the parts of a vSphere discovery JSON that matter before scoring it. */
+/**
+ * Counts the parts of a discovery JSON that matter before scoring it. The assessment service
+ * scores workload inventories (`virtual_machines`, as the VMware vSphere collector writes them);
+ * the origin fields are read when present and left blank otherwise.
+ */
 export function summarizeDiscovery(payload: unknown): DiscoverySummary {
   const data = asRecord(payload);
   const metadata = asRecord(data.metadata);
@@ -57,7 +61,7 @@ export function parseDiscovery(text: string, name: string, size: number): Loaded
   }
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error(`${name} is not a JSON object.`);
   const summary = summarizeDiscovery(payload);
-  if (summary.vms === 0) throw new Error("No virtual machines found. Expected a vSphere discovery JSON with a virtual_machines list.");
+  if (summary.vms === 0) throw new Error("No workloads found. Expected a discovery JSON with a virtual_machines list.");
   return { name, size, payload: payload as Record<string, unknown>, summary };
 }
 

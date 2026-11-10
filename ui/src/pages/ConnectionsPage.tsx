@@ -16,7 +16,7 @@ import { describeApiError } from "@/components/connections/errors";
 import { identitySummary } from "@/components/connections/providers";
 import type { Connection } from "@/types";
 
-/** `/connections` lists the cloud connections; `/connections/:connectionId` shows one. */
+/** `/connections` lists the stored connections; `/connections/:connectionId` shows one. */
 export function ConnectionsPage() {
   const { connectionId } = useParams<{ connectionId: string }>();
   if (connectionId) return <ConnectionDetail key={connectionId} connectionId={connectionId} />;
@@ -60,7 +60,7 @@ function ConnectionsIndex() {
     <div>
       <PageHeader
         title="Connections"
-        description="Cloud accounts the platform verifies and hands to Terraform for plan and apply."
+        description="Target accounts hopshift verifies and hands to Terraform for plan and apply."
         actions={
           can("admin") && connectionsEnabled ? (
             <Button onClick={() => setAddOpen(true)} data-testid="add-connection">
@@ -85,6 +85,7 @@ function ConnectionsIndex() {
 
       <ConnectionList
         connections={items}
+        catalog={catalog.data}
         loading={connections.loading}
         error={connections.error}
         onRetry={() => void connections.reload()}
