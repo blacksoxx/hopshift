@@ -4,14 +4,14 @@ import shutil
 
 import pytest
 
-from agent.nodes.validator import validator
-from cim.schema import (
+from hopshift.cim.schema import (
     CanonicalInfrastructureModel,
     ComputeUnit,
     MigrationStatus,
     NetworkTopology,
     TargetProvider,
 )
+from hopshift.pipeline.nodes.validator import validator
 
 
 def _empty_cim() -> CanonicalInfrastructureModel:
@@ -77,7 +77,7 @@ def test_validator_fails_empty_hcl_when_workload_exists() -> None:
 def test_validator_runs_terraform_inside_provider_root(monkeypatch) -> None:
     """Regression: validator used to run terraform in the workspace root, which has no
     .tf files, so terraform validate passed trivially."""
-    import validation.tf_runner as tf_runner
+    import hopshift.validation.tf_runner as tf_runner
 
     observed_cwds: list[str] = []
 
@@ -142,8 +142,8 @@ def test_validator_builds_compliance_report_from_opa_results(monkeypatch) -> Non
     """The validator turns OPA compliance violations into compliance_result; enforce violations
     are already deny messages, so they fail the gate, while advisory ones only show up in the
     report."""
-    from agent.nodes import validator as validator_module
-    from validation.opa_client import OPAEvaluationResult
+    from hopshift.pipeline.nodes import validator as validator_module
+    from hopshift.validation.opa_client import OPAEvaluationResult
 
     def _fake_evaluate_policies(**kwargs) -> OPAEvaluationResult:
         deny = 'compliance GCP-VM-OSLOGIN: metadata enable-oslogin must be "TRUE" (google_compute_instance.web)'

@@ -11,7 +11,7 @@ Behavior:
 - deterministic renders Terraform from the templates in providers/ (networking, compute, storage, placement, runtime). No LLM, no MCP, no API key. Output is a flat root module per provider and is identical for identical input.
 - llm keeps the original LLM generation loop (requires llm.* and, when mcp.enabled, docker).
 - hybrid renders deterministically first and only falls back to the LLM loop when the deterministic output fails validation; the deterministic errors are the first feedback round.
-- Override per run with `terragen --mode` or the VMWARE_MIGRATION_AGENT_GENERATION_MODE environment variable.
+- Override per run with `terragen --mode` or the HOPSHIFT_GENERATION_MODE environment variable.
 
 ## llm
 
@@ -142,7 +142,7 @@ Service layer used by the API, the UI and the platform.
 - auth.mfa: `optional` or `required` (users without a second factor may only use the account endpoints until enrolled)
 - auth.lockout_threshold, auth.lockout_minutes: failed-login lockout per account
 - auth.oidc: `enabled`, `issuer`, `client_id`, `client_secret_env` (name of the environment variable holding the client secret), `scopes`, `allowed_domains`, `default_role`, `admin_groups`, `groups_claim`
-- secret_key_env: environment variable holding the Fernet key(s) that encrypt stored credentials (default `VMA_SECRET_KEY`; comma-separated keys, the first encrypts, all decrypt)
+- secret_key_env: environment variable holding the Fernet key(s) that encrypt stored credentials (default `HOPSHIFT_SECRET_KEY`; comma-separated keys, the first encrypts, all decrypt)
 - headers.hsts, headers.content_security_policy (`default` or `off`)
 - allowed_origins: extra origins allowed to call the API with a session cookie
 - api_docs: serve Swagger UI at /docs

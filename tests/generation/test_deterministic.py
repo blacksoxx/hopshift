@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent.generation.deterministic import DeterministicRenderError, render_deterministic
-from cim.schema import (
+from hopshift.cim.schema import (
     NIC,
     CanonicalInfrastructureModel,
     ClusterSemantics,
@@ -15,6 +14,7 @@ from cim.schema import (
     StorageVolume,
     TargetProvider,
 )
+from hopshift.pipeline.generation.deterministic import DeterministicRenderError, render_deterministic
 
 TAGS = {"Environment": "dev", "Owner": "platform", "MigratedFrom": "vmware-vcenter"}
 
@@ -50,7 +50,7 @@ def test_render_produces_flat_root_module(provider: str) -> None:
 
     root = f"{provider}-migration/"
     assert all(path.startswith(root) and "/" not in path[len(root):] for path in files), sorted(files)
-    assert f"{root}providers.tf" in files
+    assert f"{root}targets.tf" in files
     assert f"{root}variables.tf" in files
     assert f"{root}networking_vpc.tf" in files
     assert f"{root}compute_web-01.tf" in files

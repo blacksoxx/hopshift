@@ -50,8 +50,8 @@ def main() -> None:
     # terraform/tflint come from PATH; opa may live only in the virtualenv's bin on dev machines
     venv_bin = Path(sys.executable).resolve().parent
     os.environ["PATH"] = f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}"
-    os.environ.setdefault("VMA_SECRET_KEY", "Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=")
-    os.environ.setdefault("TF_PLUGIN_CACHE_DIR", str(Path.home() / ".cache" / "vmware-migration-agent" / "terraform-plugins"))
+    os.environ.setdefault("HOPSHIFT_SECRET_KEY", "Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=")
+    os.environ.setdefault("TF_PLUGIN_CACHE_DIR", str(Path.home() / ".cache" / "hopshift" / "terraform-plugins"))
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):
         os.environ.pop(key, None)  # the suite must never call a model
 
@@ -60,7 +60,7 @@ def main() -> None:
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))  # the script lives under ui/e2e; the packages live at the root
     sys.argv = ["vma", "serve", "--config", str(config_path), "--host", args.host, "--port", str(args.port)]
-    from cli.main import main as cli_main
+    from hopshift.cli.main import main as cli_main
 
     cli_main()
 

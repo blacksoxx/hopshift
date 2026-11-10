@@ -5,7 +5,7 @@
 Please do not open a public issue for security problems.
 
 Use GitHub's private vulnerability reporting:
-https://github.com/blacksoxx/vmware-migration-agent/security/advisories/new (the repository's
+https://github.com/blacksoxx/hopshift/security/advisories/new (the repository's
 **Security** tab, **Report a vulnerability**). If that form is unavailable to you, contact the
 maintainer through the GitHub profile at https://github.com/blacksoxx and ask for a private
 channel before sharing details. You will get an acknowledgement within 3 working days and a fix
@@ -24,7 +24,7 @@ The `main` branch and the latest tagged release receive security fixes.
 - The platform API, UI and CLI (`api/`, `ui/`, `cli/`, `vma/`).
 - The pipeline and the Terraform it generates (`agent/`, `cim/`, `providers/`): a generated
   configuration that violates the documented security controls is a vulnerability.
-- The OPA policies in `validation/policies/` and the compliance mapping in `vma/compliance/`.
+- The OPA policies in `hopshift/validation/policies/` and the compliance mapping in `vma/compliance/`.
 - The container image and compose file.
 
 ## Security design in one paragraph

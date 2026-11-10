@@ -4,7 +4,7 @@ The Canonical Infrastructure Model (CIM) is defined in cim/schema.py and is the 
 source hypervisor and any target cloud. Translators produce it; sizing, placement, blockers, the
 assessment and every renderer consume it. Nothing downstream of the CIM knows a source field name.
 
-`cim/cim.schema.json` is generated from the models (`python -m cim.schema_export`); a test fails
+`hopshift/cim/cim.schema.json` is generated from the models (`python -m hopshift.cim.schema_export`); a test fails
 when it drifts.
 
 ## Version 1.1

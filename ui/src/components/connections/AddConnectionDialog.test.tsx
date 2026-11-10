@@ -74,7 +74,7 @@ describe("AddConnectionDialog", () => {
     renderWithProviders(<AddConnectionDialog open onOpenChange={() => {}} catalog={CATALOG} secretsAvailable={false} existingNames={[]} onCreated={() => {}} />);
     await user.click(screen.getByTestId("provider-aws"));
     expect(screen.getByTestId("method-access_keys")).toBeDisabled();
-    expect(screen.getByTestId("method-access_keys")).toHaveTextContent("needs VMA_SECRET_KEY");
+    expect(screen.getByTestId("method-access_keys")).toHaveTextContent("needs HOPSHIFT_SECRET_KEY");
     expect(screen.getByTestId("method-environment")).toBeEnabled();
     expect(screen.getByTestId("method-sso")).toBeEnabled();
     await user.click(screen.getByTestId("method-environment"));
@@ -95,7 +95,7 @@ describe("AddConnectionDialog", () => {
     expect(alert).toHaveTextContent("a connection named 'lab' already exists");
     expect(api.testConnection).not.toHaveBeenCalled();
 
-    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set VMA_SECRET_KEY (generate one with `vma secrets generate-key`)"));
+    vi.mocked(api.createConnection).mockRejectedValueOnce(new ApiError(503, "no encryption key configured: set HOPSHIFT_SECRET_KEY (generate one with `vma secrets generate-key`)"));
     await user.click(screen.getByTestId("connection-submit"));
     await waitFor(() => expect(screen.getByTestId("add-error")).toHaveTextContent("Secrets cannot be stored"));
   });

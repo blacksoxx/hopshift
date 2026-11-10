@@ -2,7 +2,7 @@
   <img src="ui/public/favicon.svg" width="72" alt="" />
 </p>
 
-<h1 align="center">VMware Migration Agent</h1>
+<h1 align="center">hopshift</h1>
 
 <p align="center">
   Turn vSphere discovery into validated, compliant Terraform for AWS, Azure, GCP or OpenStack,<br/>
@@ -10,12 +10,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/ci.yml"><img src="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/codeql.yml"><img src="https://github.com/blacksoxx/vmware-migration-agent/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/blacksoxx/vmware-migration-agent"><img src="https://api.scorecard.dev/projects/github.com/blacksoxx/vmware-migration-agent/badge" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/blacksoxx/vmware-migration-agent/tree/python-coverage-comment-action-data"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/blacksoxx/vmware-migration-agent/python-coverage-comment-action-data/endpoint.json" alt="Coverage" /></a>
-  <a href="https://github.com/blacksoxx/vmware-migration-agent/releases"><img src="https://img.shields.io/github/v/release/blacksoxx/vmware-migration-agent?color=4f46e5" alt="Release" /></a>
-  <a href="https://github.com/blacksoxx/vmware-migration-agent/pkgs/container/vmware-migration-agent"><img src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white" alt="Container image" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/actions/workflows/ci.yml"><img src="https://github.com/blacksoxx/hopshift/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/actions/workflows/codeql.yml"><img src="https://github.com/blacksoxx/hopshift/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/blacksoxx/hopshift"><img src="https://api.scorecard.dev/projects/github.com/blacksoxx/hopshift/badge" alt="OpenSSF Scorecard" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/tree/python-coverage-comment-action-data"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/blacksoxx/hopshift/python-coverage-comment-action-data/endpoint.json" alt="Coverage" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/releases"><img src="https://img.shields.io/github/v/release/blacksoxx/hopshift?color=4f46e5" alt="Release" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/pkgs/container/hopshift"><img src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4f46e5.svg" alt="MIT" /></a>
   <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/terraform-1.17-7b42bc.svg" alt="Terraform 1.17" />
@@ -62,10 +62,10 @@ data move you run with your tool of choice.
 ## Quick start
 
 ```bash
-git clone https://github.com/blacksoxx/vmware-migration-agent.git
-cd vmware-migration-agent
+git clone https://github.com/blacksoxx/hopshift.git
+cd hopshift
 cp .env.example .env
-docker compose run --rm --no-deps agent python -m cli.main secrets generate-key   # put it in .env as VMA_SECRET_KEY
+docker compose run --rm --no-deps agent python -m hopshift.cli.main secrets generate-key   # put it in .env as HOPSHIFT_SECRET_KEY
 docker compose up -d --build
 ```
 
@@ -186,7 +186,7 @@ targets, integration, UI, end-to-end, secret and dependency scans, semgrep, triv
 coverage comment and a dependency review. Releases build a signed multi-arch image on GHCR.
 See [docs/ci.md](docs/ci.md), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
-Prefer the published image? `docker pull ghcr.io/blacksoxx/vmware-migration-agent:latest`
+Prefer the published image? `docker pull ghcr.io/blacksoxx/hopshift:latest`
 (linux/amd64 and linux/arm64, Sigstore-signed; see the release notes to verify).
 
 ## Roadmap

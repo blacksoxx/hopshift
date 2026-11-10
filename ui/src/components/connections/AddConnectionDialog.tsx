@@ -234,7 +234,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
                         ) : null}
                         {needsSecrets ? (
                           <Badge variant={blocked ? "warning" : "muted"}>
-                            <Lock className="size-3" /> {blocked ? "needs VMA_SECRET_KEY" : "stores secrets"}
+                            <Lock className="size-3" /> {blocked ? "needs HOPSHIFT_SECRET_KEY" : "stores secrets"}
                           </Badge>
                         ) : null}
                       </span>
@@ -252,7 +252,7 @@ export function AddConnectionDialog({ open, onOpenChange, catalog, secretsAvaila
               {apiError ? (
                 <Alert variant="error" title={apiError.title} testId="add-error">
                   <p className="break-words">{apiError.message}</p>
-                  {apiError.status === 503 ? <p className="mt-1">Set VMA_SECRET_KEY on the server and restart it, or pick a method without secrets.</p> : null}
+                  {apiError.status === 503 ? <p className="mt-1">Set HOPSHIFT_SECRET_KEY on the server and restart it, or pick a method without secrets.</p> : null}
                 </Alert>
               ) : null}
               <Field

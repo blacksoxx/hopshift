@@ -1,5 +1,5 @@
 {
-  "name": "vmware-migration-agent-ui",
+  "name": "hopshift-ui",
   "private": true,
   "version": "0.1.0",
   "type": "module",

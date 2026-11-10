@@ -10,8 +10,8 @@ Requirements: Python 3.12, Node 22, and for validation and deployments the `terr
 optional and only needed for the MCP documentation retriever and the container build.
 
 ```bash
-git clone https://github.com/blacksoxx/vmware-migration-agent.git
-cd vmware-migration-agent
+git clone https://github.com/blacksoxx/hopshift.git
+cd hopshift
 
 # Python (the lock files under requirements/ are hash-pinned; CI and the image use them)
 python3.12 -m venv .venv && source .venv/bin/activate
@@ -22,7 +22,7 @@ pre-commit install          # ruff, gitleaks and sanity hooks run on every commi
 cd ui && npm ci && cd ..
 
 # Run the platform (API + UI) on http://127.0.0.1:8080
-export VMA_SECRET_KEY=$(vma secrets generate-key)
+export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
 vma serve
 ```
 
@@ -73,7 +73,7 @@ Dependabot keeps the pins current.
 ## Adding things
 
 - **A cloud provider**: implement `providers/<name>/{compute,network,storage,placement,runtime}.py`,
-  a sizing table, OPA controls in `validation/policies/compliance/`, catalog entries in
+  a sizing table, OPA controls in `hopshift/validation/policies/compliance/`, catalog entries in
   `vma/connections/models.py`, and an integration test case.
 - **A source hypervisor**: add a translator under `cim/translators/` keyed by the discovery
   `schema_name`, and blockers in `cim/blockers.py`.

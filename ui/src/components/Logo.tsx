@@ -17,7 +17,7 @@ export function Wordmark({ compact = false, className }: { compact?: boolean; cl
       <LogoMark />
       {!compact ? (
         <div className="leading-tight">
-          <div className="text-[13.5px] font-semibold tracking-tight">VMware Migration Agent</div>
+          <div className="text-[13.5px] font-semibold tracking-tight">hopshift</div>
           <div className="text-[10.5px] text-muted-foreground">deterministic core · AI at the edges</div>
         </div>
       ) : null}

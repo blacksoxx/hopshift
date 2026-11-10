@@ -1,6 +1,6 @@
 """Compliance controls (validation/policies/compliance) evaluated with the real opa binary.
 
-Each test builds a small hcl_output mapping, runs it through validation.opa_client.evaluate_policies
+Each test builds a small hcl_output mapping, runs it through hopshift.validation.opa_client.evaluate_policies
 and asserts on the violations / denies per control id. Skipped when opa is not installed.
 """
 from __future__ import annotations
@@ -13,11 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from validation.opa_client import OPAEvaluationResult, evaluate_policies
-from vma.compliance.controls import CONTROLS, CONTROLS_BY_ID
+from hopshift.services.compliance.controls import CONTROLS, CONTROLS_BY_ID
+from hopshift.validation.opa_client import OPAEvaluationResult, evaluate_policies
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-POLICIES_DIR = REPO_ROOT / "validation" / "policies"
+POLICIES_DIR = REPO_ROOT / "hopshift" / "validation" / "policies"
 
 
 def _opa_bin() -> str | None:
@@ -66,7 +66,7 @@ LABELS = """
 # ── AWS ───────────────────────────────────────────────────────────────────────
 
 AWS_HARDENED = {
-    "aws-migration/providers.tf": """
+    "aws-migration/targets.tf": """
 terraform {
   required_providers {
     aws = {
@@ -647,7 +647,7 @@ def test_nothing_is_evaluated_for_an_unknown_cloud() -> None:
 def test_policy_bundle_controls_match_the_python_catalog() -> None:
     assert OPA_BIN is not None
     completed = subprocess.run(
-        [OPA_BIN, "eval", "--format", "json", "--data", str(POLICIES_DIR), "data.vmwaremigration.compliance.controls"],
+        [OPA_BIN, "eval", "--format", "json", "--data", str(POLICIES_DIR), "data.hopshift.compliance.controls"],
         capture_output=True,
         text=True,
         check=True,

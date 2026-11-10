@@ -7,10 +7,10 @@ per-control report (`compliance_report.json` / `compliance_report.md`) that ship
 ## How it works
 
 1. The validator parses the generated `.tf` files with `validation/hcl_parser.py` and evaluates
-   the whole policy bundle (`validation/policies`) with OPA, exactly as before. Nothing changed in
+   the whole policy bundle (`hopshift/validation/policies`) with OPA, exactly as before. Nothing changed in
    how `deny` messages are collected.
-2. The controls live in `validation/policies/compliance/*.rego`, package
-   `vmwaremigration.compliance` (one file per cloud plus `common.rego`). Every rule emits a
+2. The controls live in `hopshift/validation/policies/compliance/*.rego`, package
+   `hopshift.compliance` (one file per cloud plus `common.rego`). Every rule emits a
    `violations` entry:
 
    ```json
@@ -41,7 +41,7 @@ per-control report (`compliance_report.json` / `compliance_report.md`) that ship
    per-node event summaries so the API/UI can show them without reading the report.
 
 The catalog (`vma/compliance/controls.py`) and the bundle must agree: a test evaluates
-`data.vmwaremigration.compliance.controls` with the real `opa` binary and compares ids and levels
+`data.hopshift.compliance.controls` with the real `opa` binary and compares ids and levels
 with the Python catalog.
 
 ## Secure-by-default renderers
@@ -154,7 +154,7 @@ that are missing from the catalog are kept visible as `Unknown control <id>` so 
 ## Adding a control
 
 1. Pick an id in the `<CLOUD>-<AREA>-<WHAT>` form (`AWS-`, `AZ-`, `GCP-`, `OS-`, or `ALL-`).
-2. Add the rule to `validation/policies/compliance/<cloud>.rego`: register the id and level in the
+2. Add the rule to `hopshift/validation/policies/compliance/<cloud>.rego`: register the id and level in the
    `<cloud>_controls` map (that is what populates `controls` and `evaluated`) and write one or more
    `violations contains v if { ... v := <cloud>_violation("<ID>", r, "message") }` rules on
    `input.resources`. Use `object.get` with explicit defaults, and keep nested function calls inside
@@ -168,7 +168,7 @@ that are missing from the catalog are kept visible as `Unknown control <id>` so 
    integration test `test_deterministic_render_passes_every_enforce_compliance_control` fails
    otherwise.
 5. Add cases to `tests/validation/test_compliance_policies.py` (a compliant and a violating
-   snippet) and run `opa check validation/policies` and `opa fmt --list validation/policies/compliance`.
+   snippet) and run `opa check hopshift/validation/policies` and `opa fmt --list hopshift/validation/policies/compliance`.
 
 ## What this is, and is not
 

@@ -50,7 +50,7 @@ are preserved on files that already use them.
 
 - `vma/db.py` — `Database(path)`, `with db.connect() as conn`, `register_migration(name, sql)`,
   `db.migrate()`. Every service registers its own tables at import time.
-- `vma/secrets.py` — `SecretBox.from_env()` reads `VMA_SECRET_KEY` (one or more comma-separated
+- `vma/secrets.py` — `SecretBox.from_env()` reads `HOPSHIFT_SECRET_KEY` (one or more comma-separated
   Fernet keys, first is primary). `encrypt_json` / `decrypt_json` / `rotate` / `generate_key()`.
   `available` is false without a key; services must refuse to store secrets in that case and
   explain how to set the key.
@@ -75,8 +75,8 @@ connection management, settings, the audit log.
 ## Workstream A — security (`vma/security/`, `api/routes/auth.py`, `users.py`, `audit.py`)
 
 Users with argon2id password hashes, sessions (random 256-bit token, stored hashed, absolute and
-idle expiry, cookie `vma_session` HttpOnly SameSite=Lax, `Secure` on https), API tokens
-(`vma_` prefix, stored hashed, role, optional expiry, last used), RBAC, TOTP MFA with recovery
+idle expiry, cookie `hopshift_session` HttpOnly SameSite=Lax, `Secure` on https), API tokens
+(`hs_` prefix, stored hashed, role, optional expiry, last used), RBAC, TOTP MFA with recovery
 codes (policy `optional` or `required`), OIDC SSO (discovery, PKCE, nonce, JWKS verification,
 domain/group to role mapping), login lockout (per user) and per-IP throttling, security headers
 middleware (CSP, HSTS on https, frame deny, nosniff, referrer policy, permissions policy),
@@ -120,7 +120,7 @@ State stays local in the root module unless `deploy.remote_state` is configured,
 `backend.tf` is written. Cancel terminates the process. `deploy.allow_apply` and
 `deploy.allow_destroy` gate the actions globally.
 
-## Workstream D — compliance (`validation/policies/compliance/`, `vma/compliance/`, renderers)
+## Workstream D — compliance (`hopshift/validation/policies/compliance/`, `vma/compliance/`, renderers)
 
 OPA policies with explicit control metadata, evaluated in the validator alongside the existing
 rules. Controls have a level: `enforce` (fails the gate) or `advisory` (reported only). The
@@ -154,7 +154,7 @@ branches into `main`, then flip the repository to public.
 
 ## API surface (all paths under `/api`)
 
-Auth and principal: cookie session or `Authorization: Bearer vma_...`.
+Auth and principal: cookie session or `Authorization: Bearer hs_...`.
 
 ```
 GET  /auth/status                      public: {setup_required, auth_mode, oidc_enabled, mfa_policy, user?}
@@ -221,13 +221,13 @@ security:
       enabled: false
       issuer: ""
       client_id: ""
-      client_secret_env: VMA_OIDC_CLIENT_SECRET
+      client_secret_env: HOPSHIFT_OIDC_CLIENT_SECRET
       scopes: [openid, profile, email]
       allowed_domains: []
       default_role: viewer
       admin_groups: []
       groups_claim: groups
-  secret_key_env: VMA_SECRET_KEY
+  secret_key_env: HOPSHIFT_SECRET_KEY
   headers:
     hsts: true
     content_security_policy: default

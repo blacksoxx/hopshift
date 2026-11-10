@@ -77,7 +77,7 @@ Common to every method: `region` (required; `AWS_REGION` and `AWS_DEFAULT_REGION
 |---|---|---|---|
 | `access_keys` | `access_key_id`, `secret_access_key` (secret), `session_token` (secret, optional) | STS `GetCallerIdentity` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` |
 | `profile` | `profile`, `shared_credentials_file` (optional), `config_file` (optional) | STS with the named profile | `AWS_PROFILE`, `AWS_SDK_LOAD_CONFIG=1`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_CONFIG_FILE` |
-| `assume_role` | `base_method` (`access_keys`, `profile` or `environment`) plus that method's fields, `role_arn`, `external_id` (optional), `session_name` (default `vmware-migration-agent`) | STS `AssumeRole` then `GetCallerIdentity` | temporary `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` from the assumed role |
+| `assume_role` | `base_method` (`access_keys`, `profile` or `environment`) plus that method's fields, `role_arn`, `external_id` (optional), `session_name` (default `hopshift`) | STS `AssumeRole` then `GetCallerIdentity` | temporary `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` from the assumed role |
 | `environment` | none | STS with whatever the process has (env vars, instance role, ECS task role, IRSA) | region only |
 | `sso` | `start_url`, `sso_region`, `account_id`, `role_name` | after the device flow: `sso.GetRoleCredentials` with the cached access token, then STS | temporary credentials from `GetRoleCredentials` |
 | `web_identity` | `role_arn`, `web_identity_token_file`, `session_name` | STS `AssumeRoleWithWebIdentity` with the token file, then `GetCallerIdentity` | `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_SESSION_NAME` |
@@ -180,7 +180,7 @@ services:
 
 Paths in `shared_credentials_file`, `config_file`, `credentials_file`, `web_identity_token_file`,
 `oidc_token_file_path` and `clouds_yaml_path` are container paths (the compose file maps
-`VMA_PORT`, default 8080, to the API). For `managed_identity`,
+`HOPSHIFT_PORT`, default 8080, to the API). For `managed_identity`,
 `environment` (instance role, IRSA) and the metadata-server flavour of `adc`, nothing is mounted:
 the platform just needs to run on a host (VM, pod) that has the identity.
 
@@ -197,11 +197,11 @@ recipe.
 ## Security model
 
 - Secrets are encrypted at rest with Fernet (AES-128-CBC + HMAC-SHA256) using the key in
-  `VMA_SECRET_KEY` (generate one with `vma secrets generate-key`). The plaintext never reaches
+  `HOPSHIFT_SECRET_KEY` (generate one with `vma secrets generate-key`). The plaintext never reaches
   SQLite: `connections.secret_token` and `device_flows.secret_token` hold the ciphertext, and
   `connections.secret_keys` holds only field names. Without a key, connections with secret
   fields cannot be created (503 with instructions); methods without secrets still work.
-- Key rotation: set `VMA_SECRET_KEY=<new>,<old>` and run `vma secrets rotate`
+- Key rotation: set `HOPSHIFT_SECRET_KEY=<new>,<old>` and run `vma secrets rotate`
   (`ConnectionService.rotate_secrets()` re-encrypts every token with the first key).
 - The API never returns a secret value: responses carry `has_secret` and `secret_fields` only;
   `GET` after a `PATCH` shows which fields are stored, not their contents. Device flow

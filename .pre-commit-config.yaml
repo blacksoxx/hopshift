@@ -17,4 +17,4 @@ repos:
         args: [--maxkb=512]
       - id: detect-private-key
         # dummy PEM fixtures used by the connection tests, and the gitleaks allowlist regex
-        exclude: ^(tests/vma/test_connections\.py|\.gitleaks\.toml)$
+        exclude: ^(tests/services/test_connections\.py|\.gitleaks\.toml)$

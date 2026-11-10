@@ -93,7 +93,7 @@ describe("ConnectionsPage role gating", () => {
   it("warns when secrets cannot be stored", async () => {
     setup("viewer", { secrets: false });
     await screen.findByTestId("connection-row");
-    expect(screen.getByTestId("secrets-warning")).toHaveTextContent("VMA_SECRET_KEY");
+    expect(screen.getByTestId("secrets-warning")).toHaveTextContent("HOPSHIFT_SECRET_KEY");
   });
 
   it("shows the empty state with the guide link when there are no connections", async () => {

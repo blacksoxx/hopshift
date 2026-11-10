@@ -12,10 +12,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.runtime import MigrationRuntime, RunRecord
-from api.app import create_app
-from api.deps import Principal
-from vma.errors import NotFound
+from hopshift.api.app import create_app
+from hopshift.api.deps import Principal
+from hopshift.pipeline.runtime import MigrationRuntime, RunRecord
+from hopshift.services.errors import NotFound
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FAKE_TERRAFORM = REPO_ROOT / "tests" / "fixtures" / "fake_terraform.sh"
@@ -100,7 +100,7 @@ def make_run(runtime: MigrationRuntime, status: str = "succeeded") -> str:
     runtime.store.create(record, {"virtual_machines": []})
     root = runtime.store.artifacts_dir(record.run_id) / "aws-migration"
     root.mkdir(parents=True)
-    (root / "providers.tf").write_text('provider "aws" {\n  region = var.aws_region\n}\n', encoding="utf-8")
+    (root / "targets.tf").write_text('provider "aws" {\n  region = var.aws_region\n}\n', encoding="utf-8")
     (root / "variables.tf").write_text(VARIABLES_TF, encoding="utf-8")
     return record.run_id
 

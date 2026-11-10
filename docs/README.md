@@ -1,4 +1,4 @@
-# VMware Migration Agent Docs
+# hopshift Docs
 
 Implementation-accurate documentation for the current codebase.
 

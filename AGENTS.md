@@ -26,7 +26,7 @@ between the VMware world and the cloud provider world. Never bypass it.
 ## Key files to read before coding
 - `docs/architecture.md`      — the map: pipeline, platform services, API, UI, storage, threat model
 - `docs/platform-plan.md`     — the phase-3 build contract (API surface, data model, workstreams)
-- `cim/schema.py`             — all data models before touching any node (CIM 1.1; regenerate cim.schema.json with `python -m cim.schema_export`)
+- `cim/schema.py`             — all data models before touching any node (CIM 1.1; regenerate cim.schema.json with `python -m hopshift.cim.schema_export`)
 - `cim/translators/`          — one translator per source hypervisor, selected by discovery schema_name
 - `agent/state.py`            — MigrationState before touching the graph
 - `agent/graph.py`            — the full node graph before adding nodes
@@ -46,7 +46,7 @@ between the VMware world and the cloud provider world. Never bypass it.
 7. Output to output/ directory; deployments run from a copy of the artifacts, never in place
 8. Pydantic v2 for all models; Click for CLI; FastAPI for the API; SQLite (WAL) for platform state
 9. Platform services live in `vma/` and attach through `build_<service>_service(platform)`; services raise `vma.errors` exceptions, the API maps them
-10. Secrets are encrypted at rest with Fernet keys from the environment (`VMA_SECRET_KEY`); never stored or logged in clear
+10. Secrets are encrypted at rest with Fernet keys from the environment (`HOPSHIFT_SECRET_KEY`); never stored or logged in clear
 11. Every mutating action is written to the hash-chained audit log with actor, IP and user agent
 12. UI: React 19 + Vite + Tailwind v4 + Radix primitives owned in-repo (no component framework); hash routes; talks only to `/api`
 
@@ -60,7 +60,7 @@ Generated Terraform:
   `agent/nodes/hcl_generator.py`
 - Generated file paths are validated (no absolute paths, no `..`); VM names are sanitized before they become file names
 - The reporter always runs; unvalidated HCL is never written to output/; the CLI exits non-zero when the run did not succeed
-- Renderers stay compliant with every `enforce` control in `validation/policies/compliance/` (the integration suite checks this)
+- Renderers stay compliant with every `enforce` control in `hopshift/validation/policies/compliance/` (the integration suite checks this)
 
 Platform:
 - Authentication is required by default; `security.auth.mode: disabled` is for local development only
@@ -74,11 +74,11 @@ Platform:
 2. Add the translation logic to `cim/vmware_translator.py`
 3. Add a new file per provider in each `providers/{provider}/` subpackage
 4. Add an OPA policy if the resource has security implications
-5. Regenerate `cim/cim.schema.json` with `python -m cim.schema_export`
+5. Regenerate `hopshift/cim/cim.schema.json` with `python -m hopshift.cim.schema_export`
 
 ## Runtime, API and UI
 - `agent/runtime.py` is the service layer (runs, pause points, state patching, re-run, cancel, delete); the CLI and the
-  API both use it. `api/app.py` is a factory (no module-level app); serve with `vma serve` or `uvicorn --factory api.app:create_app`.
+  API both use it. `api/app.py` is a factory (no module-level app); serve with `vma serve` or `uvicorn --factory hopshift.api.app:create_app`.
 - Platform services: `vma/security` (users, sessions, tokens, MFA, OIDC, lockout, retention, posture), `vma/connections`
   (catalog, verification, Terraform credentials, device flows), `vma/deploy` (terraform plan/apply/destroy with gates),
   `vma/compliance` (control catalog and report), `vma/audit.py`, `vma/secrets.py`, `vma/settings.py`, `vma/db.py`.

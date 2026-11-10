@@ -14,7 +14,7 @@ vi.mock("@/providers/AuthProvider", async () => (await import("@/test-utils")).a
 const checks: PostureCheck[] = [
   { id: "transport.tls", title: "TLS in use", status: "warn", detail: "plain HTTP", frameworks: ["SOC2 CC6.7"] },
   { id: "auth.enforced", title: "Authentication enforced", status: "pass", detail: "auth mode is required", frameworks: ["SOC2 CC6.1", "CIS 6.3"] },
-  { id: "secrets.key", title: "Secrets encryption key configured", status: "fail", detail: "VMA_SECRET_KEY missing", frameworks: ["HIPAA 164.312(a)(2)(iv)"] },
+  { id: "secrets.key", title: "Secrets encryption key configured", status: "fail", detail: "HOPSHIFT_SECRET_KEY missing", frameworks: ["HIPAA 164.312(a)(2)(iv)"] },
   { id: "audit.chain", title: "Audit log integrity", status: "pass", detail: "12 entries, chain verified", frameworks: ["SOC2 CC7.2"] },
 ];
 

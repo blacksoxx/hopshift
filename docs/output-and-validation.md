@@ -67,7 +67,7 @@ Phase 2: validator final gate
 
 ## OPA Policies
 
-Policies live in validation/policies and are evaluated with `opa eval` (binary mode) or an OPA server. They run in both validation phases.
+Policies live in hopshift/validation/policies and are evaluated with `opa eval` (binary mode) or an OPA server. They run in both validation phases.
 
 Input shape: the generated files are parsed with python-hcl2 (validation/hcl_parser.py) and OPA receives a structured document, so rules check attributes per resource instead of matching substrings in file text:
 
@@ -76,7 +76,7 @@ Input shape: the generated files are parsed with python-hcl2 (validation/hcl_par
 - input.parse_errors[]: files that are not valid HCL (any entry is a deny)
 - input.generated_files: the raw path -> content map, kept for ad-hoc rules
 
-Rules (all in package vmwaremigration, `import rego.v1`, compatible with OPA 0.68 and 1.x):
+Rules (all in package hopshift, `import rego.v1`, compatible with OPA 0.68 and 1.x):
 
 - no_open_ingress: 0.0.0.0/0 or ::/0 ingress on AWS security groups and rules (both styles), Azure NSG rules (`*`, Internet, Any, 0.0.0.0/0), GCP firewalls with allow blocks, OpenStack security group rules.
 - no_public_s3: public S3 ACLs, disabled public access blocks, bucket policies with Principal `*`, GCS allUsers/allAuthenticatedUsers, Azure anonymous containers and storage accounts that do not set allow_nested_items_to_be_public = false.

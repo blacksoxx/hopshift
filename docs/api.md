@@ -20,7 +20,7 @@ unless `security.api_docs` is false. Responses are JSON; errors are plain text o
 Send either the session cookie set by `POST /api/auth/login` (browser) or an API token:
 
 ```
-Authorization: Bearer vma_...
+Authorization: Bearer hs_...
 ```
 
 Cookie-authenticated mutations must come from the same origin (or one listed in

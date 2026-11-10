@@ -1,0 +1,746 @@
+{
+  "$defs": {
+    "Architecture": {
+      "enum": [
+        "x86_64",
+        "aarch64",
+        "ppc64le",
+        "s390x",
+        "unknown"
+      ],
+      "title": "Architecture",
+      "type": "string"
+    },
+    "ClusterSemantics": {
+      "enum": [
+        "ha",
+        "anti_affinity",
+        "affinity",
+        "lb",
+        "unknown"
+      ],
+      "title": "ClusterSemantics",
+      "type": "string"
+    },
+    "ComputeCluster": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "semantics": {
+          "$ref": "#/$defs/ClusterSemantics",
+          "default": "unknown"
+        },
+        "ha_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ha Enabled"
+        },
+        "drs_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Drs Enabled"
+        },
+        "datacenter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datacenter"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ComputeCluster",
+      "type": "object"
+    },
+    "ComputeUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "vcpus": {
+          "minimum": 1,
+          "title": "Vcpus",
+          "type": "integer"
+        },
+        "ram_mb": {
+          "minimum": 1,
+          "title": "Ram Mb",
+          "type": "integer"
+        },
+        "migration_status": {
+          "$ref": "#/$defs/MigrationStatus",
+          "default": "ready"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        },
+        "cluster_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cluster Ref"
+        },
+        "is_encrypted": {
+          "default": false,
+          "title": "Is Encrypted",
+          "type": "boolean"
+        },
+        "has_vtpm": {
+          "default": false,
+          "title": "Has Vtpm",
+          "type": "boolean"
+        },
+        "nics": {
+          "items": {
+            "$ref": "#/$defs/NIC"
+          },
+          "title": "Nics",
+          "type": "array"
+        },
+        "storage_volumes": {
+          "items": {
+            "$ref": "#/$defs/StorageVolume"
+          },
+          "title": "Storage Volumes",
+          "type": "array"
+        },
+        "architecture": {
+          "$ref": "#/$defs/Architecture",
+          "default": "unknown"
+        },
+        "guest_os": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guest Os"
+        },
+        "guest_os_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guest Os Id"
+        },
+        "guest_family": {
+          "anyOf": [
+            {
+              "enum": [
+                "linux",
+                "windows",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guest Family"
+        },
+        "firmware": {
+          "anyOf": [
+            {
+              "enum": [
+                "bios",
+                "efi"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware"
+        },
+        "power_state": {
+          "anyOf": [
+            {
+              "enum": [
+                "on",
+                "off",
+                "suspended"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Power State"
+        },
+        "is_template": {
+          "default": false,
+          "title": "Is Template",
+          "type": "boolean"
+        },
+        "snapshot_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Snapshot Count",
+          "type": "integer"
+        },
+        "ip_addresses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ip Addresses",
+          "type": "array"
+        },
+        "source_tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Source Tags",
+          "type": "object"
+        },
+        "custom_attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Custom Attributes",
+          "type": "object"
+        },
+        "annotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annotation"
+        },
+        "cpu_reservation_mhz": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cpu Reservation Mhz"
+        },
+        "memory_reservation_mb": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory Reservation Mb"
+        },
+        "cores_per_socket": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cores Per Socket"
+        },
+        "source_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Endpoint"
+        },
+        "image_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Ref"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "vcpus",
+        "ram_mb"
+      ],
+      "title": "ComputeUnit",
+      "type": "object"
+    },
+    "MigrationStatus": {
+      "enum": [
+        "ready",
+        "blocked",
+        "needs_review"
+      ],
+      "title": "MigrationStatus",
+      "type": "string"
+    },
+    "NIC": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "port_group_ref": {
+          "title": "Port Group Ref",
+          "type": "string"
+        },
+        "mac_address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mac Address"
+        },
+        "connected": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Connected"
+        },
+        "ip_addresses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ip Addresses",
+          "type": "array"
+        },
+        "network_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Network Type"
+        }
+      },
+      "required": [
+        "name",
+        "port_group_ref"
+      ],
+      "title": "NIC",
+      "type": "object"
+    },
+    "NetworkSegment": {
+      "additionalProperties": false,
+      "description": "A layer-2 segment: VMware port group, Hyper-V VLAN on a vSwitch, PowerVM VLAN on a SEA.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "vlan_id": {
+          "default": "",
+          "title": "Vlan Id",
+          "type": "string"
+        },
+        "segment_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Segment Type"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "NetworkSegment",
+      "type": "object"
+    },
+    "NetworkTopology": {
+      "additionalProperties": false,
+      "properties": {
+        "distributed_switches": {
+          "items": {
+            "$ref": "#/$defs/VirtualSwitch"
+          },
+          "title": "Distributed Switches",
+          "type": "array"
+        }
+      },
+      "title": "NetworkTopology",
+      "type": "object"
+    },
+    "SourceEndpoint": {
+      "additionalProperties": false,
+      "description": "Where the inventory came from: a vCenter, an HMC, a Prism Central, SCVMM, ...",
+      "properties": {
+        "platform": {
+          "$ref": "#/$defs/SourcePlatform",
+          "default": "unknown"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "hostname": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hostname"
+        },
+        "schema_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Name"
+        },
+        "schema_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Version"
+        },
+        "discovered_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discovered At"
+        }
+      },
+      "title": "SourceEndpoint",
+      "type": "object"
+    },
+    "SourcePlatform": {
+      "enum": [
+        "vmware_vsphere",
+        "hyperv",
+        "powervm",
+        "zvm",
+        "nutanix_ahv",
+        "kvm",
+        "unknown"
+      ],
+      "title": "SourcePlatform",
+      "type": "string"
+    },
+    "StorageVolume": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "size_gb": {
+          "minimum": 1,
+          "title": "Size Gb",
+          "type": "integer"
+        },
+        "datastore": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datastore"
+        },
+        "thin_provisioned": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thin Provisioned"
+        },
+        "is_encrypted": {
+          "default": false,
+          "title": "Is Encrypted",
+          "type": "boolean"
+        },
+        "is_shared": {
+          "default": false,
+          "title": "Is Shared",
+          "type": "boolean"
+        },
+        "is_rdm": {
+          "default": false,
+          "title": "Is Rdm",
+          "type": "boolean"
+        },
+        "disk_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disk Mode"
+        },
+        "controller_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controller Type"
+        },
+        "unit_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Number"
+        },
+        "backing_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backing Type"
+        }
+      },
+      "required": [
+        "id",
+        "size_gb"
+      ],
+      "title": "StorageVolume",
+      "type": "object"
+    },
+    "TargetProvider": {
+      "enum": [
+        "aws",
+        "azure",
+        "gcp",
+        "openstack"
+      ],
+      "title": "TargetProvider",
+      "type": "string"
+    },
+    "VirtualSwitch": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "port_groups": {
+          "items": {
+            "$ref": "#/$defs/NetworkSegment"
+          },
+          "title": "Port Groups",
+          "type": "array"
+        },
+        "switch_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Switch Type"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "VirtualSwitch",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cim_schema_version": {
+      "default": "1.1",
+      "enum": [
+        "1.0",
+        "1.1"
+      ],
+      "title": "Cim Schema Version",
+      "type": "string"
+    },
+    "source_vcenter": {
+      "default": "",
+      "title": "Source Vcenter",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceEndpoint"
+    },
+    "target_provider": {
+      "$ref": "#/$defs/TargetProvider"
+    },
+    "network_topology": {
+      "$ref": "#/$defs/NetworkTopology"
+    },
+    "clusters": {
+      "items": {
+        "$ref": "#/$defs/ComputeCluster"
+      },
+      "title": "Clusters",
+      "type": "array"
+    },
+    "compute_units": {
+      "items": {
+        "$ref": "#/$defs/ComputeUnit"
+      },
+      "title": "Compute Units",
+      "type": "array"
+    }
+  },
+  "required": [
+    "target_provider",
+    "network_topology"
+  ],
+  "title": "CanonicalInfrastructureModel",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cim.schema.json",
+  "description": "Canonical Infrastructure Model 1.1; generated by hopshift.cim.schema_export"
+}

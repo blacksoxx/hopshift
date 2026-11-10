@@ -222,7 +222,7 @@ export function ConnectionDetail({ connectionId }: { connectionId: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Secrets</CardTitle>
-              <CardDescription>Encrypted at rest with VMA_SECRET_KEY. The API never returns the values.</CardDescription>
+              <CardDescription>Encrypted at rest with HOPSHIFT_SECRET_KEY. The API never returns the values.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 pt-0" data-testid="secrets-card">
               {secretFields.length === 0 && internalSecrets.length === 0 ? <p className="text-sm text-muted-foreground">This method stores no secrets; it relies on the identity of the host.</p> : null}
@@ -248,7 +248,7 @@ export function ConnectionDetail({ connectionId }: { connectionId: string }) {
                   </Badge>
                 </div>
               ))}
-              {!secretsAvailable && secretFields.length > 0 && can("admin") ? <p className="text-xs text-muted-foreground">Set VMA_SECRET_KEY on the server to replace secrets.</p> : null}
+              {!secretsAvailable && secretFields.length > 0 && can("admin") ? <p className="text-xs text-muted-foreground">Set HOPSHIFT_SECRET_KEY on the server to replace secrets.</p> : null}
             </CardContent>
           </Card>
 

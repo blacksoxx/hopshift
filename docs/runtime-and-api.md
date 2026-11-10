@@ -48,6 +48,6 @@ by that node.
 ## HTTP API
 
 The endpoint reference moved to [api.md](api.md). In short: everything lives under `/api`,
-authentication is a session cookie or a `vma_` bearer token, roles are viewer / operator /
+authentication is a session cookie or a `hs_` bearer token, roles are viewer / operator /
 admin, runs execute in a thread pool and are observed through polling or server-sent events,
 and the built UI is served at `/`.

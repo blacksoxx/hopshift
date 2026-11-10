@@ -78,7 +78,7 @@ function ConnectionsIndex() {
 
       {connectionsEnabled && !secretsAvailable ? (
         <Alert variant="warning" title="Credentials cannot be stored yet" className="mb-4" testId="secrets-warning">
-          Set <code className="font-mono text-[12px]">VMA_SECRET_KEY</code> on the server (generate one with <code className="font-mono text-[12px]">vma secrets generate-key</code>) and restart it to add methods that store secrets. Methods that use the
+          Set <code className="font-mono text-[12px]">HOPSHIFT_SECRET_KEY</code> on the server (generate one with <code className="font-mono text-[12px]">vma secrets generate-key</code>) and restart it to add methods that store secrets. Methods that use the
           host's own identity, such as the process environment, a named profile, managed identity, the Azure CLI, application default credentials or clouds.yaml, still work.
         </Alert>
       ) : null}

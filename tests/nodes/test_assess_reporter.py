@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent.nodes.assess_reporter import assess_reporter
+from hopshift.pipeline.nodes.assess_reporter import assess_reporter
 
 
 def test_assess_reporter_writes_json_and_markdown(tmp_path: Path) -> None:

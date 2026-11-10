@@ -107,8 +107,8 @@ jobs:
           version: ${{ env.OPA_VERSION }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/vmware-migration-agent/terraform-plugins
-          key: tf-plugins-${{ runner.os }}-${{ hashFiles('providers/*/runtime.py') }}
+          path: ~/.cache/hopshift/terraform-plugins
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('hopshift/targets/*/runtime.py') }}
       - run: pytest -q tests/integration
 
   ui:
@@ -169,7 +169,7 @@ jobs:
       - run: npx playwright test
         working-directory: ui
         env:
-          VMA_SECRET_KEY: ${{ secrets.VMA_E2E_SECRET_KEY || 'LBG8NBG1A01nCYAz5Yf0a6_Tr4eq6lZ95uKwzE3TDIM=' }}
+          HOPSHIFT_SECRET_KEY: ${{ secrets.HOPSHIFT_E2E_SECRET_KEY || 'LBG8NBG1A01nCYAz5Yf0a6_Tr4eq6lZ95uKwzE3TDIM=' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
@@ -246,19 +246,19 @@ jobs:
           context: .
           push: false
           load: true
-          tags: vmware-migration-agent:ci
+          tags: hopshift:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test the image
         run: |
-          docker run --rm vmware-migration-agent:ci python -m cli.main --help
-          docker run --rm vmware-migration-agent:ci terraform version
-          docker run --rm vmware-migration-agent:ci opa version
-          docker run --rm vmware-migration-agent:ci id -u | grep -qx 10001
+          docker run --rm hopshift:ci python -m hopshift.cli.main --help
+          docker run --rm hopshift:ci terraform version
+          docker run --rm hopshift:ci opa version
+          docker run --rm hopshift:ci id -u | grep -qx 10001
       - name: "Image scan (trivy: fixed critical vulnerabilities only)"
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: vmware-migration-agent:ci
+          image-ref: hopshift:ci
           severity: CRITICAL
           ignore-unfixed: true
           format: sarif

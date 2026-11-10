@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent.nodes.mcp_client import MCPRetrievalError, _MCPStdioClient, mcp_client
-from cim.schema import (
+from hopshift.cim.schema import (
     CanonicalInfrastructureModel,
     ComputeUnit,
     DistributedSwitch,
@@ -12,6 +11,7 @@ from cim.schema import (
     PortGroup,
     TargetProvider,
 )
+from hopshift.pipeline.nodes.mcp_client import MCPRetrievalError, _MCPStdioClient, mcp_client
 
 
 def _sample_cim() -> CanonicalInfrastructureModel:

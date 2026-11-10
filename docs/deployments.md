@@ -206,7 +206,7 @@ PUT  /api/runs/{id}/deploy/variables                      {values}
 GET  /api/runs/{id}/deploy/state                          local state summary
 ```
 
-A typical sequence with `curl` (session cookie or `Authorization: Bearer vma_...` as usual):
+A typical sequence with `curl` (session cookie or `Authorization: Bearer hs_...` as usual):
 
 ```bash
 RUN=20261108T142203Z-4ab07013
@@ -232,7 +232,7 @@ Audit events: `deployment.requested`, `deployment.finished` (status, exit code, 
 | `400 connection_id is required` | The connections service is installed, so every deployment needs a connection; create one and pass its id. |
 | `400 connection ... is for azure, the run targets aws` | Pick a connection whose provider matches the run's cloud. |
 | `init` fails with provider download errors | No network to the registry: pre-populate `validation.terraform_plugin_cache_dir` or mount a filesystem mirror. |
-| `plan` fails with `no valid credential sources` | The connection's `terraform_env` produced nothing usable (expired SSO/assume-role, missing secret because `VMA_SECRET_KEY` changed). Test the connection first. |
+| `plan` fails with `no valid credential sources` | The connection's `terraform_env` produced nothing usable (expired SSO/assume-role, missing secret because `HOPSHIFT_SECRET_KEY` changed). Test the connection first. |
 | `400 the generated Terraform changed since plan ...` | The artifacts were regenerated or edited after the plan; run `plan` again. |
 | `400 plan ... found no changes; nothing to apply` | The plan exited 0; there is nothing to apply. |
 | `409 already has an active deployment` | Wait for it or cancel it; the UI shows the running record. |

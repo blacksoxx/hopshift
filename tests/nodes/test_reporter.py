@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from agent.nodes import reporter as reporter_module
-from agent.nodes.reporter import reporter
+from hopshift.pipeline.nodes import reporter as reporter_module
+from hopshift.pipeline.nodes.reporter import reporter
 
 
 class _FakeLLMClient:
@@ -61,7 +61,7 @@ def test_reporter_writes_compliance_result_from_state(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(reporter_module, "LLMClient", _FakeLLMClient)
-    from vma.compliance import build_report, controls_for_cloud
+    from hopshift.services.compliance import build_report, controls_for_cloud
 
     compliance_result = build_report(
         "gcp",

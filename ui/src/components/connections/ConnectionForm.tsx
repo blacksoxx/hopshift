@@ -20,7 +20,7 @@ export interface ConnectionFormProps {
   storedSecrets?: string[];
   replacing?: string[];
   onReplace?: (key: string, replace: boolean) => void;
-  /** False when the server has no VMA_SECRET_KEY: secret inputs are disabled. */
+  /** False when the server has no HOPSHIFT_SECRET_KEY: secret inputs are disabled. */
   secretsAvailable?: boolean;
   disabled?: boolean;
   idPrefix?: string;
@@ -163,7 +163,7 @@ export function ConnectionForm({
         const isReplacing = replacing.includes(field.key);
         if (field.secret && mode === "edit" && !isReplacing) {
           return (
-            <Field key={field.key} label={<FieldLabel field={field} required={required} />} hint={secretsAvailable ? field.help || undefined : "Secrets cannot be stored until VMA_SECRET_KEY is set on the server."} error={error}>
+            <Field key={field.key} label={<FieldLabel field={field} required={required} />} hint={secretsAvailable ? field.help || undefined : "Secrets cannot be stored until HOPSHIFT_SECRET_KEY is set on the server."} error={error}>
               <StoredSecretRow field={field} stored={isStored} canReplace={secretsAvailable} disabled={disabled} onReplace={() => onReplace?.(field.key, true)} />
             </Field>
           );

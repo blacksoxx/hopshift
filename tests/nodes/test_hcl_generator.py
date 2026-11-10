@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-import agent.nodes.hcl_generator as hcl_module
-from cim.schema import (
+import hopshift.pipeline.nodes.hcl_generator as hcl_module
+from hopshift.cim.schema import (
     NIC,
     CanonicalInfrastructureModel,
     ComputeUnit,
@@ -397,7 +397,7 @@ def test_build_provider_fallback_hcl_for_gcp_emits_deterministic_files() -> None
     )
 
     assert "gcp-migration/main.tf" in fallback
-    assert "gcp-migration/providers.tf" in fallback
+    assert "gcp-migration/targets.tf" in fallback
     assert "gcp-migration/variables.tf" in fallback
     assert "gcp-migration/networking/vpc.tf" in fallback
     assert "gcp-migration/networking/subnets.tf" in fallback
@@ -504,8 +504,8 @@ def test_synthesize_provider_runtime_scaffold_for_openstack_adds_provider_and_va
         },
     )
 
-    assert "openstack-migration/providers.tf" in updated
-    providers_tf = updated["openstack-migration/providers.tf"]
+    assert "openstack-migration/targets.tf" in updated
+    providers_tf = updated["openstack-migration/targets.tf"]
     assert 'source  = "terraform-provider-openstack/openstack"' in providers_tf
     assert 'provider "openstack" {' in providers_tf
 
@@ -513,8 +513,8 @@ def test_synthesize_provider_runtime_scaffold_for_openstack_adds_provider_and_va
     assert "required_providers" not in main_tf
     assert 'provider "openstack"' not in main_tf
 
-    assert "openstack-migration/compute/providers.tf" in updated
-    compute_providers_tf = updated["openstack-migration/compute/providers.tf"]
+    assert "openstack-migration/compute/targets.tf" in updated
+    compute_providers_tf = updated["openstack-migration/compute/targets.tf"]
     assert 'source  = "terraform-provider-openstack/openstack"' in compute_providers_tf
 
     assert "openstack-migration/variables.tf" in updated
@@ -752,7 +752,7 @@ def test_llm_generation_batches_large_estates(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_llm_truncation_halves_batch_and_retries(monkeypatch: pytest.MonkeyPatch) -> None:
-    from agent.llm_client import LLMTruncatedError
+    from hopshift.pipeline.llm_client import LLMTruncatedError
 
 
     class _TruncatingLLM:

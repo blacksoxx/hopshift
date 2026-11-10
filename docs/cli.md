@@ -57,7 +57,7 @@ vma assess --input discovery.json --cloud aws --output-dir output
 Starts the platform: the HTTP API under `/api`, Swagger UI at `/docs` and the built web UI at `/`.
 
 ```bash
-export VMA_SECRET_KEY=$(vma secrets generate-key)
+export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
 vma serve --host 0.0.0.0 --port 8080
 vma serve --ssl-certfile cert.pem --ssl-keyfile key.pem           # direct TLS
 vma serve --forwarded-allow-ips 10.0.0.5                           # behind a reverse proxy
@@ -85,8 +85,8 @@ when omitted so it stays out of shell history).
 ## Command group: secrets
 
 ```bash
-vma secrets generate-key          # print a new Fernet key for VMA_SECRET_KEY
-VMA_SECRET_KEY=<new>,<old> vma secrets rotate   # re-encrypt every stored secret with <new>, then drop <old>
+vma secrets generate-key          # print a new Fernet key for HOPSHIFT_SECRET_KEY
+HOPSHIFT_SECRET_KEY=<new>,<old> vma secrets rotate   # re-encrypt every stored secret with <new>, then drop <old>
 ```
 
 `rotate` reports the number of rows rewritten per service (credentials, MFA secrets, device

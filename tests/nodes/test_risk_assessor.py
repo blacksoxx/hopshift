@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from agent.nodes.risk_assessor import risk_assessor
-from cim.schema import (
+from hopshift.cim.schema import (
     NIC,
     CanonicalInfrastructureModel,
     ComputeUnit,
@@ -12,6 +11,7 @@ from cim.schema import (
     StorageVolume,
     TargetProvider,
 )
+from hopshift.pipeline.nodes.risk_assessor import risk_assessor
 
 
 def _sample_cim() -> CanonicalInfrastructureModel:

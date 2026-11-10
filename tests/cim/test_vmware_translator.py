@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from cim.schema import MigrationStatus, TargetProvider
-from cim.vmware_translator import translate_vmware_discovery_to_cim
+from hopshift.cim.schema import MigrationStatus, TargetProvider
+from hopshift.cim.vmware_translator import translate_vmware_discovery_to_cim
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

@@ -11,9 +11,9 @@ RUN npm run build
 # ── Stage 2: platform (API + UI + pipeline tooling) ───────────────────────────
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
-LABEL org.opencontainers.image.title="vmware-migration-agent" \
+LABEL org.opencontainers.image.title="hopshift" \
       org.opencontainers.image.description="Turn vSphere discovery into validated, compliant Terraform and deploy it with human approval." \
-      org.opencontainers.image.source="https://github.com/blacksoxx/vmware-migration-agent" \
+      org.opencontainers.image.source="https://github.com/blacksoxx/hopshift" \
       org.opencontainers.image.licenses="MIT"
 
 # Populated by BuildKit for the build platform (amd64 on x86 hosts, arm64 on Apple Silicon).
@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHECKPOINT_DISABLE=1 \
     TF_IN_AUTOMATION=1 \
     TF_INPUT=0 \
-    TF_PLUGIN_CACHE_DIR=/home/appuser/.cache/vmware-migration-agent/terraform-plugins
+    TF_PLUGIN_CACHE_DIR=/home/appuser/.cache/hopshift/terraform-plugins
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl unzip \
@@ -85,7 +85,7 @@ RUN pip install --no-deps .
 # Non-root runtime user; /app is read-only for it, writable state lives under /app/output
 # and /home/appuser (mount volumes there; see docker-compose.yml).
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/output/runs /home/appuser/.cache/vmware-migration-agent/terraform-plugins \
+    && mkdir -p /app/output/runs /home/appuser/.cache/hopshift/terraform-plugins \
     && chown -R appuser:appuser /app/output /home/appuser
 
 USER appuser
@@ -95,5 +95,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
-# Default: API + UI. For the CLI: docker compose run --rm agent python -m cli.main terragen ...
+# Default: API + UI. For the CLI: docker compose run --rm agent python -m hopshift.cli.main terragen ...
 CMD ["python", "-m", "cli.main", "serve", "--host", "0.0.0.0", "--port", "8080"]

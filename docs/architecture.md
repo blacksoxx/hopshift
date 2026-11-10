@@ -118,7 +118,7 @@ flowchart TB
 
 - **Database.** One SQLite file with WAL. Each service registers its own schema at import time
   (`register_migration`); `Platform.from_config` applies pending migrations once.
-- **Secrets.** `VMA_SECRET_KEY` holds one or more Fernet keys; the first encrypts, all decrypt.
+- **Secrets.** `HOPSHIFT_SECRET_KEY` holds one or more Fernet keys; the first encrypts, all decrypt.
   Rotation re-encrypts every stored secret with the primary key. Without a key the platform runs
   but refuses to store credentials.
 - **Audit log.** Every entry carries the hash of the previous one; `verify` recomputes the chain.
@@ -187,7 +187,7 @@ output/
 ```
 
 Back up `output/` to keep everything; `platform.sqlite` is the only file holding credentials and
-they are encrypted with `VMA_SECRET_KEY`, which must be backed up separately.
+they are encrypted with `HOPSHIFT_SECRET_KEY`, which must be backed up separately.
 
 ## 8. Trust boundaries and threat model
 

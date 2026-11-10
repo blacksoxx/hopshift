@@ -1,27 +1,27 @@
 "area: pipeline":
   - changed-files:
-      - any-glob-to-any-file: ["agent/**", "cim/**", "providers/**"]
+      - any-glob-to-any-file: ["hopshift/pipeline/**", "hopshift/cim/**", "hopshift/sources/**", "hopshift/targets/**"]
 "area: validation":
   - changed-files:
-      - any-glob-to-any-file: ["validation/**", "vma/compliance/**"]
+      - any-glob-to-any-file: ["hopshift/validation/**", "hopshift/services/compliance/**"]
 "area: platform":
   - changed-files:
-      - any-glob-to-any-file: ["vma/**", "api/**"]
+      - any-glob-to-any-file: ["hopshift/services/**", "hopshift/api/**"]
 "area: security":
   - changed-files:
-      - any-glob-to-any-file: ["vma/security/**", "api/middleware.py", "api/deps.py", "SECURITY.md"]
+      - any-glob-to-any-file: ["hopshift/services/security/**", "hopshift/api/middleware.py", "hopshift/api/deps.py", "SECURITY.md"]
 "area: connections":
   - changed-files:
-      - any-glob-to-any-file: ["vma/connections/**", "ui/src/components/connections/**"]
+      - any-glob-to-any-file: ["hopshift/services/connections/**", "ui/src/components/connections/**"]
 "area: deployments":
   - changed-files:
-      - any-glob-to-any-file: ["vma/deploy/**", "ui/src/components/run/DeployTab.tsx"]
+      - any-glob-to-any-file: ["hopshift/services/deploy/**", "ui/src/components/run/DeployTab.tsx"]
 "area: ui":
   - changed-files:
       - any-glob-to-any-file: ["ui/**"]
 "area: cli":
   - changed-files:
-      - any-glob-to-any-file: ["cli/**"]
+      - any-glob-to-any-file: ["hopshift/cli/**"]
 "area: docs":
   - changed-files:
       - any-glob-to-any-file: ["docs/**", "README.md", "CONTRIBUTING.md"]

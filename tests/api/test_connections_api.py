@@ -8,11 +8,11 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-import vma.connections.aws as aws
-from agent.runtime import MigrationRuntime
-from api.app import create_app
-from api.deps import Principal
-from vma.secrets import SecretBox
+import hopshift.services.connections.aws as aws
+from hopshift.api.app import create_app
+from hopshift.api.deps import Principal
+from hopshift.pipeline.runtime import MigrationRuntime
+from hopshift.services.secrets import SecretBox
 
 AWS_BODY = {
     "name": "lab", "provider": "aws", "auth_method": "access_keys",
@@ -36,7 +36,7 @@ def _client(tmp_path: Path) -> TestClient:
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    monkeypatch.setenv("VMA_SECRET_KEY", SecretBox.generate_key())
+    monkeypatch.setenv("HOPSHIFT_SECRET_KEY", SecretBox.generate_key())
     return _client(tmp_path)
 
 
@@ -135,11 +135,11 @@ def test_http_error_mapping(client: TestClient) -> None:
 
 
 def test_secrets_unavailable_maps_to_503(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("VMA_SECRET_KEY", raising=False)
+    monkeypatch.delenv("HOPSHIFT_SECRET_KEY", raising=False)
     client = _client(tmp_path)
     assert client.get("/api/meta").json()["features"]["secrets"] is False
     response = client.post("/api/connections", json=AWS_BODY)
-    assert response.status_code == 503 and "VMA_SECRET_KEY" in response.text
+    assert response.status_code == 503 and "HOPSHIFT_SECRET_KEY" in response.text
     without_secret = client.post("/api/connections", json={"name": "env", "provider": "aws", "auth_method": "environment", "config": {"region": "us-east-1"}})
     assert without_secret.status_code == 201
 

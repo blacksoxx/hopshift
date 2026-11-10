@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from validation import opa_client as opa_module
-from validation.opa_client import OPAClient, _extract_compliance, _extract_deny_messages
+from hopshift.validation import opa_client as opa_module
+from hopshift.validation.opa_client import OPAClient, _extract_compliance, _extract_deny_messages
 
 
 def test_extract_deny_messages_returns_empty_when_no_deny_present() -> None:
@@ -13,7 +13,7 @@ def test_extract_deny_messages_returns_empty_when_no_deny_present() -> None:
                 "expressions": [
                     {
                         "value": {
-                            "vmwaremigration": {
+                            "hopshift": {
                                 "requires_metadata_block": False,
                                 "some_other_flag": True,
                             }
@@ -34,7 +34,7 @@ def test_extract_deny_messages_collects_all_deny_strings() -> None:
                 "expressions": [
                     {
                         "value": {
-                            "vmwaremigration": {
+                            "hopshift": {
                                 "deny": [
                                     "tags_required: Environment tag missing",
                                     "no_open_ingress: open ingress is forbidden",
@@ -56,7 +56,7 @@ def test_extract_deny_messages_collects_all_deny_strings() -> None:
 def test_opa_binary_retries_without_v0_compatible_flag(monkeypatch, tmp_path: Path) -> None:
     policies_dir = tmp_path / "policies"
     policies_dir.mkdir(parents=True, exist_ok=True)
-    (policies_dir / "dummy.rego").write_text("package vmwaremigration\n", encoding="utf-8")
+    (policies_dir / "dummy.rego").write_text("package hopshift\n", encoding="utf-8")
 
     calls: list[list[str]] = []
 
@@ -71,7 +71,7 @@ def test_opa_binary_retries_without_v0_compatible_flag(monkeypatch, tmp_path: Pa
 
         return opa_module._CommandResult(
             returncode=0,
-            stdout='{"result":[{"expressions":[{"value":{"vmwaremigration":{"deny":[]}}}]}]}',
+            stdout='{"result":[{"expressions":[{"value":{"hopshift":{"deny":[]}}}]}]}',
             stderr="",
         )
 
@@ -87,7 +87,7 @@ def test_opa_binary_retries_without_v0_compatible_flag(monkeypatch, tmp_path: Pa
 
 
 _COMPLIANCE_DOC = {
-    "vmwaremigration": {
+    "hopshift": {
         "deny": ["compliance AWS-EC2-IMDSV2: metadata_options block is missing (aws_instance.web)"],
         "compliance": {
             "deny": ["compliance AWS-EC2-IMDSV2: metadata_options block is missing (aws_instance.web)"],

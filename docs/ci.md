@@ -72,7 +72,7 @@ docker run --rm -v "$PWD":/repo aquasec/trivy fs --scanners vuln,misconfig,secre
 
 1. Update `version` in `pyproject.toml` and `vma/__init__.py`.
 2. `git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z`.
-3. The Release workflow builds and signs `ghcr.io/blacksoxx/vmware-migration-agent:X.Y.Z` and
+3. The Release workflow builds and signs `ghcr.io/blacksoxx/hopshift:X.Y.Z` and
    publishes the release with generated notes and the SBOM.
 4. Verify the signature:
-   `cosign verify ghcr.io/blacksoxx/vmware-migration-agent:X.Y.Z --certificate-identity-regexp 'https://github.com/blacksoxx/vmware-migration-agent/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
+   `cosign verify ghcr.io/blacksoxx/hopshift:X.Y.Z --certificate-identity-regexp 'https://github.com/blacksoxx/hopshift/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`

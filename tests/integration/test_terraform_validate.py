@@ -1,6 +1,6 @@
 """End-to-end check: deterministic render -> real terraform init/validate (+ tflint) per provider.
 
-Runs when the terraform binary is installed and VMA_SKIP_TERRAFORM_INTEGRATION is not set.
+Runs when the terraform binary is installed and HOPSHIFT_SKIP_TERRAFORM_INTEGRATION is not set.
 `terraform init` downloads providers, so the first run needs network access; the plugin cache
 under ~/.cache makes later runs fast.
 """
@@ -14,24 +14,24 @@ from pathlib import Path
 
 import pytest
 
-from agent.generation.deterministic import render_deterministic
-from agent.nodes.blocker_parser import blocker_parser
-from agent.nodes.cim_mapper import cim_mapper
-from agent.nodes.enricher import enricher
-from agent.nodes.ingest import ingest
-from agent.nodes.sizer import sizer
-from cim.schema import TargetProvider
-from validation.opa_client import evaluate_policies
-from validation.tf_runner import validate_hcl
-from vma.compliance.controls import controls_for_cloud
+from hopshift.cim.schema import TargetProvider
+from hopshift.pipeline.generation.deterministic import render_deterministic
+from hopshift.pipeline.nodes.blocker_parser import blocker_parser
+from hopshift.pipeline.nodes.cim_mapper import cim_mapper
+from hopshift.pipeline.nodes.enricher import enricher
+from hopshift.pipeline.nodes.ingest import ingest
+from hopshift.pipeline.nodes.sizer import sizer
+from hopshift.services.compliance.controls import controls_for_cloud
+from hopshift.validation.opa_client import evaluate_policies
+from hopshift.validation.tf_runner import validate_hcl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = [
     REPO_ROOT / "discovery-2.json",
     REPO_ROOT / "tests" / "fixtures" / "discovery_multi_vm.json",
 ]
-PLUGIN_CACHE = Path.home() / ".cache" / "vmware-migration-agent" / "terraform-plugins"
-POLICIES_DIR = REPO_ROOT / "validation" / "policies"
+PLUGIN_CACHE = Path.home() / ".cache" / "hopshift" / "terraform-plugins"
+POLICIES_DIR = REPO_ROOT / "hopshift" / "validation" / "policies"
 REQUIRED_TAGS = {"Environment": "test", "Owner": "platform", "MigratedFrom": "vmware-vcenter"}
 
 
@@ -48,8 +48,8 @@ OPA_BIN = _opa_bin()
 pytestmark = [
     pytest.mark.skipif(shutil.which("terraform") is None, reason="terraform binary not installed"),
     pytest.mark.skipif(
-        os.environ.get("VMA_SKIP_TERRAFORM_INTEGRATION") == "1",
-        reason="VMA_SKIP_TERRAFORM_INTEGRATION=1",
+        os.environ.get("HOPSHIFT_SKIP_TERRAFORM_INTEGRATION") == "1",
+        reason="HOPSHIFT_SKIP_TERRAFORM_INTEGRATION=1",
     ),
 ]
 

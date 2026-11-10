@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from cim import schema_export
-from cim.schema import (
+from hopshift.cim import schema_export
+from hopshift.cim.schema import (
     Architecture,
     ClusterSemantics,
     DistributedSwitch,
@@ -20,7 +20,7 @@ from cim.schema import (
     TargetProvider,
     VirtualSwitch,
 )
-from cim.translators import registered_schemas, resolve_translator, translate
+from hopshift.sources import registered_schemas, resolve_translator, translate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -146,8 +146,8 @@ def test_registry_rejects_unknown_schema() -> None:
 
 
 def test_json_schema_file_matches_models() -> None:
-    """cim/cim.schema.json is generated from the Pydantic models; regenerate with python -m cim.schema_export."""
-    current = (REPO_ROOT / "cim" / "cim.schema.json").read_text(encoding="utf-8")
+    """hopshift/cim/cim.schema.json is generated from the Pydantic models; regenerate with python -m hopshift.cim.schema_export."""
+    current = (REPO_ROOT / "hopshift" / "cim" / "cim.schema.json").read_text(encoding="utf-8")
     assert json.loads(current) == schema_export.build_json_schema()
 
 

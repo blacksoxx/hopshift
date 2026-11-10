@@ -42,7 +42,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-const SIDEBAR_KEY = "vma.sidebar";
+const SIDEBAR_KEY = "hopshift.sidebar";
 
 export function AppShell() {
   const [collapsed, setCollapsed] = React.useState<boolean>(() => {

@@ -20,15 +20,15 @@ Dockerfile.
 ## 2. Quick start with Docker (recommended)
 
 ```bash
-git clone https://github.com/blacksoxx/vmware-migration-agent.git
-cd vmware-migration-agent
+git clone https://github.com/blacksoxx/hopshift.git
+cd hopshift
 cp .env.example .env
-# generate the key that encrypts stored credentials and put it in .env as VMA_SECRET_KEY
-docker compose run --rm --no-deps agent python -m cli.main secrets generate-key
+# generate the key that encrypts stored credentials and put it in .env as HOPSHIFT_SECRET_KEY
+docker compose run --rm --no-deps agent python -m hopshift.cli.main secrets generate-key
 docker compose up -d --build
 ```
 
-Open http://localhost:8080 (change the host port with `VMA_PORT=8088` in `.env`). The first
+Open http://localhost:8080 (change the host port with `HOPSHIFT_PORT=8088` in `.env`). The first
 visit shows the setup screen to create the administrator account. Runs, the platform database
 and generated Terraform persist under `./output`; the Terraform provider cache persists in the
 `agent-home` volume.
@@ -44,7 +44,7 @@ and `clouds_yaml` connection methods), uncomment the matching volume lines in
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 (cd ui && npm ci && npm run build)       # or `npm run dev` for hot reload on :5173
-export VMA_SECRET_KEY=$(vma secrets generate-key)
+export HOPSHIFT_SECRET_KEY=$(vma secrets generate-key)
 vma serve                                 # http://127.0.0.1:8080
 ```
 
@@ -63,7 +63,7 @@ Everything lives in `config.yaml`; sections are documented inline and in
 - `security.auth`: `mode` (required/disabled), session and idle lifetimes, MFA policy
   (`optional`/`required`), lockout, OIDC provider settings.
 - `security.secret_key_env`: the environment variable holding the Fernet key(s), default
-  `VMA_SECRET_KEY`.
+  `HOPSHIFT_SECRET_KEY`.
 - `security.headers`, `security.allowed_origins`, `security.api_docs`.
 - `security.retention`: delete runs and prune audit entries older than N days (0 keeps all).
 - `security.encrypt_run_inputs`: store `discovery.json` encrypted.
@@ -75,8 +75,8 @@ Everything lives in `config.yaml`; sections are documented inline and in
 A small set of these can be changed from the UI by an administrator (Settings → General); the
 overrides live in the platform database and are audited.
 
-Environment variables (see `.env.example`): `VMA_SECRET_KEY`, `VMA_OIDC_CLIENT_SECRET`,
-`VMA_PORT`, and the optional model provider keys.
+Environment variables (see `.env.example`): `HOPSHIFT_SECRET_KEY`, `HOPSHIFT_OIDC_CLIENT_SECRET`,
+`HOPSHIFT_PORT`, and the optional model provider keys.
 
 ## 5. First administrator, users, tokens
 
@@ -84,7 +84,7 @@ Environment variables (see `.env.example`): `VMA_SECRET_KEY`, `VMA_OIDC_CLIENT_S
 - CLI: `vma admin create-user --username admin --role admin` (prompts for the password),
   `vma admin reset-password`, `vma admin list-users`, `vma admin set-role`.
 - API tokens for automation: Settings → Tokens, or `POST /api/tokens`. Send them as
-  `Authorization: Bearer vma_...`. A token never has more rights than the user who created it.
+  `Authorization: Bearer hs_...`. A token never has more rights than the user who created it.
 - Roles: `viewer` reads, `operator` runs and approves, `admin` manages users, connections and
   settings and reads the audit log.
 
@@ -97,7 +97,7 @@ it mandatory for everyone. See [security.md](security.md) for OIDC single sign-o
    `X-Forwarded-Proto`; start `vma serve --forwarded-allow-ips <proxy-ip>`. Or give uvicorn the
    certificate directly with `--ssl-certfile/--ssl-keyfile`. HSTS and `upgrade-insecure-requests`
    are emitted only on HTTPS.
-2. **Secrets.** Generate `VMA_SECRET_KEY` once, store it in your secret manager, back it up
+2. **Secrets.** Generate `HOPSHIFT_SECRET_KEY` once, store it in your secret manager, back it up
    with the database. Rotate with `vma secrets rotate` after adding a new key in front of the
    old one (comma-separated).
 3. **Accounts.** Keep `security.auth.mode: required`, consider `mfa: required`, configure OIDC
@@ -125,7 +125,7 @@ it mandatory for everyone. See [security.md](security.md) for OIDC single sign-o
 | Symptom | Cause and fix |
 |---|---|
 | Setup screen never appears / 404 on `/api/auth/status` | Running an old build without the security module; rebuild the image or reinstall. |
-| "no encryption key configured" when saving a connection | `VMA_SECRET_KEY` is not set in the server's environment. |
+| "no encryption key configured" when saving a connection | `HOPSHIFT_SECRET_KEY` is not set in the server's environment. |
 | Validation fails with provider download errors | No outbound access to the Terraform registry, or the plugin cache directory is not writable. |
 | `plan` fails at provider configuration | The connection's credentials are wrong or expired; use Test on the connection page. |
 | Browser shows a blank page behind a proxy | The proxy strips `X-Forwarded-Proto`, so the CSP `upgrade-insecure-requests` directive is missing or present wrongly; pass the header and set `--forwarded-allow-ips`. |

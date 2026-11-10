@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import validation.tf_runner as tf_runner
+import hopshift.validation.tf_runner as tf_runner
 
 
 def test_resolve_terraform_workdir_prefers_common_root(tmp_path: Path) -> None:
     hcl_output = {
         "openstack-migration/main.tf": "terraform {}\n",
-        "openstack-migration/providers.tf": "terraform {}\n",
+        "openstack-migration/targets.tf": "terraform {}\n",
         "openstack-migration/networking/vpc.tf": 'resource "openstack_networking_network_v2" "net" {}\n',
     }
 
@@ -36,7 +36,7 @@ def test_validate_hcl_runs_commands_in_detected_module_dir(
     result = tf_runner.validate_hcl(
         hcl_output={
             "openstack-migration/main.tf": "terraform {}\n",
-            "openstack-migration/providers.tf": "terraform {}\n",
+            "openstack-migration/targets.tf": "terraform {}\n",
         },
         run_tflint=False,
     )

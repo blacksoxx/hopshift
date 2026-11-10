@@ -1,4 +1,4 @@
-# vmware-migration-agent — runtime configuration
+# hopshift — runtime configuration
 # All agent behaviour is controlled from here. No hardcoded values in source code.
 
 # ─── GENERATION ─────────────────────────────────────────────────────────────
@@ -88,11 +88,11 @@ validation:
   opa_server_url: ""  # only used if opa_mode = server
 
   # Path to .rego policy bundle
-  policies_dir: validation/policies
+  policies_dir: hopshift/validation/policies
 
   # Terraform provider plugin cache shared across validation runs (avoids re-downloading
   # providers on every attempt). Empty disables the cache.
-  terraform_plugin_cache_dir: ~/.cache/vmware-migration-agent/terraform-plugins
+  terraform_plugin_cache_dir: ~/.cache/hopshift/terraform-plugins
 
 # ─── MCP DOCUMENTATION CONTEXT ───────────────────────────────────────────────
 mcp:
@@ -137,14 +137,14 @@ security:
       enabled: false
       issuer: ""
       client_id: ""
-      client_secret_env: VMA_OIDC_CLIENT_SECRET
+      client_secret_env: HOPSHIFT_OIDC_CLIENT_SECRET
       scopes: [openid, profile, email]
       allowed_domains: []
       default_role: viewer
       admin_groups: []
       groups_claim: groups
   # Environment variable holding the Fernet key(s) that encrypt stored credentials
-  secret_key_env: VMA_SECRET_KEY
+  secret_key_env: HOPSHIFT_SECRET_KEY
   headers:
     hsts: true
     # default | off
@@ -156,7 +156,7 @@ security:
   retention:
     runs_days: 0
     audit_days: 0
-  # Store discovery.json encrypted with the secret key (requires VMA_SECRET_KEY)
+  # Store discovery.json encrypted with the secret key (requires HOPSHIFT_SECRET_KEY)
   encrypt_run_inputs: false
 
 # ─── DEPLOYMENTS (terraform plan / apply from the platform) ──────────────────
@@ -241,7 +241,7 @@ required_tags:
   Environment: "{environment}"          # passed via CLI flag
   Owner: "{owner}"                      # passed via CLI flag
   MigratedFrom: "vmware-vcenter"
-  MigrationTool: "vmware-migration-agent"
+  MigrationTool: "hopshift"
   SourceVCenter: "{source_vcenter}"     # from discovery JSON metadata
   GeneratedAt: "{generated_at}"         # ISO timestamp
 

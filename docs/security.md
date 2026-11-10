@@ -14,9 +14,9 @@ Code: `vma/security/` (service, store, passwords, OIDC, rate limiting, retention
 |---|---|
 | Accounts | Local users with argon2id password hashes (argon2-cffi defaults: t=3, 64 MiB, p=4). Usernames are trimmed and case-insensitive. Password policy: 12-256 characters, must not contain the username. Unknown users and wrong passwords get the same `401 {"detail": "invalid username or password"}` after the same argon2 work. |
 | Roles | `viewer` (read), `operator` (run mutations, approvals, plan/apply), `admin` (users, everyone's tokens, settings, audit). Enforced by `api.deps.require_role`. |
-| Sessions | Cookie `vma_session`: a random 256-bit token, stored as sha256. Absolute expiry `security.auth.session_hours`, idle expiry `security.auth.idle_minutes` (activity is recorded at most once a minute). Flags: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Cookie-authenticated `POST/PUT/PATCH/DELETE` requests must carry a same-origin `Origin` (or `Referer`) header (`OriginCheckMiddleware`). |
-| API tokens | `Authorization: Bearer vma_...` (`vma_` + 32 url-safe random bytes). Stored as sha256; the value is shown once at creation. Each token has a role (never above the creator's role, and capped by the owner's current role), an optional expiry and a `last_used_at` (updated at most once a minute). Tokens cannot create tokens, change passwords or manage MFA. |
-| MFA | TOTP (RFC 6238, 30 s, 6 digits, one step of clock drift) with 8 single-use recovery codes (stored hashed). A TOTP code is accepted once; replays inside the window are rejected. Policy `security.auth.mfa: optional` or `required`. When required, local users without MFA can only call `/api/auth/*` until they enrol; every other call returns `403 {"detail": "mfa_enrollment_required"}` and token creation is refused. SSO users are exempt (the identity provider owns MFA). TOTP secrets are stored encrypted with `VMA_SECRET_KEY`; without a key they are stored in clear and the posture check `mfa.secrets_encrypted` fails. |
+| Sessions | Cookie `hopshift_session`: a random 256-bit token, stored as sha256. Absolute expiry `security.auth.session_hours`, idle expiry `security.auth.idle_minutes` (activity is recorded at most once a minute). Flags: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Cookie-authenticated `POST/PUT/PATCH/DELETE` requests must carry a same-origin `Origin` (or `Referer`) header (`OriginCheckMiddleware`). |
+| API tokens | `Authorization: Bearer hs_...` (`hs_` + 32 url-safe random bytes). Stored as sha256; the value is shown once at creation. Each token has a role (never above the creator's role, and capped by the owner's current role), an optional expiry and a `last_used_at` (updated at most once a minute). Tokens cannot create tokens, change passwords or manage MFA. |
+| MFA | TOTP (RFC 6238, 30 s, 6 digits, one step of clock drift) with 8 single-use recovery codes (stored hashed). A TOTP code is accepted once; replays inside the window are rejected. Policy `security.auth.mfa: optional` or `required`. When required, local users without MFA can only call `/api/auth/*` until they enrol; every other call returns `403 {"detail": "mfa_enrollment_required"}` and token creation is refused. SSO users are exempt (the identity provider owns MFA). TOTP secrets are stored encrypted with `HOPSHIFT_SECRET_KEY`; without a key they are stored in clear and the posture check `mfa.secrets_encrypted` fails. |
 | OIDC SSO | Authorization code flow with PKCE (S256), `state` and `nonce` persisted for 10 minutes and single use, discovery and JWKS fetched over HTTPS and cached, `id_token` verified (signature, `iss`, `aud`, `exp`, `nonce`). Email domain allow-list, group-to-role mapping, user upsert. SSO accounts have no password. |
 | Lockout and throttling | After `security.auth.lockout_threshold` failed logins for a username within `lockout_minutes`, further logins return `423` with `Retry-After` (also for usernames that do not exist, so the lock reveals nothing). Separately, `POST /api/auth/login` and `/api/auth/setup` are rate limited per client IP (token bucket, 20 per minute by default, `security.auth.login_rate_per_minute`) and return `429` with `Retry-After`. |
 | Headers | `SecurityHeadersMiddleware`: CSP, `X-Frame-Options: DENY`, `nosniff`, referrer policy, permissions policy, COOP/CORP, `Cache-Control: no-store` on `/api`, HSTS over HTTPS. |
@@ -36,7 +36,7 @@ Start the server and open the UI, or call the API. While no user exists, `POST /
 creates the first admin and signs them in; afterwards it answers `409`.
 
 ```bash
-export VMA_SECRET_KEY="$(vma secrets generate-key)"   # encrypts TOTP secrets and cloud credentials
+export HOPSHIFT_SECRET_KEY="$(vma secrets generate-key)"   # encrypts TOTP secrets and cloud credentials
 vma serve --host 127.0.0.1 --port 8080
 
 curl -s http://127.0.0.1:8080/api/auth/status
@@ -75,9 +75,9 @@ repeat it with `"totp_code": "123456"` (or a recovery code).
 ```bash
 curl -s -b cookies.txt -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8080' \
   -d '{"name": "ci", "role": "operator", "expires_days": 90}' http://127.0.0.1:8080/api/auth/tokens
-# {"id": "...", "token": "vma_...", "prefix": "vma_xxxxxxxx", "role": "operator", ...}   <- token shown once
+# {"id": "...", "token": "hs_...", "prefix": "hs_xxxxxxxx", "role": "operator", ...}   <- token shown once
 
-curl -s -H 'Authorization: Bearer vma_...' http://127.0.0.1:8080/api/runs
+curl -s -H 'Authorization: Bearer hs_...' http://127.0.0.1:8080/api/runs
 curl -s -b cookies.txt -H 'Origin: http://127.0.0.1:8080' -X DELETE http://127.0.0.1:8080/api/auth/tokens/<id>
 ```
 
@@ -88,7 +88,7 @@ curl -s -b cookies.txt -H 'Origin: http://127.0.0.1:8080' -X DELETE http://127.0
 
 ```bash
 curl -s -b cookies.txt -X POST -H 'Origin: http://127.0.0.1:8080' http://127.0.0.1:8080/api/auth/mfa/enroll
-# {"secret": "BASE32...", "otpauth_uri": "otpauth://totp/vmware-migration-agent:admin?secret=...&issuer=vmware-migration-agent"}
+# {"secret": "BASE32...", "otpauth_uri": "otpauth://totp/hopshift:admin?secret=...&issuer=hopshift"}
 # scan the URI with an authenticator app, then confirm with the current code:
 curl -s -b cookies.txt -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8080' \
   -d '{"code": "123456"}' http://127.0.0.1:8080/api/auth/mfa/confirm
@@ -109,7 +109,7 @@ security:
       enabled: true
       issuer: https://login.example.com          # must equal the `issuer` in the discovery document
       client_id: vma-platform
-      client_secret_env: VMA_OIDC_CLIENT_SECRET  # the secret itself lives in the environment
+      client_secret_env: HOPSHIFT_OIDC_CLIENT_SECRET  # the secret itself lives in the environment
       scopes: [openid, profile, email, groups]
       allowed_domains: [example.com]             # empty = any verified email
       default_role: viewer
@@ -164,13 +164,13 @@ Both values are editable from Settings. The sweeper runs hourly inside the serve
 
 ### Key rotation
 
-`VMA_SECRET_KEY` holds one or more comma-separated Fernet keys; the first encrypts, all decrypt.
+`HOPSHIFT_SECRET_KEY` holds one or more comma-separated Fernet keys; the first encrypts, all decrypt.
 
 ```bash
 NEW="$(vma secrets generate-key)"
-export VMA_SECRET_KEY="$NEW,$OLD"
+export HOPSHIFT_SECRET_KEY="$NEW,$OLD"
 vma secrets rotate          # re-encrypts TOTP secrets (and connection credentials when that service is present)
-export VMA_SECRET_KEY="$NEW" # drop the old key once the rotation printed the row counts
+export HOPSHIFT_SECRET_KEY="$NEW" # drop the old key once the rotation printed the row counts
 ```
 
 If secrets were stored before a key existed (posture `mfa.secrets_encrypted` fails), setting the key
@@ -200,7 +200,7 @@ non-zero when the chain is broken.
 | Clickjacking, MIME sniffing, referrer leaks | `X-Frame-Options: DENY`, CSP `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. |
 
 Out of scope: physical access to the host, compromise of the identity provider itself, and
-protection of the `VMA_SECRET_KEY` environment variable (use the orchestrator's secret store).
+protection of the `HOPSHIFT_SECRET_KEY` environment variable (use the orchestrator's secret store).
 
 ## Compliance evidence
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from validation.paths import UnsafePathError, ensure_safe_relative_path
+from hopshift.validation.paths import UnsafePathError, ensure_safe_relative_path
 
 
 @pytest.mark.parametrize(

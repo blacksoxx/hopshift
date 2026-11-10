@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import agent.nodes.reporter as reporter_module
-from agent.runtime import MigrationRuntime
-from api.app import create_app
+import hopshift.pipeline.nodes.reporter as reporter_module
+from hopshift.api.app import create_app
+from hopshift.pipeline.runtime import MigrationRuntime
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "discovery_multi_vm.json"

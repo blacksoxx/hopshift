@@ -5,8 +5,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-import cli.main as main_module
-from cli.main import cli
+import hopshift.cli.main as main_module
+from hopshift.cli.main import cli
 
 
 def test_terragen_requires_input_option() -> None:
@@ -49,8 +49,8 @@ def test_terragen_accepts_custom_json_input(monkeypatch, tmp_path: Path) -> None
             "validation": {},
         }
 
-    monkeypatch.setattr("agent.graph.build_graph", _fake_build_graph)
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_load_config)
+    monkeypatch.setattr("hopshift.pipeline.graph.build_graph", _fake_build_graph)
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_load_config)
 
     input_path = tmp_path / "sample-any-name.json"
     payload = {"vcenter": "vc01", "compute_units": []}
@@ -101,7 +101,7 @@ def test_mcp_check_success(monkeypatch) -> None:
     def _fake_probe(*args, **kwargs):
         return {"server": args[0] if args else kwargs.get("server_name"), "ok": True, "detail": "reachable"}
 
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_load_config)
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_load_config)
     monkeypatch.setattr(main_module, "_probe_mcp_server", _fake_probe)
 
     runner = CliRunner()
@@ -139,7 +139,7 @@ def test_mcp_check_failure_returns_non_zero(monkeypatch) -> None:
             "detail": "reachable" if server_name != "terraform" else "connection failed",
         }
 
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_load_config)
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_load_config)
     monkeypatch.setattr(main_module, "_probe_mcp_server", _fake_probe)
 
     runner = CliRunner()
@@ -208,7 +208,7 @@ def test_mcp_check_servers_filter(monkeypatch) -> None:
             "detail": "reachable",
         }
 
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_load_config)
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_load_config)
     monkeypatch.setattr(main_module, "_probe_mcp_server", _fake_probe)
 
     runner = CliRunner()
@@ -241,8 +241,8 @@ def test_terragen_skip_opa_disables_only_opa(monkeypatch, tmp_path: Path) -> Non
             },
         }
 
-    monkeypatch.setattr("agent.graph.build_graph", _fake_build_graph)
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_load_config)
+    monkeypatch.setattr("hopshift.pipeline.graph.build_graph", _fake_build_graph)
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_load_config)
 
     input_path = tmp_path / "sample-any-name.json"
     input_path.write_text(json.dumps({"virtual_machines": []}), encoding="utf-8")
@@ -291,8 +291,8 @@ def _run_terragen(monkeypatch, tmp_path: Path, graph_result: dict[str, object], 
             captured.update(state)
             return graph_result
 
-    monkeypatch.setattr("agent.graph.build_graph", lambda: _FakeGraph())
-    monkeypatch.setattr("agent.config_loader.load_config", _fake_config_for_terragen)
+    monkeypatch.setattr("hopshift.pipeline.graph.build_graph", lambda: _FakeGraph())
+    monkeypatch.setattr("hopshift.pipeline.config_loader.load_config", _fake_config_for_terragen)
 
     input_path = tmp_path / "discovery.json"
     input_path.write_text(json.dumps({"virtual_machines": []}), encoding="utf-8")

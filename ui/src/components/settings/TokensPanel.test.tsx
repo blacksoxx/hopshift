@@ -46,7 +46,7 @@ describe("TokensPanel", () => {
 
   it("shows a new token exactly once", async () => {
     const user = userEvent.setup({ delay: null });
-    mocks.createToken.mockResolvedValue({ id: "tok-2", token: "vma_s3cr3t_value" });
+    mocks.createToken.mockResolvedValue({ id: "tok-2", token: "hs_s3cr3t_value" });
     renderWithProviders(<TokensPanel />);
     await screen.findByTestId("tokens-table");
     await user.click(screen.getByTestId("create-token"));
@@ -54,7 +54,7 @@ describe("TokensPanel", () => {
     await user.type(screen.getByTestId("token-expires"), "30");
     await user.click(screen.getByTestId("token-submit"));
 
-    expect(await screen.findByTestId("token-value")).toHaveTextContent("vma_s3cr3t_value");
+    expect(await screen.findByTestId("token-value")).toHaveTextContent("hs_s3cr3t_value");
     expect(mocks.createToken).toHaveBeenCalledWith("deploy bot", "admin", 30);
     expect(screen.getByText(/only time the token is shown/)).toBeInTheDocument();
     await user.click(screen.getByTestId("token-done"));

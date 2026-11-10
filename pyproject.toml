@@ -3,10 +3,10 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vmware-migration-agent"
-version = "0.3.0"
-description = "VMware discovery JSON to cloud Terraform HCL migration agent"
-readme = "AGENTS.md"
+name = "hopshift"
+version = "0.1.0"
+description = "Migrate infrastructure from any source to any target: discovery to a canonical model, validated Terraform, compliance, human approval, deployment."
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "langgraph>=0.2",
@@ -60,19 +60,15 @@ pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = [
-  "agent*",
-  "cim*",
-  "cli*",
-  "providers*",
-  "validation*",
-  "vma*",
-  "api*",
-]
+include = ["hopshift*"]
 namespaces = true
 
+[tool.setuptools.package-data]
+"hopshift.validation" = ["policies/*.rego", "policies/**/*.rego"]
+"hopshift.cim" = ["*.json"]
+
 [project.scripts]
-vma = "cli.main:main"
+hopshift = "hopshift.cli.main:main"
 
 [tool.ruff]
 line-length = 120
@@ -84,11 +80,11 @@ select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"agent/llm_client.py" = ["E731"]  # provider dispatch table of lambdas
+"hopshift/pipeline/llm_client.py" = ["E731"]  # provider dispatch table of lambdas
 
 [tool.coverage.run]
-source = ["agent", "api", "cim", "cli", "providers", "validation", "vma"]
-omit = ["*/__pycache__/*", "agent/nodes/rag_retriever.py"]
+source = ["hopshift"]
+omit = ["*/__pycache__/*", "hopshift/pipeline/nodes/rag_retriever.py"]
 relative_files = true
 
 [tool.coverage.report]

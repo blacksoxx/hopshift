@@ -1,7 +1,7 @@
 import type { Connection, ConnectionMethod } from "@/types";
 
 /** The connections guide in the repository (the API does not serve the docs folder). */
-export const DOCS_URL = "https://github.com/blacksoxx/vmware-migration-agent/blob/main/docs/connections.md";
+export const DOCS_URL = "https://github.com/blacksoxx/hopshift/blob/main/docs/connections.md";
 
 export interface ProviderMeta {
   key: string;

@@ -11,7 +11,7 @@ from importlib import import_module
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from cim.blockers import _ALIASES, KNOWN_BLOCKERS, blockers_for_vm, is_hard, normalize_blocker
+from hopshift.cim.blockers import _ALIASES, KNOWN_BLOCKERS, blockers_for_vm, is_hard, normalize_blocker
 
 PROVIDERS = ("aws", "azure", "gcp", "openstack")
 
@@ -22,7 +22,7 @@ ram_mb = st.integers(min_value=256, max_value=4_000_000)
 @settings(max_examples=200)
 @given(provider=st.sampled_from(PROVIDERS), cpu=vcpus, ram=ram_mb)
 def test_every_shape_sizes_to_an_instance_type(provider: str, cpu: int, ram: int) -> None:
-    sizing = import_module(f"providers.{provider}.sizing_table")
+    sizing = import_module(f"hopshift.targets.{provider}.sizing_table")
     instance = sizing.get_instance_type(cpu, ram)
     assert isinstance(instance, str) and instance.strip()
 
@@ -30,7 +30,7 @@ def test_every_shape_sizes_to_an_instance_type(provider: str, cpu: int, ram: int
 @settings(max_examples=200)
 @given(provider=st.sampled_from(PROVIDERS), cpu=vcpus, ram=ram_mb, more_ram=st.integers(min_value=0, max_value=1_000_000))
 def test_more_ram_in_the_same_bucket_never_picks_a_smaller_shape(provider: str, cpu: int, ram: int, more_ram: int) -> None:
-    sizing = import_module(f"providers.{provider}.sizing_table")
+    sizing = import_module(f"hopshift.targets.{provider}.sizing_table")
     table = next(value for name, value in vars(sizing).items() if name.endswith("_SIZING_TABLE"))
     bucket = sizing._select_vcpu_bucket(cpu)
     options = table[bucket]

@@ -10,7 +10,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = React.createContext<ThemeContextValue | null>(null);
-const STORAGE_KEY = "vma.theme";
+const STORAGE_KEY = "hopshift.theme";
 
 function systemTheme(): "light" | "dark" {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";

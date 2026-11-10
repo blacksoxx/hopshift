@@ -27,7 +27,7 @@ const page = await context.newPage();
 async function shot(name, { dark = false } = {}) {
   if (dark) await page.emulateMedia({ colorScheme: "dark" });
   await page.evaluate((isDark) => {
-    localStorage.setItem("vma.theme", isDark ? "dark" : "light");
+    localStorage.setItem("hopshift.theme", isDark ? "dark" : "light");
     document.documentElement.classList.toggle("dark", isDark);
   }, dark);
   await page.waitForTimeout(350);

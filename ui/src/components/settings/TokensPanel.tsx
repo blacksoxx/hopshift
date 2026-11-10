@@ -63,7 +63,7 @@ export function TokensPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Tokens authenticate scripts and CI with <span className="font-mono text-[12.5px]">Authorization: Bearer vma_…</span>. They carry at most your own role and can expire.
+          Tokens authenticate scripts and CI with <span className="font-mono text-[12.5px]">Authorization: Bearer hs_…</span>. They carry at most your own role and can expire.
         </p>
         <div className="flex items-center gap-3">
           {admin ? (

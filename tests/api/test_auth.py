@@ -7,9 +7,9 @@ import pyotp
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.runtime import MigrationRuntime
-from api.app import create_app
-from vma.secrets import SecretBox
+from hopshift.api.app import create_app
+from hopshift.pipeline.runtime import MigrationRuntime
+from hopshift.services.secrets import SecretBox
 
 PASSWORD = "correct horse battery staple"
 OTHER_PASSWORD = "another long passphrase 42"
@@ -31,7 +31,7 @@ def _config(**auth: object) -> dict[str, object]:
 
 
 def _make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **auth: object) -> TestClient:
-    monkeypatch.setenv("VMA_SECRET_KEY", SecretBox.generate_key())
+    monkeypatch.setenv("HOPSHIFT_SECRET_KEY", SecretBox.generate_key())
     runtime = MigrationRuntime(_config(**auth), runs_dir=tmp_path / "runs", checkpoint_db=tmp_path / "runs" / "cp.sqlite")
     app = create_app(runtime=runtime)  # in-memory platform database
     # Cookie-authenticated mutations must carry a same-origin Origin header (OriginCheckMiddleware).
@@ -70,7 +70,7 @@ def test_setup_login_logout_flow(client: TestClient) -> None:
     assert created.json()["username"] == "admin" and created.json()["role"] == "admin"
     assert created.json()["mfa_enabled"] is False
     set_cookie = created.headers["set-cookie"]
-    assert "vma_session=" in set_cookie and "HttpOnly" in set_cookie and "SameSite=lax" in set_cookie and "Path=/" in set_cookie
+    assert "hopshift_session=" in set_cookie and "HttpOnly" in set_cookie and "SameSite=lax" in set_cookie and "Path=/" in set_cookie
     assert "Secure" not in set_cookie  # plain http in tests
     assert "password_hash" not in created.text and PASSWORD not in created.text
 
@@ -86,9 +86,9 @@ def test_setup_login_logout_flow(client: TestClient) -> None:
     response = client.post("/api/auth/logout")
     assert response.status_code == 204
     assert client.get("/api/auth/me").status_code == 401
-    client.cookies.set("vma_session", "stale-or-expired-value")
+    client.cookies.set("hopshift_session", "stale-or-expired-value")
     stale = client.post("/api/auth/logout")  # logout never fails and always clears the cookie
-    assert stale.status_code == 204 and 'vma_session=""' in stale.headers["set-cookie"]
+    assert stale.status_code == 204 and 'hopshift_session=""' in stale.headers["set-cookie"]
     client.cookies.clear()
 
     wrong = _login(client, "admin", "definitely not the password")
@@ -151,7 +151,7 @@ def test_api_tokens(client: TestClient) -> None:
     assert created.status_code == 201, created.text
     payload = created.json()
     token = payload["token"]
-    assert token.startswith("vma_") and len(token) > 40 and payload["prefix"] == token[:12]
+    assert token.startswith("hs_") and len(token) > 40 and payload["prefix"] == token[:12]
     assert payload["role"] == "operator" and payload["expires_at"]
 
     listed = client.get("/api/auth/tokens").json()
@@ -167,7 +167,7 @@ def test_api_tokens(client: TestClient) -> None:
     response = bearer.post("/api/auth/mfa/enroll")
     assert response.status_code == 403
 
-    assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Bearer vma_not_a_real_token"}).status_code == 401
+    assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Bearer hs_not_a_real_token"}).status_code == 401
     assert TestClient(client.app).get("/api/runs", headers={"Authorization": "Basic abc"}).status_code == 401
 
     response = client.delete(f"/api/auth/tokens/{payload['id']}")
@@ -254,8 +254,8 @@ def test_mfa_enrolment_login_recovery_and_disable(client: TestClient) -> None:
     enrolled = client.post("/api/auth/mfa/enroll")
     assert enrolled.status_code == 200
     secret = enrolled.json()["secret"]
-    assert enrolled.json()["otpauth_uri"].startswith("otpauth://totp/vmware-migration-agent:admin?")
-    assert "issuer=vmware-migration-agent" in enrolled.json()["otpauth_uri"]
+    assert enrolled.json()["otpauth_uri"].startswith("otpauth://totp/hopshift:admin?")
+    assert "issuer=hopshift" in enrolled.json()["otpauth_uri"]
     totp = pyotp.TOTP(secret)
 
     response = client.post("/api/auth/mfa/confirm", json={"code": "000000"})
