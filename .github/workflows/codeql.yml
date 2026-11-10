@@ -13,6 +13,9 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Code scanning is a public-repository feature on this plan; the job turns itself back on
+    # when the repository is public again.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
