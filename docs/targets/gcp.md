@@ -147,6 +147,18 @@ variables. See [connections.md](../connections.md).
 - `tests/generation/test_deterministic.py`, `tests/nodes/test_hcl_generator.py`: layout and
   the GCP normalisation and fallback of the `llm` path.
 
+## Check it
+
+The conformance kit runs every renderer contract, guard and policy check for this target;
+`--terraform` adds a real `terraform init` and `validate` (and `tflint` where the registry enables it):
+
+```bash
+hopshift targets check gcp
+hopshift targets check gcp --terraform
+```
+
+See [the support matrix](../support-matrix.md) and [plugins](../plugins.md) for what each check means.
+
 ## Known limitations
 
 - The boot disk is always 20 GB `pd-balanced` from the image; the source's first disk becomes a

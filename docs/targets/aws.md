@@ -144,6 +144,18 @@ variables for Terraform. Field lists, verification calls and the LocalStack reci
 - Deployments: `tests/services/test_deploy_service.py` and `tests/api/test_deploy_api.py` with
   a fake `terraform`; the LocalStack recipe exercises a real plan and apply.
 
+## Check it
+
+The conformance kit runs every renderer contract, guard and policy check for this target;
+`--terraform` adds a real `terraform init` and `validate` (and `tflint` where the registry enables it):
+
+```bash
+hopshift targets check aws
+hopshift targets check aws --terraform
+```
+
+See [the support matrix](../support-matrix.md) and [plugins](../plugins.md) for what each check means.
+
 ## Known limitations
 
 - Subnets do not pin an Availability Zone while volumes use `default_availability_zone`; keep

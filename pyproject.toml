@@ -66,9 +66,16 @@ namespaces = true
 [tool.setuptools.package-data]
 "hopshift.validation" = ["policies/*.rego", "policies/**/*.rego"]
 "hopshift.cim" = ["*.json"]
+# the conformance kit ships its discovery fixture so plugin repositories can run it without this checkout
+"hopshift.testing" = ["fixtures/*.json"]
 
 [project.scripts]
 hopshift = "hopshift.cli.main:main"
+
+# pytest fixtures for plugin repositories: hopshift_target_conformance, hopshift_source_conformance,
+# hopshift_discovery_fixture (see docs/plugins.md)
+[project.entry-points.pytest11]
+hopshift = "hopshift.testing.pytest_plugin"
 
 [tool.ruff]
 line-length = 120

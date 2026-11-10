@@ -117,6 +117,17 @@ Tracked in [discovery-schema.md](../discovery-schema.md):
 
 These run on every pull request ([ci.md](../ci.md)).
 
+## Check it
+
+The conformance kit runs the translator against a discovery file and checks the CIM it produces:
+
+```bash
+hopshift sources check vmware --input tests/fixtures/discovery_multi_vm.json
+```
+
+The same multi-VM fixture ships in the package as `hopshift/testing/fixtures/discovery_multi_vm.json`
+for plugin repositories. See [plugins](../plugins.md).
+
 ## Related
 
 - [discovery-schema.md](../discovery-schema.md): the full field contract and the proposed 1.1.0 fields.

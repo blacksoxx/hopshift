@@ -140,6 +140,18 @@ Catalog provider `azure`, methods `service_principal_secret`, `service_principal
 - `tests/generation/test_deterministic.py`, `tests/nodes/test_hcl_generator.py`: layout and
   the Azure managed disk normalisation of the `llm` path.
 
+## Check it
+
+The conformance kit runs every renderer contract, guard and policy check for this target;
+`--terraform` adds a real `terraform init` and `validate` (and `tflint` where the registry enables it):
+
+```bash
+hopshift targets check azure
+hopshift targets check azure --terraform
+```
+
+See [the support matrix](../support-matrix.md) and [plugins](../plugins.md) for what each check means.
+
 ## Known limitations
 
 - Every compute unit is rendered as `azurerm_linux_virtual_machine`, including Windows guests

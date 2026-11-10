@@ -139,6 +139,18 @@ note on provider variables above.
 - `tests/generation/test_deterministic.py`, `tests/nodes/test_hcl_generator.py`: layout and
   the OpenStack normalisation and fallback of the `llm` path.
 
+## Check it
+
+The conformance kit runs every renderer contract, guard and policy check for this target;
+`--terraform` adds a real `terraform init` and `validate` (and `tflint` where the registry enables it):
+
+```bash
+hopshift targets check openstack
+hopshift targets check openstack --terraform
+```
+
+See [the support matrix](../support-matrix.md) and [plugins](../plugins.md) for what each check means.
+
 ## Known limitations
 
 - Provider credentials come from variables (see above), which duplicates the connection.
