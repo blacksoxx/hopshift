@@ -1,6 +1,17 @@
 # Configuration Reference
 
-Runtime configuration is loaded from config.yaml and then selectively overridden by CLI flags.
+Runtime configuration is loaded from config.yaml, then overridden by environment variables (below), then selectively by CLI flags.
+
+## Environment overrides
+
+Read by `hopshift/pipeline/config_loader.py` after the file is loaded:
+
+- HOPSHIFT_TARGET_CLOUD: target_cloud
+- HOPSHIFT_GENERATION_MODE: generation.mode
+- HOPSHIFT_LLM_PROVIDER, HOPSHIFT_LLM_MODEL, HOPSHIFT_LLM_BASE_URL: llm.provider, llm.model, llm.base_url
+- HOPSHIFT_MCP_TOOL_TIMEOUT_SECONDS (alias HOPSHIFT_MCP_TIMEOUT_SECONDS): mcp.tool_timeout_seconds
+
+The LLM client also reads LLM_PROVIDER, LLM_MODEL, LLM_BASE_URL and OPENAI_BASE_URL, and the CLI reads LLM_API_KEY for `--llm-api-key`; `.env.example` lists them. Platform secrets come from HOPSHIFT_SECRET_KEY and HOPSHIFT_OIDC_CLIENT_SECRET (see [security.md](security.md)).
 
 ## generation
 
@@ -8,7 +19,7 @@ Runtime configuration is loaded from config.yaml and then selectively overridden
 
 Behavior:
 
-- deterministic renders Terraform from the templates in providers/ (networking, compute, storage, placement, runtime). No LLM, no MCP, no API key. Output is a flat root module per provider and is identical for identical input.
+- deterministic renders Terraform with the renderers of the target package (hopshift/targets/<name>/: network, compute, storage, placement, runtime). No LLM, no MCP, no API key. Output is a flat root module per target and is identical for identical input.
 - llm keeps the original LLM generation loop (requires llm.* and, when mcp.enabled, docker).
 - hybrid renders deterministically first and only falls back to the LLM loop when the deterministic output fails validation; the deterministic errors are the first feedback round.
 - Override per run with `terragen --mode` or the HOPSHIFT_GENERATION_MODE environment variable.
@@ -39,7 +50,7 @@ Notes:
 
 ## target_cloud
 
-Default target provider for generation unless overridden by CLI --cloud.
+Default target for generation unless overridden by `--cloud` or HOPSHIFT_TARGET_CLOUD. The value is a target registry name (`aws`, `azure`, `gcp`, `openstack` built in; plugins add theirs; see [architecture.md](architecture.md)).
 
 ## pipeline
 
@@ -56,6 +67,7 @@ Notes:
 - run_terraform_validate
 - run_tflint
 - run_opa
+- run_tflint_<target>: force tflint for a target whose registry entry has no ruleset (for example run_tflint_openstack: true); the validator skips tflint for such targets otherwise
 - terraform_bin
 - tflint_bin
 - opa_mode (binary|server)
@@ -67,7 +79,7 @@ Notes:
 Behavior:
 
 - validator executes terraform init + terraform validate when enabled.
-- validator executes tflint when enabled.
+- validator executes tflint when enabled, except for targets whose `TargetSpec.tflint` is false (see run_tflint_<target>).
 - validator executes OPA policy evaluation when enabled.
 
 ## mcp
@@ -86,7 +98,7 @@ Behavior:
 ## output
 
 - base_dir
-- structure (template reference)
+- structure (informational; deterministic mode writes `{target}-migration/{resource_type}_{name}.tf` plus `targets.tf` and `variables.tf`)
 - write_quarantine_report
 - quarantine_report_filename
 - write_review_notes
@@ -100,9 +112,11 @@ Behavior:
 
 - reporter writes hcl_output keys under output.base_dir only when validation passed.
 - reporter always writes the quarantine report and review notes, except when dry_run = true, in which case nothing is written.
-- reporter removes generated .tf files under provider root directories when overwrite = true.
+- reporter removes generated .tf files under the target root directory (`<target>-migration/`) when overwrite = true.
 
 ## vsphere
+
+Source-specific section for the VMware source. Blocker names are normalised by hopshift/cim/blockers.py, so `rdm_disk_present` and `rdm_disk` mean the same thing.
 
 - drs_rule_mapping
 - hard_blockers
@@ -124,7 +138,7 @@ Default tags injected into generated resources:
 - SourceVCenter
 - GeneratedAt
 
-CLI overwrites Environment and Owner at runtime.
+CLI overwrites Environment and Owner at runtime; the renderers emit them as `var.environment` and `var.owner` with the CLI values as defaults. On GCP the keys become lowercase labels.
 
 ## runtime
 
@@ -146,7 +160,7 @@ Service layer used by the API, the UI and the platform.
 - headers.hsts, headers.content_security_policy (`default` or `off`)
 - allowed_origins: extra origins allowed to call the API with a session cookie
 - api_docs: serve Swagger UI at /docs
-- retention.runs_days, retention.audit_days: delete runs and prune audit entries older than N days (0 keeps everything); applied by the hourly sweeper and `vma runs prune`
+- retention.runs_days, retention.audit_days: delete runs and prune audit entries older than N days (0 keeps everything); applied by the hourly sweeper and `hopshift runs prune`
 - encrypt_run_inputs: store discovery.json encrypted with the secret key
 
 A few keys (`generation.mode`, the model settings, validation switches, default pause points, MFA policy, session lifetimes, lockout, retention, deploy gates) can be overridden from Settings in the UI by an administrator; the overrides live in `platform_db` and are applied over this file when a run is created.

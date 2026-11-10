@@ -81,7 +81,7 @@ Deployment logs stream the same way. Nothing on a page blocks while work is runn
 cd ui
 npm ci
 npm run dev            # Vite on :5173, proxies /api to :8080 (VITE_API_PROXY to change)
-npm run build          # production bundle in ui/dist (served by `vma serve`)
+npm run build          # production bundle in ui/dist (served by `hopshift serve`)
 npx tsc --noEmit       # type check
 npx vitest run         # unit tests (jsdom, Testing Library)
 npx playwright test    # end-to-end: starts an isolated server through e2e/serve.py

@@ -6,11 +6,11 @@ per-control report (`compliance_report.json` / `compliance_report.md`) that ship
 
 ## How it works
 
-1. The validator parses the generated `.tf` files with `validation/hcl_parser.py` and evaluates
+1. The validator parses the generated `.tf` files with `hopshift/validation/hcl_parser.py` and evaluates
    the whole policy bundle (`hopshift/validation/policies`) with OPA, exactly as before. Nothing changed in
    how `deny` messages are collected.
 2. The controls live in `hopshift/validation/policies/compliance/*.rego`, package
-   `hopshift.compliance` (one file per cloud plus `common.rego`). Every rule emits a
+   `hopshift.compliance` (one file per built-in target plus `common.rego`). Every rule emits a
    `violations` entry:
 
    ```json
@@ -24,40 +24,40 @@ per-control report (`compliance_report.json` / `compliance_report.md`) that ship
    - `advisory` violations are reported only. They cover settings that need account-level resources
      or subscription features the platform does not create (flow-log destinations, KMS keys,
      EncryptionAtHost registration, a dedicated service account).
-   - `evaluated` lists the control ids that applied to the input. The cloud is detected from the
+   - `evaluated` lists the control ids that applied to the input. The target is detected from the
      provider types present (`aws_*`, `azurerm_*`, `google_*`, `openstack_*`, plus the `provider`
      and `required_providers` blocks).
-3. `validation/opa_client.py` returns the violations and the evaluated ids on
+3. `hopshift/validation/opa_client.py` returns the violations and the evaluated ids on
    `OPAEvaluationResult.violations` / `.evaluated` (binary and server mode), next to the unchanged
    `passed` / `errors` / `deny_messages`.
-4. `agent/nodes/validator.py` calls `vma.compliance.report.build_report(cloud, violations,
+4. `hopshift/pipeline/nodes/validator.py` calls `hopshift.services.compliance.report.build_report(cloud, violations,
    evaluated, validation_result)` and stores the result in state as `compliance_result`. This
    happens for every outcome: when OPA is disabled or unavailable the report lists every control as
    `not_applicable` and carries a warning, and `validation_result.warnings` says so too.
-5. `agent/nodes/reporter.py` writes `compliance_report.json` and `compliance_report.md` into
+5. `hopshift/pipeline/nodes/reporter.py` writes `compliance_report.json` and `compliance_report.md` into
    `output.base_dir`, next to `quarantine_report.json`, for passed and failed runs alike
    (`output.write_compliance_report`, default `true`; nothing is written with `output.dry_run`).
-6. The run service (`agent/runtime.py`) adds `compliance_failed` and `compliance_advisory` to the
+6. The run service (`hopshift/pipeline/runtime.py`) adds `compliance_failed` and `compliance_advisory` to the
    per-node event summaries so the API/UI can show them without reading the report.
 
-The catalog (`vma/compliance/controls.py`) and the bundle must agree: a test evaluates
+The catalog (`hopshift/services/compliance/controls.py`) and the bundle must agree: a test evaluates
 `data.hopshift.compliance.controls` with the real `opa` binary and compares ids and levels
 with the Python catalog.
 
 ## Secure-by-default renderers
 
-The deterministic renderers (`providers/*/`) emit output that passes every `enforce` control on all
-four clouds; `tests/integration/test_terraform_validate.py` proves it with the real policy bundle
+The deterministic renderers (`hopshift/targets/*/`) emit output that passes every `enforce` control on all
+four built-in targets; `tests/integration/test_terraform_validate.py` proves it with the real policy bundle
 and keeps `terraform validate` + `tflint` green. What the renderers now emit:
 
-| Cloud | Hardening |
+| Target | Hardening |
 | --- | --- |
 | AWS | `aws_instance`: `metadata_options { http_endpoint = "enabled", http_tokens = "required", http_put_response_hop_limit = 1 }`, `associate_public_ip_address = false`, `ebs_optimized = true`, `root_block_device { encrypted = true }`; `aws_ebs_volume` encrypted; one `aws_default_security_group` per VPC with no rules; security group ingress limited to `10.0.0.0/8`. |
 | Azure | NICs without `public_ip_address_id`; NSG SSH rule sourced from `VirtualNetwork` only; `boot_diagnostics {}` (managed storage) on each VM. `encryption_at_host_enabled` stays advisory because it needs the `Microsoft.Compute/EncryptionAtHost` subscription feature. |
 | GCP | `google_compute_instance`: no `access_config`, `can_ip_forward = false`, `shielded_instance_config` with secure boot / vTPM / integrity monitoring, `metadata { enable-oslogin = "TRUE", block-project-ssh-keys = "TRUE", serial-port-enable = "FALSE" }`, `service_account` with logging/monitoring/read-only storage scopes and `email` from the new `var.service_account_email` (empty keeps the default Compute Engine account, with the limited scopes); every `google_compute_subnetwork` has `log_config` and `private_ip_google_access = true`. Imported images must carry the `UEFI_COMPATIBLE` guest OS feature for Shielded VM. |
 | OpenStack | Security group rules sourced from `10.0.0.0/8`; volumes use `var.encrypted_volume_type` (default `encrypted`). |
 
-File names, variables and the flat module layout are unchanged apart from the added GCP variable.
+File names, variables and the flat module layout are documented per target under [targets/](targets/aws.md).
 
 ## Control matrix
 
@@ -67,7 +67,7 @@ are Trust Services Criteria ids; HIPAA references are 45 CFR Part 164 Security R
 reference means the control is technical evidence for that criterion; check the numbering against
 the benchmark revision your assessor uses.
 
-| ID | Title | Clouds | Level | CIS | SOC 2 TSC | HIPAA |
+| ID | Title | Targets | Level | CIS | SOC 2 TSC | HIPAA |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ALL-TAGS-REQUIRED` | Required ownership tags on every resource | all | enforce | - | CC6.1, CC3.2 | 164.308(a)(1)(ii)(A), 164.310(d)(1) |
 | `AWS-EC2-IMDSV2` | EC2 instances require IMDSv2 | aws | enforce | AWS 5.6 | CC6.1, CC6.6 | 164.312(a)(1), 164.312(e)(1) |
@@ -148,7 +148,7 @@ both the original rule and the control emit a deny.
   table (id, title, level, status, CIS, SOC 2, HIPAA), one findings section per failing or advisory
   control with remediation, warnings, and the attestation note.
 
-Only the catalog controls for the target cloud appear in a report; controls the bundle reports
+Only the catalog controls for the run's target appear in a report; controls the bundle reports
 that are missing from the catalog are kept visible as `Unknown control <id>` so drift is noticed.
 
 ## Adding a control
@@ -161,10 +161,10 @@ that are missing from the catalog are kept visible as `Unknown control <id>` so 
    `not ... in ...` always defined (Rego hoists them out of the negation). `common.rego` provides
    `port_spec_covers`, `open_cidrs`, `management_ports`, `provider_anchor` and
    `expression_backed_by_variable_default`.
-3. Add the matching `Control(...)` to `vma/compliance/controls.py` with title, description, clouds,
+3. Add the matching `Control(...)` to `hopshift/services/compliance/controls.py` with title, description, clouds,
    the same level, framework references and honest remediation text (say what the operator has to
    provide when the platform cannot create it).
-4. If the control is `enforce`, make the renderers in `providers/<cloud>/` satisfy it; the
+4. If the control is `enforce`, make the renderers in `hopshift/targets/<target>/` satisfy it; the
    integration test `test_deterministic_render_passes_every_enforce_compliance_control` fails
    otherwise.
 5. Add cases to `tests/validation/test_compliance_policies.py` (a compliant and a violating

@@ -32,7 +32,7 @@ job never breaks branch protection.
 |---|---|---|
 | Lint | ruff, pre-commit hooks (yaml/json validity, large files, private keys) | yes |
 | Python unit tests | pytest with coverage on Python 3.12 and 3.13 (Ubuntu) and 3.12 (macOS); a coverage comment is posted on the pull request and the badge updates on `main` | yes |
-| Integration | real `terraform validate`, `tflint` and OPA on the rendered output for all four clouds; zero enforced compliance violations | yes |
+| Integration | real `terraform validate`, `tflint` and OPA on the rendered output for every built-in target; zero enforced compliance violations | yes |
 | UI | TypeScript strict type-check, Vitest with coverage, production build | yes |
 | End-to-end | Playwright against an isolated server: setup, sign-in, wizard, CIM edit, approvals, artifacts, compliance, connections, assess | yes |
 | Security | gitleaks (secret scan of the whole history), pip-audit and npm audit (advisories), semgrep (`p/python`, `p/typescript`, `p/secrets` at error severity), trivy filesystem scan (lockfiles, Dockerfile and compose misconfiguration, secrets) | gitleaks, npm audit, semgrep and trivy yes; pip-audit reports |
@@ -70,7 +70,7 @@ docker run --rm -v "$PWD":/repo aquasec/trivy fs --scanners vuln,misconfig,secre
 
 ## Release checklist
 
-1. Update `version` in `pyproject.toml` and `vma/__init__.py`.
+1. Update `version` in `pyproject.toml` and `hopshift/__init__.py`.
 2. `git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z`.
 3. The Release workflow builds and signs `ghcr.io/blacksoxx/hopshift:X.Y.Z` and
    publishes the release with generated notes and the SBOM.

@@ -4,7 +4,7 @@ This document describes the active LangGraph workflow and state contract as impl
 
 ## Graph Execution Order
 
-Defined in agent/graph.py:
+Defined in hopshift/pipeline/graph.py:
 
 1. ingest
 2. blocker_parser
@@ -29,10 +29,10 @@ Edges:
 - blocker_parser: Detects hard blockers, removes blocked ComputeUnits from active workload, appends quarantine items.
 - enricher: Applies deterministic metadata enrichment before translation.
 - cim_mapper: Builds CIM document from discovery payload.
-- sizer: Applies provider sizing lookup to each ComputeUnit.
-- mcp_client: Pulls provider resource documentation snippets from Terraform MCP server and stores mcp_context.
-- hcl_generator: Renders Terraform from the provider templates (`generation.mode: deterministic`, the default). In `llm`/`hybrid` modes the model proposes files inside a validation feedback loop; either way the output goes through the same validator gate.
-- validator: Runs the final deterministic gate via validation.tf_runner (terraform init/validate and tflint inside the provider root, e.g. aws-migration/) plus OPA, and sets validation_result and status.
+- sizer: Applies the target's sizing table (resolved through the target registry) to each ComputeUnit.
+- mcp_client: Pulls Terraform provider documentation snippets from Terraform MCP server and stores mcp_context.
+- hcl_generator: Renders Terraform with the target package's renderers (`generation.mode: deterministic`, the default). In `llm`/`hybrid` modes the model proposes files inside a validation feedback loop; either way the output goes through the same validator gate.
+- validator: Runs the final deterministic gate via hopshift.validation.tf_runner (terraform init/validate and tflint inside the target root, e.g. aws-migration/; tflint is skipped for targets whose registry entry has no ruleset unless validation.run_tflint_<target> is true) plus OPA (gate and compliance policies), and sets validation_result, compliance_result and status.
 - reporter: Always runs. Writes quarantine_report.json and review_notes.md; writes HCL files only when validation_result.passed is true; writes nothing when output.dry_run is true. Sets the final status to succeeded or failed.
 
 ## Retry Behavior
@@ -47,18 +47,20 @@ Retries happen inside hcl_generator:
 
 ## MigrationState Contract
 
-Defined in agent/state.py:
+Defined in hopshift/pipeline/state.py:
 
 Required top-level fields:
 
-- discovery_data: input VMware payload.
+- discovery_data: the discovery payload.
 - config: runtime config map.
-- target_provider: TargetProvider enum.
+- target_provider: the target name (lower-case registry name; `TargetProvider` normalises the string, it is not an enum).
 - cim: CanonicalInfrastructureModel.
 - sized_cim: CanonicalInfrastructureModel after sizing lookup.
 - mcp_context: Terraform docs context from MCP.
 - hcl_output: map of output path -> HCL content.
 - validation_result: pass/fail flags plus errors and warnings.
+- compliance_result: the compliance report built by hopshift.services.compliance.report (controls, statuses, framework counts).
+- assessment_result: output of the assess graph (risk per resource).
 - review_notes: generated report markdown.
 - quarantine_queue: list of QuarantineItem.
 - messages: audit trail strings.
@@ -83,7 +85,7 @@ ValidationResult fields:
 
 ## Exit Status
 
-`vma terragen` exits 0 only when the final status is succeeded. On failure it prints the first validation errors to stderr and exits 1.
+`hopshift terragen` exits 0 only when the final status is succeeded. On failure it prints the first validation errors to stderr and exits 1.
 
 ## Important Drift Note
 

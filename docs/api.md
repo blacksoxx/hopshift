@@ -6,14 +6,14 @@ unless `security.api_docs` is false. Responses are JSON; errors are plain text o
 
 | Status | Meaning |
 |---|---|
-| 400 | invalid request or lifecycle state (`vma.errors.Invalid`, `RunError`) |
+| 400 | invalid request or lifecycle state (`hopshift.services.errors.Invalid`, `RunError`) |
 | 401 | authentication required or credentials invalid |
 | 403 | role too low, confirmation missing, action disabled, origin check failed |
 | 404 | unknown run, connection, deployment, user |
 | 409 | conflict (duplicate name, run already executing, active deployment) |
 | 422 | body validation (pydantic) |
 | 429 | login throttled (`Retry-After` header) |
-| 503 | a required key or backend is missing (`vma.errors.Unavailable`) |
+| 503 | a required key or backend is missing (`hopshift.services.errors.Unavailable`) |
 
 ## Authentication
 
@@ -61,7 +61,7 @@ Cookie-authenticated mutations must come from the same origin (or one listed in
 | Method and path | Role | Notes |
 |---|---|---|
 | `GET /health` | public | `{ok, runs_dir, version}` |
-| `GET /meta` | any | clouds, modes, pause points, nodes, defaults, `auth_mode`, `features` |
+| `GET /meta` | any | `clouds` (registered target names), `targets` and `sources` (registry entries: name, label, blurb, tier, docs, and schema names for sources), `modes`, `pause_points`, `nodes`, `default_pause_points`, `auth_mode`, `features` |
 | `GET /config` | admin | effective configuration (file + overrides) |
 | `GET /dashboard` | viewer | counts by status and cloud, success rate, 30-day series, recent and paused runs |
 | `GET /settings` | admin | `{effective, overrides, schema}` |
@@ -87,7 +87,7 @@ Cookie-authenticated mutations must come from the same origin (or one listed in
 | `GET /runs/{id}/compliance` | viewer | the compliance report |
 | `POST /assess` | viewer | `{discovery, cloud}` → readiness assessment, synchronous |
 
-`options` mirrors the CLI: `cloud`, `environment`, `owner`, `mode`, `llm_provider`,
+`options` mirrors the CLI: `cloud` (a registered target name), `environment`, `owner`, `mode`, `llm_provider`,
 `llm_model`, `llm_base_url`, `skip_validation`, `skip_opa`, `no_mcp`, `dry_run`,
 `llm_review_notes`, `pause_points` (omit for the configured defaults, `[]` for none).
 

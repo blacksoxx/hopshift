@@ -1,8 +1,8 @@
 # Deployments
 
 The platform can run Terraform against the root module a run generated: `plan`, then `apply`
-with an explicit approval, and later `destroy`. The executor lives in `vma/deploy/`; the HTTP
-surface is `api/routes/deploy.py`. Nothing here touches the pipeline: a deployment is a
+with an explicit approval, and later `destroy`. The executor lives in `hopshift/services/deploy/`; the HTTP
+surface is `hopshift/api/routes/deploy.py`. Nothing here touches the pipeline: a deployment is a
 separate, audited action on a run that already succeeded.
 
 ## Lifecycle
@@ -34,7 +34,7 @@ plus a destroy); for apply and destroy it comes from Terraform's final `Apply co
 
 | action | requirements |
 |---|---|
-| any | the run exists, its status is `succeeded`, and `artifacts/<cloud>-migration/` contains `.tf` files; a `connection_id` when the connections service is available |
+| any | the run exists, its status is `succeeded`, and `artifacts/<target>-migration/` contains `.tf` files; a `connection_id` when the connections service is available |
 | `plan` | nothing more |
 | `apply` | `deploy.allow_apply` is on; `plan_id` names a **succeeded plan of the same run that found changes**, and the generated `.tf` files have not changed since (a sha256 over their sorted paths and contents is recorded on the plan); `confirmation` equals the run id |
 | `destroy` | `deploy.allow_destroy` is on; `confirmation` equals the run id |
@@ -51,7 +51,7 @@ plan / apply / destroy, cancel, and set variables.
 
 ```
 output/runs/<run_id>/
-  artifacts/<cloud>-migration/      the generated root module (never modified by a deployment)
+  artifacts/<target>-migration/      the generated root module (never modified by a deployment)
   deploy/
     workspace/                      fresh copy of the root module made at the start of every deployment
     state/terraform.tfstate         local backend state (kept out of artifacts/)
@@ -67,7 +67,7 @@ output/platform.sqlite              `deployments` table used for listing and the
 ```
 
 The workspace gets a `backend_override.tf` (Terraform merges `*_override.tf` files over
-`providers.tf`), so the generated files stay valid on their own and the backend is decided by the
+`targets.tf`), so the generated files stay valid on their own and the backend is decided by the
 platform. Provider downloads go through `validation.terraform_plugin_cache_dir` when it is set.
 
 ### Environment given to Terraform
@@ -113,8 +113,8 @@ current entry from `terraform.tfvars.json` (masked when the variable is sensitiv
 audited as `variables.updated` (names only). A `null` value removes an entry.
 
 Variables that matter for every AWS run: `aws_region`, `default_availability_zone`,
-`default_ami_id` (fallback AMI) and `image_overrides` (AMI per VMware VM name produced by VM
-Import/Export). A plan embeds the variable values it was made with; `apply` reuses the plan file,
+`default_ami_id` (fallback AMI) and `image_overrides` (AMI per source VM name produced by VM
+Import/Export). The variables of every target are listed under [targets/](targets/aws.md). A plan embeds the variable values it was made with; `apply` reuses the plan file,
 so changing variables between plan and apply has no effect until the next plan.
 
 ## State
@@ -131,7 +131,7 @@ deploy:
     type: s3            # s3 | azurerm | gcs
     config:
       bucket: my-tf-state
-      key: vma/runs.tfstate
+      key: hopshift/runs.tfstate
       region: us-east-1
       encrypt: true
 ```
@@ -165,7 +165,7 @@ generated module end to end.
    The connections service turns the endpoint into the provider's environment
    (`AWS_ENDPOINT_URL`, which Terraform's AWS provider 5.x+ honours for every service).
 
-3. The generated `providers.tf` needs three settings the real AWS API does not, otherwise the
+3. The generated `targets.tf` needs three settings the real AWS API does not, otherwise the
    provider tries to call STS and validate the region against the public endpoints. Add a
    `provider_override.tf` in the run's root module (`artifacts/aws-migration/`) with:
 
@@ -210,13 +210,13 @@ A typical sequence with `curl` (session cookie or `Authorization: Bearer hs_...`
 
 ```bash
 RUN=20261108T142203Z-4ab07013
-curl -s -X PUT localhost:8000/api/runs/$RUN/deploy/variables \
+curl -s -X PUT localhost:8080/api/runs/$RUN/deploy/variables \
   -H 'content-type: application/json' -d '{"values": {"aws_region": "us-east-1", "default_ami_id": "ami-0123456789abcdef0"}}'
-PLAN=$(curl -s -X POST localhost:8000/api/runs/$RUN/deployments \
+PLAN=$(curl -s -X POST localhost:8080/api/runs/$RUN/deployments \
   -H 'content-type: application/json' -d '{"action": "plan", "connection_id": "<connection id>"}' | jq -r .id)
-curl -sN localhost:8000/api/runs/$RUN/deployments/$PLAN/log/stream      # until "event: done"
-curl -s localhost:8000/api/runs/$RUN/deployments/$PLAN | jq .summary
-curl -s -X POST localhost:8000/api/runs/$RUN/deployments \
+curl -sN localhost:8080/api/runs/$RUN/deployments/$PLAN/log/stream      # until "event: done"
+curl -s localhost:8080/api/runs/$RUN/deployments/$PLAN | jq .summary
+curl -s -X POST localhost:8080/api/runs/$RUN/deployments \
   -H 'content-type: application/json' \
   -d "{\"action\": \"apply\", \"connection_id\": \"<connection id>\", \"plan_id\": \"$PLAN\", \"confirmation\": \"$RUN\"}"
 ```
@@ -230,7 +230,7 @@ Audit events: `deployment.requested`, `deployment.finished` (status, exit code, 
 |---|---|
 | `503 terraform binary not found` | `deploy.terraform_bin` is not on the API's `PATH` (in Docker the image ships it; locally install Terraform ≥ 1.5). |
 | `400 connection_id is required` | The connections service is installed, so every deployment needs a connection; create one and pass its id. |
-| `400 connection ... is for azure, the run targets aws` | Pick a connection whose provider matches the run's cloud. |
+| `400 connection ... is for azure, the run targets aws` | Pick a connection whose provider matches the run's target. |
 | `init` fails with provider download errors | No network to the registry: pre-populate `validation.terraform_plugin_cache_dir` or mount a filesystem mirror. |
 | `plan` fails with `no valid credential sources` | The connection's `terraform_env` produced nothing usable (expired SSO/assume-role, missing secret because `HOPSHIFT_SECRET_KEY` changed). Test the connection first. |
 | `400 the generated Terraform changed since plan ...` | The artifacts were regenerated or edited after the plan; run `plan` again. |
