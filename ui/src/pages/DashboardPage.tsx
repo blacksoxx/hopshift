@@ -3,6 +3,8 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTo
 import { ArrowRight, BarChart3, Cable, CheckCircle2, Clock, ListChecks, PauseCircle, Plus, ShieldCheck } from "lucide-react";
 import { api } from "@/api";
 import { useAsync } from "@/hooks/useAsync";
+import { useTargets } from "@/hooks/useTargets";
+import { TargetBadge } from "@/components/TargetBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader, Skeleton, Stat } from "@/components/ui/misc";
@@ -19,6 +21,7 @@ export function DashboardPage() {
   const dashboard = useAsync(() => api.dashboard(), [], { pollMs: (data) => (data && (data.by_status.running ?? 0) > 0 ? 4000 : 20000) });
   const posture = useAsync(() => api.posture(), []);
   const connections = useAsync(() => api.listConnections().catch(() => []), []);
+  const { labelOf } = useTargets();
   const primary = useCssVar("--primary");
   const destructive = useCssVar("--destructive");
   const border = useCssVar("--border");
@@ -124,7 +127,7 @@ export function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{run.name || run.input_filename}</div>
                         <div className="text-xs text-muted-foreground">
-                          {run.cloud} · {run.pause_point?.replace("_", " ")} · {relativeTime(run.updated_at)}
+                          {labelOf(run.cloud)} · {run.pause_point?.replace("_", " ")} · {relativeTime(run.updated_at)}
                         </div>
                       </div>
                       <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -144,7 +147,7 @@ export function DashboardPage() {
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Recent runs</CardTitle>
-              <CardDescription>Latest activity across all clouds.</CardDescription>
+              <CardDescription>Latest activity across all targets.</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/runs">
@@ -158,7 +161,7 @@ export function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-5">Run</TableHead>
-                    <TableHead>Cloud</TableHead>
+                    <TableHead>Target</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-5 text-right">Updated</TableHead>
                   </TableRow>
@@ -170,7 +173,9 @@ export function DashboardPage() {
                         <div className="font-medium">{run.name || run.input_filename}</div>
                         <div className="font-mono text-[11px] text-muted-foreground">{shortId(run.run_id)}</div>
                       </TableCell>
-                      <TableCell className="uppercase text-xs text-muted-foreground">{run.cloud}</TableCell>
+                      <TableCell>
+                        <TargetBadge name={run.cloud} icon={false} />
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={run.status} />
                       </TableCell>
@@ -191,7 +196,7 @@ export function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Connections</CardTitle>
-              <CardDescription>Cloud accounts available for plan and apply.</CardDescription>
+              <CardDescription>Target accounts available for plan and apply.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               {connections.data && connections.data.length > 0 ? (
@@ -201,7 +206,7 @@ export function DashboardPage() {
                       <Link to={`/connections/${connection.id}`} className="flex min-w-0 items-center gap-2 hover:underline">
                         <Cable className="size-3.5 text-muted-foreground" />
                         <span className="truncate">{connection.name}</span>
-                        <span className="text-xs uppercase text-muted-foreground">{connection.provider}</span>
+                        <span className="truncate text-xs text-muted-foreground">{connection.provider_label ?? connection.provider}</span>
                       </Link>
                       <StatusBadge status={connection.status} />
                     </li>

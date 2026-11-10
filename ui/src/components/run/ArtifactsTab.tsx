@@ -2,6 +2,7 @@ import * as React from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Download, File, FileCode, FileJson, FileText, Folder, FolderOpen, GitCompare, Package, X } from "lucide-react";
 import { api } from "@/api";
 import { useAsync } from "@/hooks/useAsync";
+import { useTargets } from "@/hooks/useTargets";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SimpleSelect } from "@/components/ui/select";
@@ -123,6 +124,7 @@ export function ArtifactsTab({ run }: { run: RunRecord }) {
 
   const content = useAsync(() => (selected ? api.artifact(runId, selected) : Promise.resolve("")), [runId, selected, run.updated_at]);
   const others = useAsync(() => api.listRuns({ cloud: run.cloud }).then((runs) => runs.filter((item) => item.run_id !== runId && item.status === "succeeded")), [runId, run.cloud]);
+  const targetLabel = useTargets().labelOf(run.cloud);
   const diff = useAsync(() => (compareWith ? api.diff(runId, compareWith) : Promise.resolve(null)), [runId, compareWith]);
 
   React.useEffect(() => {
@@ -219,7 +221,7 @@ export function ArtifactsTab({ run }: { run: RunRecord }) {
           <div className="flex items-center gap-2 text-sm font-medium">
             <GitCompare className="size-4 text-muted-foreground" /> Compare with…
           </div>
-          <SimpleSelect value={compareWith} onValueChange={setCompareWith} options={compareOptions} placeholder={others.loading ? "Loading runs…" : compareOptions.length === 0 ? `No other succeeded ${run.cloud.toUpperCase()} runs` : "Pick a run"} className="h-8 w-72 text-xs" disabled={compareOptions.length === 0} testId="compare-select" />
+          <SimpleSelect value={compareWith} onValueChange={setCompareWith} options={compareOptions} placeholder={others.loading ? "Loading runs…" : compareOptions.length === 0 ? `No other succeeded ${targetLabel} runs` : "Pick a run"} className="h-8 w-72 text-xs" disabled={compareOptions.length === 0} testId="compare-select" />
           {compareWith ? (
             <Button variant="ghost" size="sm" className="h-8" onClick={() => setCompareWith("")}>
               <X /> Clear
@@ -236,7 +238,7 @@ export function ArtifactsTab({ run }: { run: RunRecord }) {
           ) : null}
         </div>
         {!compareWith ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground">Pick another {run.cloud.toUpperCase()} run to see how the generated Terraform differs (other on the left, this run on the right).</div>
+          <div className="px-4 py-6 text-sm text-muted-foreground">Pick another {targetLabel} run to see how the generated Terraform differs (other on the left, this run on the right).</div>
         ) : diff.loading && !diff.data ? (
           <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
             <Spinner /> Computing diff…

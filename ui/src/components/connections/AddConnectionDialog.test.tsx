@@ -24,6 +24,11 @@ describe("AddConnectionDialog", () => {
 
     expect(screen.getByTestId("provider-aws")).toBeInTheDocument();
     expect(screen.getByTestId("provider-azure")).toBeInTheDocument();
+    // a provider without hand-written metadata renders from the catalog alone
+    const generic = screen.getByTestId("provider-proxmox");
+    expect(generic).toHaveTextContent("Proxmox VE");
+    expect(generic).toHaveTextContent("API token.");
+    expect(screen.getByTestId("provider-icon-proxmox")).toHaveAttribute("data-generic", "true");
     await user.click(screen.getByTestId("provider-aws"));
     expect(screen.getByTestId("method-access_keys")).toHaveTextContent("terraform ready");
     expect(screen.getByTestId("method-access_keys")).toHaveTextContent("stores secrets");

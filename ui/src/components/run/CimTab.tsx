@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, Braces, ChevronsUpDown, Eraser, Network, Save, Search, Server, Undo2, Wand2, X } from "lucide-react";
 import { api } from "@/api";
+import { useTargets } from "@/hooks/useTargets";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -217,6 +218,7 @@ export interface CimTabProps {
 
 export function CimTab({ runId, cim, editable, readOnlyReason, onSaved }: CimTabProps) {
   const { toast } = useToast();
+  const { labelOf } = useTargets();
   const [draft, setDraft] = React.useState<Cim | null>(cim);
   const [raw, setRaw] = React.useState(false);
   const [rawText, setRawText] = React.useState(() => (cim ? JSON.stringify(cim, null, 2) : ""));
@@ -359,7 +361,7 @@ export function CimTab({ runId, cim, editable, readOnlyReason, onSaved }: CimTab
       <div className="surface overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{draft.source?.platform ?? "vSphere"}</span> · {draft.source?.name ?? draft.source_vcenter} → <span className="uppercase">{draft.target_provider}</span> · {draft.compute_units.length} unit{draft.compute_units.length === 1 ? "" : "s"} · {clusters.length} cluster{clusters.length === 1 ? "" : "s"} · {switches.length} switch{switches.length === 1 ? "" : "es"}
+            <span className="font-medium text-foreground">{draft.source?.platform ?? "unknown source"}</span> · {draft.source?.name ?? draft.source_vcenter} → <span className="font-medium text-foreground">{labelOf(draft.target_provider)}</span> · {draft.compute_units.length} unit{draft.compute_units.length === 1 ? "" : "s"} · {clusters.length} cluster{clusters.length === 1 ? "" : "s"} · {switches.length} switch{switches.length === 1 ? "" : "es"}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-3">
             {!raw ? (

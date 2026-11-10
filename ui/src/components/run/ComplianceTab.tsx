@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronDown, ChevronRight, Download, Search, ShieldCheck } from "lucide-react";
 import { ApiError, api } from "@/api";
 import { useAsync } from "@/hooks/useAsync";
+import { TargetBadge } from "@/components/TargetBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -92,8 +93,8 @@ export function ComplianceTab({ runId }: { runId: string }) {
 
       <div className="surface overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
-          <div className="text-xs text-muted-foreground">
-            Evaluated {formatDateTime(data.generated_at)} for <span className="uppercase">{data.cloud}</span>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            Evaluated {formatDateTime(data.generated_at)} for <TargetBadge name={data.cloud} icon={false} className="text-foreground" />
           </div>
           {frameworks.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5" data-testid="compliance-frameworks">

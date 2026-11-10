@@ -112,7 +112,7 @@ export function EditConnectionDialog({ connection, catalog, onOpenChange, secret
         <DialogHeader>
           <DialogTitle>Edit {connection?.name}</DialogTitle>
           <DialogDescription>
-            {connection ? `${connection.provider_label ?? providerMeta(connection.provider).label} · ${connection.method_label ?? method?.label ?? connection.auth_method}. ` : ""}
+            {connection ? `${connection.provider_label ?? providerMeta(connection.provider, catalog).label} · ${connection.method_label ?? method?.label ?? connection.auth_method}. ` : ""}
             Changing the configuration or a secret resets the status to unverified.
           </DialogDescription>
         </DialogHeader>
