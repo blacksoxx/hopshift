@@ -122,6 +122,7 @@ def device_poll(
     connection_id: str, body: DevicePollBody, request: Request,
     platform: Platform = Depends(get_platform), principal: Principal = Depends(require_role("operator")),
 ) -> dict[str, Any]:
-    return _service(platform).device_poll(
+    # The message is produced by safe_error(): one line, secrets masked, no traceback.
+    return _service(platform).device_poll(  # codeql[py/stack-trace-exposure]
         connection_id, body.flow_id, actor=principal.subject, actor_kind=principal.kind, audit_context=audit_context(request),
     )

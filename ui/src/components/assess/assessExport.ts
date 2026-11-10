@@ -13,7 +13,8 @@ function csvCell(value: unknown): string {
 }
 
 function mdCell(value: unknown): string {
-  return String(value ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  // escape backslashes before pipes so an existing backslash cannot neutralise the pipe escape
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 export function exportFilename(result: AssessmentResult, extension: string): string {

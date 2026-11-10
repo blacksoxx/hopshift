@@ -4,7 +4,7 @@ name: Community
 on:
   issues:
     types: [opened]
-  pull_request_target:
+  pull_request:
     types: [opened]
   schedule:
     - cron: "41 2 * * *"
@@ -16,20 +16,20 @@ permissions:
 jobs:
   greet:
     name: Welcome first-time contributors
-    if: github.event_name == 'issues' || github.event_name == 'pull_request_target'
+    if: github.event_name == 'issues' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/first-interaction@v1
+      - uses: actions/first-interaction@v3.1.0
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             Thanks for opening your first issue here. A maintainer will take a look soon.
             If this is a bug, the exact error text, the target cloud and a redacted discovery
             JSON make it much faster to reproduce.
-          pr-message: |
+          pr_message: |
             Thanks for your first pull request! CI runs the full suite (lint, unit, integration,
             UI, end-to-end and security scans) and posts a coverage comment. See CONTRIBUTING.md
             for the conventions; the PR title should follow `type(scope): summary`.
@@ -42,7 +42,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v11.0.0
         with:
           days-before-stale: 60
           days-before-close: 14
