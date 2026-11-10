@@ -22,13 +22,14 @@ def test_targets_list_text_and_json() -> None:
     assert text.exit_code == 0, text.output
     header, _, *rows = text.output.splitlines()
     assert header.split() == ["NAME", "LABEL", "TIER", "TFLINT", "CONNECTION", "PACKAGE"]
-    assert [row.split()[0] for row in rows] == ["aws", "azure", "gcp", "openstack"]
+    assert [row.split()[0] for row in rows] == ["aws", "azure", "gcp", "openstack", "proxmox"]
     assert "openstack  OpenStack" in text.output and "validated  no      openstack" in text.output
+    assert "proxmox    Proxmox VE" in text.output and "validated  no      proxmox" in text.output
 
     as_json = runner.invoke(cli, ["targets", "list", "--format", "json"])
     assert as_json.exit_code == 0
     payload = json.loads(as_json.output)
-    assert [item["name"] for item in payload] == ["aws", "azure", "gcp", "openstack"]
+    assert [item["name"] for item in payload] == ["aws", "azure", "gcp", "openstack", "proxmox"]
     assert payload[0]["connection_provider"] == "aws" and payload[0]["tflint"] is True
 
 

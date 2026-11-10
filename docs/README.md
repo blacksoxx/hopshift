@@ -11,7 +11,7 @@ Last refreshed: 2026-11-10
   Terraform for the chosen target, validated, checked against compliance controls, reviewed by
   people and deployed through stored connections.
 - Sources and targets are plugins. Built in today: the VMware vSphere source
-  (`vmware-discovery-stage1`) and the AWS, Azure, GCP and OpenStack targets. Both registries are
+  (`vmware-discovery-stage1`) and the AWS, Azure, GCP, OpenStack and Proxmox VE targets. Both registries are
   listed by `GET /api/meta`.
 - Runtime shape: a deterministic LangGraph pipeline with optional model use at the edges
   (review notes, and the `llm`/`hybrid` generation modes).
@@ -35,7 +35,7 @@ Extending:
 - [plugins.md](plugins.md): how to write and register a source or a target package.
 - [support-matrix.md](support-matrix.md): tiers (`tested`, `validated`, `experimental`), what each guarantees, evidence per source and target.
 - Sources: [sources/vmware.md](sources/vmware.md).
-- Targets: [targets/aws.md](targets/aws.md), [targets/azure.md](targets/azure.md), [targets/gcp.md](targets/gcp.md), [targets/openstack.md](targets/openstack.md), [targets/proxmox.md](targets/proxmox.md) (in progress).
+- Targets: [targets/aws.md](targets/aws.md), [targets/azure.md](targets/azure.md), [targets/gcp.md](targets/gcp.md), [targets/openstack.md](targets/openstack.md), [targets/proxmox.md](targets/proxmox.md).
 
 Platform:
 

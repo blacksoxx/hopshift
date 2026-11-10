@@ -21,5 +21,6 @@ register(TargetSpec(
 ))
 register(TargetSpec(
     name="proxmox", label="Proxmox VE", blurb="KVM virtual machines, VLAN-tagged bridges, disks on a datastore, HA groups and anti-affinity",
-    package="hopshift.targets.proxmox", tier="experimental", tflint=False, connection_provider="proxmox", docs="docs/targets/proxmox.md",
+    package="hopshift.targets.proxmox", tier="validated", tflint=False, connection_provider="proxmox", docs="docs/targets/proxmox.md",
+    extra={"provider_sources": {"bpg/proxmox"}},
 ))

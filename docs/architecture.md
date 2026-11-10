@@ -50,7 +50,7 @@ Everything lives in one package, `hopshift/`:
 |---|---|
 | `hopshift/cim/` | The Canonical Infrastructure Model (`schema.py`, Pydantic v2, CIM 1.1), the blocker vocabulary (`blockers.py`), the JSON schema export (`schema_export.py`, `cim.schema.json`) |
 | `hopshift/sources/` | The source registry (`registry.py`, `SourceSpec`) and the built-in VMware translator (`vmware.py`) |
-| `hopshift/targets/` | The target registry (`registry.py`, `TargetSpec`), shared renderer helpers (`common.py`, `runtime_common.py`) and one package per built-in target (`aws/`, `azure/`, `gcp/`, `openstack/`) with `network`, `compute`, `storage`, `placement`, `runtime` and `sizing_table` modules |
+| `hopshift/targets/` | The target registry (`registry.py`, `TargetSpec`), shared renderer helpers (`common.py`, `runtime_common.py`) and one package per built-in target (`aws/`, `azure/`, `gcp/`, `openstack/`, `proxmox/`) with `network`, `compute`, `storage`, `placement`, `runtime` and `sizing_table` modules |
 | `hopshift/pipeline/` | The LangGraph graph (`graph.py`, `nodes/`), `MigrationState` (`state.py`), the run service layer (`runtime.py`), configuration loading, the LLM client and prompts, the deterministic assembler (`generation/deterministic.py`) |
 | `hopshift/validation/` | terraform/tflint runner, OPA client, HCL parser, path policy, Rego policies (`policies/` for the gate, `policies/compliance/` for the control catalog) |
 | `hopshift/services/` | Platform services: database, secrets, audit, settings, `security/`, `connections/`, `deploy/`, `compliance/`, the `Platform` container and `errors.py` |

@@ -433,14 +433,17 @@ def _provider_sources_used(files: dict[str, str]) -> set[str]:
 
 
 def _check_pipeline_allowlist(spec: TargetSpec, files: dict[str, str]) -> str:
-    """hcl_generator only accepts provider sources from its per-target allow-list; output the
-    pipeline would reject must be reported even when the plugin declared the source itself."""
+    """hcl_generator accepts provider sources from its per-target allow-list, the common set and
+    the sources the target declares in TargetSpec.extra["provider_sources"]; anything else in the
+    output would be rejected by the pipeline and is reported here."""
     used = _provider_sources_used(files)
-    allowed = _PROVIDER_SOURCE_ALLOWLIST.get(spec.name, set()) | _COMMON_PROVIDER_SOURCES
+    declared = {str(item).strip().lower() for item in spec.extra.get("provider_sources", ())}
+    allowed = _PROVIDER_SOURCE_ALLOWLIST.get(spec.name, set()) | _COMMON_PROVIDER_SOURCES | declared
     unknown = sorted(used - allowed)
     assert not unknown, (
-        f"the pipeline guard (hopshift.pipeline.nodes.hcl_generator._PROVIDER_SOURCE_ALLOWLIST) has no entry for "
-        f"{spec.name}: {', '.join(unknown)} would be rejected by hcl_generator; add the target's provider sources there"
+        f"the pipeline guard would reject {', '.join(unknown)} for {spec.name}: declare the source in "
+        f"TargetSpec.extra['provider_sources'] (or, for a built-in hyperscaler, in "
+        f"hopshift.pipeline.nodes.hcl_generator._PROVIDER_SOURCE_ALLOWLIST)"
     )
     return ", ".join(sorted(used)) if used else "no provider sources referenced"
 

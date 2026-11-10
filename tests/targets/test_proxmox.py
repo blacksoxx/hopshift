@@ -105,11 +105,12 @@ def _unit(name: str = "web-01", **overrides) -> ComputeUnit:
 # ── registry ──────────────────────────────────────────────────────────────────
 
 
-def test_target_is_registered_as_experimental_with_proxmox_connection() -> None:
+def test_target_is_registered_with_its_provider_source_and_connection() -> None:
     spec = targets.get("proxmox")
     assert spec.label == "Proxmox VE" and spec.package == "hopshift.targets.proxmox"
-    assert spec.tier == "experimental" and spec.tflint is False and spec.connection_provider == "proxmox"
+    assert spec.tier == "validated" and spec.tflint is False and spec.connection_provider == "proxmox"
     assert spec.root == "proxmox-migration" and spec.docs == "docs/targets/proxmox.md"
+    assert spec.extra == {"provider_sources": {"bpg/proxmox"}}  # the pipeline guard reads this, no core entry
     assert "proxmox" in targets.names()
 
 

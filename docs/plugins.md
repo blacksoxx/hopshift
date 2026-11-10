@@ -120,12 +120,12 @@ Contracts the kit checks and the pipeline relies on:
   (`SUPPORTED_ARCHITECTURES_FOR_X86_TARGETS`); declare `architectures` on the spec honestly so
   the UI can warn before a run.
 
-The provider allow-list is the one piece of per-target knowledge still inside the core:
-`hcl_generator._PROVIDER_SOURCE_ALLOWLIST` maps built-in target names to their provider sources.
-A plugin declares its sources in `TargetSpec.extra["provider_sources"]`; the conformance kit
-accepts them for its own guard check and reports a separate `pipeline.allowlist` failure while the
-core list has no entry, because `hcl_generator` would reject the output. Add the entry to the
-core when the target moves into the repository or open a change for it.
+Provider sources are allow-listed. `hcl_generator._PROVIDER_SOURCE_ALLOWLIST` holds the sources of
+the built-in hyperscalers and OpenStack; every registered target, plugin or built-in, adds its own
+through `TargetSpec.extra["provider_sources"]` (the Proxmox target declares `bpg/proxmox` this way).
+The pipeline guard and the kit's `guards` and `pipeline.allowlist` checks union the core list, the
+common sources (`hashicorp/random`, `tls`, `time`) and the declared set; a source in none of them is
+rejected with a message naming both places.
 
 ### Sizing table
 

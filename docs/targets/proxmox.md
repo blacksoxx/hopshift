@@ -1,10 +1,20 @@
-# Proxmox VE target
+# Target: Proxmox VE
 
-Tier: **experimental**. Renders the CIM as KVM virtual machines for the
-[bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox/latest) Terraform provider
-(`version = "~> 0.121"`), root module `proxmox-migration/`. tflint has no Proxmox ruleset, so the
-validator skips it for this target (`TargetSpec.tflint = false`); `terraform validate` and the OPA
-compliance controls run as for every other target.
+Renders a flat Terraform root module for Proxmox VE from the CIM with the
+[bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox/latest) provider: KVM virtual
+machines with their disks, VLAN-tagged NICs on a bridge, a per-VM firewall, HA groups and HA
+resources.
+
+| | |
+|---|---|
+| Registry name | `proxmox` (`--cloud proxmox`, `options.cloud: "proxmox"`) |
+| Package | `hopshift/targets/proxmox/` (`network.py`, `compute.py`, `storage.py`, `placement.py`, `runtime.py`, `sizing_table.py`) |
+| Root module | `proxmox-migration/` |
+| Provider | `bpg/proxmox` `~> 0.121` (declared through `TargetSpec.extra["provider_sources"]`), Terraform `>= 1.5.0` |
+| tflint | no ruleset; the validator skips tflint for this target unless `validation.run_tflint_proxmox: true` |
+| Connections catalog key | `proxmox` (`api_token`, `password`) |
+| Guest architectures | `x86_64` (and `unknown`) |
+| Tier | `validated` (see [support-matrix.md](../support-matrix.md)) |
 
 Proxmox differs from the hyperscalers in three ways that shape the output:
 
