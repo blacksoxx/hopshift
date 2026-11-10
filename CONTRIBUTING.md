@@ -13,9 +13,9 @@ optional and only needed for the MCP documentation retriever and the container b
 git clone https://github.com/blacksoxx/vmware-migration-agent.git
 cd vmware-migration-agent
 
-# Python
+# Python (the lock files under requirements/ are hash-pinned; CI and the image use them)
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install --require-hashes -r requirements/dev.txt && pip install --no-deps -e .
 pre-commit install          # ruff, gitleaks and sanity hooks run on every commit
 
 # UI
@@ -43,6 +43,18 @@ Every pull request runs these in CI together with dependency, secret, static-ana
 container scans, posts a coverage comment, checks the title format and reviews new
 dependencies. `All checks passed` is the required status on `main`. The full list is in
 [docs/ci.md](docs/ci.md).
+
+## Dependencies
+
+Declared in `pyproject.toml`; resolved and hash-pinned in `requirements/prod.txt` and
+`requirements/dev.txt` (universal, Python 3.12+). After changing `pyproject.toml`, refresh both:
+
+```bash
+uv pip compile pyproject.toml --universal --generate-hashes --python-version 3.12 -o requirements/prod.txt
+uv pip compile pyproject.toml --extra dev --universal --generate-hashes --python-version 3.12 -o requirements/dev.txt
+```
+
+Dependabot keeps the pins current.
 
 ## Conventions
 

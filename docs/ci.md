@@ -59,7 +59,7 @@ job never breaks branch protection.
 ## Running the same checks locally
 
 ```bash
-pip install -e ".[dev]" && pre-commit install      # hooks run on every commit
+pip install --require-hashes -r requirements/dev.txt && pip install --no-deps -e . && pre-commit install
 ruff check . && pre-commit run --all-files
 pytest -q --ignore=tests/integration --cov
 pytest -q tests/integration

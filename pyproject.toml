@@ -44,6 +44,8 @@ dev = [
   "ruff>=0.6",
   "pip-audit>=2.7",
   "pre-commit>=3.7",
+  "semgrep>=1.100",
+  "uv>=0.5",
 ]
 # kept for compatibility with earlier instructions (`pip install '.[api]'`); the API is core now
 api = []

@@ -72,9 +72,11 @@ RUN terraform version \
 
 WORKDIR /app
 
-# Install dependencies first so source edits do not invalidate the layer.
+# Dependencies first (hash-pinned lock, so the layer is reproducible and verifiable), then the
+# package itself without re-resolving.
+COPY requirements/prod.txt /app/requirements/prod.txt
+RUN pip install --upgrade pip && pip install --require-hashes -r /app/requirements/prod.txt
 COPY pyproject.toml AGENTS.md /app/
-RUN pip install --upgrade pip && pip install .
 
 COPY . /app
 COPY --from=ui-build /ui/dist /app/ui/dist

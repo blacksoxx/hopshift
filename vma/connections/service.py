@@ -246,22 +246,16 @@ class ConnectionService:
             else:
                 result = azure.device_poll(connection_id=connection.id, flow_id=flow_id)
         except SecretsUnavailable:
-            result = {"status": "error", "message": "the server has no encryption key configured; set VMA_SECRET_KEY and restart"}
+            return self._device_failed(connection, flow, "error", "the server has no encryption key configured; set VMA_SECRET_KEY and restart", actor, actor_kind, audit_context)
         except Exception as exc:  # noqa: BLE001
-            result = {"status": "error", "message": safe_error(exc)}
+            # The sanitised reason is recorded (flow, last check, audit); the response stays generic.
+            return self._device_failed(connection, flow, "error", safe_error(exc), actor, actor_kind, audit_context)
         status = str(result.get("status") or "error")
         message = str(result.get("message") or "")
         if status == "pending":
             return {"status": "pending", "message": message}
         if status != "complete":
-            # The provider's (sanitised) message is kept on the flow, on the connection's last check
-            # and in the audit log; the HTTP response itself carries only a generic sentence so
-            # nothing derived from an exception reaches a caller directly.
-            self._finish_flow(flow, status, message)
-            self.store.set_check(connection.id, connection.status, utcnow(), {"identity": {}, "message": message})  # status unchanged: nothing was verified
-            self._audit("connection.device_completed", connection, actor or "system", actor_kind if actor else "system", audit_context, outcome="failure", flow_id=flow_id, status=status, message=message)
-            generic = "the device code expired; start again" if status == "expired" else "device sign-in did not complete; the connection's last check has the details"
-            return {"status": status, "message": generic}
+            return self._device_failed(connection, flow, status, message, actor, actor_kind, audit_context)
         if result.get("secret"):
             merged = {**self._decrypt_or_empty(connection), **result["secret"]}
             self.store.set_secret(connection.id, self._encrypt(merged), sorted(merged))
@@ -392,6 +386,23 @@ class ConnectionService:
                 self._resolved.pop(connection.id, None)
                 return None
             return env
+
+    def _device_failed(
+        self, connection: Connection, flow: DeviceFlow, status: str, detail: str,
+        actor: str | None, actor_kind: str, audit_context: dict[str, str | None] | None,
+    ) -> dict[str, Any]:
+        """Record why a device sign-in did not complete and answer with a fixed sentence.
+
+        The provider's (sanitised) reason is kept on the flow, on the connection's last check and
+        in the audit log, where the UI reads it; the HTTP response itself never carries text that
+        originated in an exception.
+        """
+        self._finish_flow(flow, status, detail)
+        self.store.set_check(connection.id, connection.status, utcnow(), {"identity": {}, "message": detail})  # status unchanged: nothing was verified
+        self._audit("connection.device_completed", connection, actor or "system", actor_kind if actor else "system", audit_context, outcome="failure", flow_id=flow.flow_id, status=status, message=detail)
+        if status == "expired":
+            return {"status": "expired", "message": "the device code expired; start again"}
+        return {"status": status, "message": "device sign-in did not complete; the connection's last check has the details"}
 
     def _finish_flow(self, flow: DeviceFlow, status: str, message: str) -> None:
         self.store.set_flow_status(flow.flow_id, status, {**flow.payload, "message": message}, clear_secret=True)

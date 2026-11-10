@@ -29,7 +29,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install (hash-pinned lock, then the package itself)
+        run: |
+          pip install --require-hashes -r requirements/dev.txt
+          pip install --no-deps -e .
       - run: ruff check . --output-format github
       - name: pre-commit hooks (gitleaks runs in the security job)
         run: SKIP=gitleaks pre-commit run --all-files --show-diff-on-failure
@@ -54,8 +57,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev]"
-      - uses: open-policy-agent/setup-opa@v2
+      - name: Install (hash-pinned lock, then the package itself)
+        run: |
+          pip install --require-hashes -r requirements/dev.txt
+          pip install --no-deps -e .
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         if: runner.os == 'Linux'   # policy tests skip without the binary; macOS covers the Python side
         with:
           version: ${{ env.OPA_VERSION }}
@@ -85,7 +91,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install (hash-pinned lock, then the package itself)
+        run: |
+          pip install --require-hashes -r requirements/dev.txt
+          pip install --no-deps -e .
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
@@ -93,7 +102,7 @@ jobs:
       - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
-      - uses: open-policy-agent/setup-opa@v2
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           version: ${{ env.OPA_VERSION }}
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -140,7 +149,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install (hash-pinned lock, then the package itself)
+        run: |
+          pip install --require-hashes -r requirements/dev.txt
+          pip install --no-deps -e .
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -183,10 +195,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Python dependency audit (pip-audit)
+      - name: Install (hash-pinned lock, then the package itself)
         run: |
-          pip install -e . pip-audit
-          pip-audit --progress-spinner off --desc on || echo "::warning::pip-audit reported findings; review the log"
+          pip install --require-hashes -r requirements/dev.txt
+          pip install --no-deps -e .
+      - name: Python dependency audit (pip-audit)
+        run: pip-audit --progress-spinner off --desc on || echo "::warning::pip-audit reported findings; review the log"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -195,7 +209,6 @@ jobs:
         working-directory: ui
       - name: Static analysis (semgrep)
         run: |
-          pip install semgrep
           semgrep scan --config p/python --config p/typescript --config p/secrets \
             --severity ERROR --error --metrics=off \
             --exclude ui/node_modules --exclude .venv --exclude output --exclude ui/dist
