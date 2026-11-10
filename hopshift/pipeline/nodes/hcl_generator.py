@@ -19,6 +19,7 @@ from hopshift.pipeline.prompts import (
     build_hcl_system_prompt,
 )
 from hopshift.pipeline.state import MigrationState
+from hopshift.targets import registry as target_registry
 from hopshift.targets.common import safe_file_stem
 from hopshift.validation.opa_client import evaluate_policies, resolve_policies_dir
 from hopshift.validation.paths import UnsafePathError, ensure_safe_relative_path
@@ -852,15 +853,33 @@ def _enforce_dangerous_construct_guards(hcl_output: dict[str, str]) -> None:
                 )
 
 
+def declared_provider_sources(provider: str) -> set[str]:
+    """Provider sources a registered target declares in `TargetSpec.extra["provider_sources"]`.
+
+    The built-in hyperscalers live in _PROVIDER_SOURCE_ALLOWLIST; any other registered target (a
+    plugin, or a built-in such as proxmox) brings its own provider this way without a core change.
+    """
+    try:
+        spec = target_registry.get(provider)
+    except target_registry.UnknownTarget:
+        return set()
+    return {str(item).strip().lower() for item in spec.extra.get("provider_sources", ()) if str(item).strip()}
+
+
 def _enforce_source_allowlist(provider: str, hcl_output: dict[str, str]) -> None:
     """Allow only local modules and the expected providers for the target cloud.
 
     Any `source = "..."` assignment is either a module source (must be a local ./ path)
-    or a provider source inside required_providers (must be on the per-cloud allow-list).
+    or a provider source inside required_providers (must be on the per-cloud allow-list or
+    declared by the target's TargetSpec.extra["provider_sources"]).
     Everything else (remote modules, git:: sources, unexpected providers) is rejected
     because it can pull in provisioners or providers that execute code.
     """
-    allowed_providers = _PROVIDER_SOURCE_ALLOWLIST.get(provider.strip().lower(), set()) | _COMMON_PROVIDER_SOURCES
+    allowed_providers = (
+        _PROVIDER_SOURCE_ALLOWLIST.get(provider.strip().lower(), set())
+        | _COMMON_PROVIDER_SOURCES
+        | declared_provider_sources(provider)
+    )
 
     for path, content in hcl_output.items():
         for match in _SOURCE_ASSIGNMENT.finditer(content):

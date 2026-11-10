@@ -30,6 +30,7 @@ def test_support_yaml_declares_the_validated_vmware_pairs() -> None:
         ("vmware", "azure"): "validated",
         ("vmware", "gcp"): "validated",
         ("vmware", "openstack"): "validated",
+        ("vmware", "proxmox"): "validated",
     }
     assert all(pair.evidence for pair in loaded.pairs)
 
@@ -83,9 +84,9 @@ def test_commented_rows_are_tolerated_and_listed_as_pending(tmp_path: Path) -> N
     support.write_text(
         GOOD
         + """
-  # Proxmox is being built in parallel.
+  # Nimbus is being built in parallel.
   # - source: vmware
-  #   target: proxmox
+  #   target: nimbus
   #   tier: experimental
   #   notes: "pending registration"
 """,
@@ -96,9 +97,9 @@ def test_commented_rows_are_tolerated_and_listed_as_pending(tmp_path: Path) -> N
     pending = matrix.pending_pairs(support)
 
     assert [(pair.source, pair.target) for pair in loaded.pairs] == [("vmware", "openstack")]
-    assert [(pair.source, pair.target, pair.tier, pair.notes) for pair in pending] == [("vmware", "proxmox", "experimental", "pending registration")]
-    assert matrix.hints(support) == []  # proxmox is not registered, so no hint
-    assert matrix.pending_pairs(matrix.SUPPORT_FILE) and matrix.pending_pairs(matrix.SUPPORT_FILE)[0].target == "proxmox"
+    assert [(pair.source, pair.target, pair.tier, pair.notes) for pair in pending] == [("vmware", "nimbus", "experimental", "pending registration")]
+    assert matrix.hints(support) == []  # nimbus is not registered, so no hint
+    assert matrix.pending_pairs(matrix.SUPPORT_FILE) == []  # every built-in target has a real row
 
 
 def test_hint_when_a_commented_pair_becomes_registered(tmp_path: Path) -> None:

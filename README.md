@@ -35,7 +35,7 @@ from and wherever you migrate to.
 
 - **One canonical model.** Every source is translated into the Canonical Infrastructure Model
   (CIM); every target is rendered from it. Sources and targets are plugins and never see each
-  other. Today: VMware vSphere in; AWS, Azure, GCP and OpenStack out.
+  other. Today: VMware vSphere in; AWS, Azure, GCP, OpenStack and Proxmox VE out.
 - **Deterministic core.** A discovery file becomes a CIM, then Terraform rendered from code.
   Same input, same output, every time. Diffable, reviewable, testable.
 - **Validated before it exists.** Every run passes `terraform validate`, `tflint` and OPA
@@ -192,7 +192,7 @@ See [docs/connections.md](docs/connections.md).
 | [Plugins](docs/plugins.md) | Writing a source or a target package and registering it |
 | [Support matrix](docs/support-matrix.md) | Tiers, what each tier guarantees, evidence per source and target |
 | [Sources](docs/sources/vmware.md) | VMware vSphere: schema, translation rules, blockers |
-| [Targets](docs/targets/aws.md) | [AWS](docs/targets/aws.md) · [Azure](docs/targets/azure.md) · [GCP](docs/targets/gcp.md) · [OpenStack](docs/targets/openstack.md): what is rendered, variables, images, controls |
+| [Targets](docs/targets/aws.md) | [AWS](docs/targets/aws.md) · [Azure](docs/targets/azure.md) · [GCP](docs/targets/gcp.md) · [OpenStack](docs/targets/openstack.md) · [Proxmox VE](docs/targets/proxmox.md): what is rendered, variables, images, controls |
 | [Security](docs/security.md) | Accounts, MFA, SSO, tokens, headers, retention, threat model |
 | [Compliance](docs/compliance.md) | The control matrix and the report format |
 | [Connections](docs/connections.md) | Providers, methods, fields, Terraform environment mapping |

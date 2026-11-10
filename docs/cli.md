@@ -9,7 +9,7 @@ Runs the full pipeline from a discovery JSON to a Terraform root module for one 
 Required options:
 
 - --input
-- --cloud: a registered target name (`aws`, `azure`, `gcp`, `openstack` built in; plugins add their own; `--help` lists them)
+- --cloud: a registered target name (`aws`, `azure`, `gcp`, `openstack`, `proxmox` built in; plugins add their own; `--help` lists them)
 - --environment
 - --owner
 

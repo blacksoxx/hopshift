@@ -64,7 +64,7 @@ def test_methods_catalog(client: TestClient) -> None:
     response = client.get("/api/connections/methods")
     assert response.status_code == 200
     catalog = response.json()
-    assert set(catalog) == {"aws", "azure", "gcp", "openstack"}
+    assert set(catalog) == {"aws", "azure", "gcp", "openstack", "proxmox"}
     method = next(m for m in catalog["aws"]["methods"] if m["key"] == "access_keys")
     assert any(f["key"] == "secret_access_key" and f["secret"] and f["type"] == "password" for f in method["fields"])
     assert client.get("/api/meta").json()["features"]["connections"] is True

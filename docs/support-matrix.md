@@ -17,9 +17,9 @@ registered. How a pair moves up a tier is described in [plugins.md](plugins.md).
 
 ## Sources x targets
 
-| Source \ Target | `aws` | `azure` | `gcp` | `openstack` |
-|---|---|---|---|---|
-| `vmware` | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) |
+| Source \ Target | `aws` | `azure` | `gcp` | `openstack` | `proxmox` |
+|---|---|---|---|---|---|
+| `vmware` | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) | ![validated](https://img.shields.io/badge/validated-1f6feb) |
 
 `-` means no declared support: the pair may render, but nothing vouches for it.
 
@@ -31,6 +31,7 @@ registered. How a pair moves up a tier is described in [plugins.md](plugins.md).
 | `vmware` | `azure` | validated | tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate, tflint, OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py. | Linux VMs only (azurerm_linux_virtual_machine); encryption at host stays advisory because it needs a subscription feature. |
 | `vmware` | `gcp` | validated | tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate, tflint, OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py. | Imported images must carry the UEFI_COMPATIBLE guest OS feature for Shielded VM. |
 | `vmware` | `openstack` | validated | tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate and OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py. | tflint has no ruleset for the OpenStack provider, so only terraform validate and OPA gate the output. |
+| `vmware` | `proxmox` | validated | tests/integration/test_terraform_validate.py and tests/integration/test_conformance_terraform.py (terraform validate with bpg/proxmox and OPA with zero enforce violations) on every CI run; tests/targets/test_conformance.py and tests/targets/test_proxmox.py; `hopshift targets check proxmox --terraform`. | tflint has no ruleset for bpg/proxmox, so terraform validate and OPA gate the output. VMs are created stopped with empty disks until a template (var.image_overrides / var.default_template_id) or an imported image is supplied; disk encryption (a datastore property), Secure Boot on BIOS guests and HA membership outside a cluster stay advisory. HA affinity rules need Proxmox VE 9 (var.ha_rules_enabled). Not yet exercised against a Proxmox cluster from CI. |
 
 ## Keeping this page current
 

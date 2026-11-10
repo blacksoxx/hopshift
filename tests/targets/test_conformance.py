@@ -31,8 +31,10 @@ def test_target_passes_fast_conformance(name: str) -> None:
         if find_binary("opa"):
             assert report.get(f"opa[{label}]").status == "pass", report.render()  # type: ignore[union-attr]
             assert report.get(f"compliance[{label}]").status == "pass", report.render()  # type: ignore[union-attr]
-    for check in ("spec", "spec.docs", "package", "sizing_table", "sizing.coverage", "sizing.monotonic"):
+    for check in ("spec", "spec.docs", "package", "sizing_table", "sizing.coverage"):
         assert report.get(check).status == "pass", report.render()  # type: ignore[union-attr]
+    # pass-through sizing (proxmox) has no vCPU buckets; the kit skips the RAM monotonicity check for it
+    assert report.get("sizing.monotonic").status in {"pass", "skip"}, report.render()  # type: ignore[union-attr]
     # terraform is not part of the fast run
     assert report.get(f"terraform[{FIXTURE_LABELS[0]}]").status == "skip"  # type: ignore[union-attr]
 

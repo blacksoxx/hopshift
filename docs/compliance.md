@@ -25,8 +25,8 @@ per-control report (`compliance_report.json` / `compliance_report.md`) that ship
      or subscription features the platform does not create (flow-log destinations, KMS keys,
      EncryptionAtHost registration, a dedicated service account).
    - `evaluated` lists the control ids that applied to the input. The target is detected from the
-     provider types present (`aws_*`, `azurerm_*`, `google_*`, `openstack_*`, plus the `provider`
-     and `required_providers` blocks).
+     provider types present (`aws_*`, `azurerm_*`, `google_*`, `openstack_*`, `proxmox_*`, plus the
+     `provider` and `required_providers` blocks).
 3. `hopshift/validation/opa_client.py` returns the violations and the evaluated ids on
    `OPAEvaluationResult.violations` / `.evaluated` (binary and server mode), next to the unchanged
    `passed` / `errors` / `deny_messages`.
@@ -47,7 +47,7 @@ with the Python catalog.
 ## Secure-by-default renderers
 
 The deterministic renderers (`hopshift/targets/*/`) emit output that passes every `enforce` control on all
-four built-in targets; `tests/integration/test_terraform_validate.py` proves it with the real policy bundle
+five built-in targets; `tests/integration/test_terraform_validate.py` proves it with the real policy bundle
 and keeps `terraform validate` + `tflint` green. What the renderers now emit:
 
 | Target | Hardening |
@@ -56,13 +56,14 @@ and keeps `terraform validate` + `tflint` green. What the renderers now emit:
 | Azure | NICs without `public_ip_address_id`; NSG SSH rule sourced from `VirtualNetwork` only; `boot_diagnostics {}` (managed storage) on each VM. `encryption_at_host_enabled` stays advisory because it needs the `Microsoft.Compute/EncryptionAtHost` subscription feature. |
 | GCP | `google_compute_instance`: no `access_config`, `can_ip_forward = false`, `shielded_instance_config` with secure boot / vTPM / integrity monitoring, `metadata { enable-oslogin = "TRUE", block-project-ssh-keys = "TRUE", serial-port-enable = "FALSE" }`, `service_account` with logging/monitoring/read-only storage scopes and `email` from the new `var.service_account_email` (empty keeps the default Compute Engine account, with the limited scopes); every `google_compute_subnetwork` has `log_config` and `private_ip_google_access = true`. Imported images must carry the `UEFI_COMPATIBLE` guest OS feature for Shielded VM. |
 | OpenStack | Security group rules sourced from `10.0.0.0/8`; volumes use `var.encrypted_volume_type` (default `encrypted`). |
+| Proxmox VE | Per VM `proxmox_virtual_environment_firewall_options` (`enabled = true`, `input_policy = "DROP"`) and rules that accept SSH/RDP and ICMP only from `var.management_cidrs` (RFC 1918; `0.0.0.0/0` rejected by the variable validation); `firewall = true` on every NIC; `agent { enabled = true }`; lower-case `env-*` / `owner-*` / `migratedfrom-*` tags; no `serial_device`. EFI guests get `bios = "ovmf"`, a 4m EFI disk with pre-enrolled keys and a vTPM. Disk encryption and HA stay advisory (datastore property; VMs outside a cluster). |
 
 File names, variables and the flat module layout are documented per target under [targets/](targets/aws.md).
 
 ## Control matrix
 
 Benchmark versions: CIS Amazon Web Services Foundations v3.0, CIS Microsoft Azure Foundations v3.0,
-CIS Google Cloud Platform Foundation v3.0 (CIS publishes no OpenStack benchmark). SOC 2 references
+CIS Google Cloud Platform Foundation v3.0 (CIS publishes no OpenStack or Proxmox VE benchmark). SOC 2 references
 are Trust Services Criteria ids; HIPAA references are 45 CFR Part 164 Security Rule paragraphs. A
 reference means the control is technical evidence for that criterion; check the numbering against
 the benchmark revision your assessor uses.
@@ -101,6 +102,20 @@ the benchmark revision your assessor uses.
 | `GCP-DISK-CMEK` | Persistent disks use customer-managed keys | gcp | advisory | GCP 4.7 | CC6.1, CC6.7 | 164.312(a)(2)(iv), 164.312(e)(2)(ii) |
 | `OS-SG-NO-OPEN-MGMT-PORTS` | No SSH/RDP from the internet in security group rules | openstack | enforce | - | CC6.1, CC6.6 | 164.312(a)(1), 164.312(e)(1) |
 | `OS-VOLUME-ENCRYPTED-TYPE` | Volumes use an encryption-backed volume type | openstack | advisory | - | CC6.1, CC6.7 | 164.312(a)(2)(iv), 164.312(e)(2)(ii) |
+| `PVE-FW-NO-OPEN-MGMT-PORTS` | No SSH/RDP from the internet in VM firewall rules | proxmox | enforce | - | CC6.1, CC6.6 | 164.312(a)(1), 164.312(e)(1) |
+| `PVE-VM-FIREWALL-ENABLED` | VM firewall enabled with inbound denied by default | proxmox | enforce | - | CC6.1, CC6.6 | 164.312(a)(1), 164.312(e)(1) |
+| `PVE-VM-AGENT-ENABLED` | QEMU guest agent enabled | proxmox | enforce | - | CC7.1, A1.2 | 164.308(a)(7)(ii)(A), 164.312(c)(1) |
+| `PVE-VM-OWNERSHIP-TAGS` | Ownership tags on every VM | proxmox | enforce | - | CC6.1, CC3.2 | 164.308(a)(1)(ii)(A), 164.310(d)(1) |
+| `PVE-VM-NO-SERIAL-CONSOLE` | No serial console device | proxmox | enforce | - | CC6.1, CC6.6 | 164.312(a)(1), 164.312(e)(1) |
+| `PVE-DISK-ENCRYPTION` | VM disks on an encrypted datastore | proxmox | advisory | - | CC6.1, CC6.7 | 164.312(a)(2)(iv), 164.312(e)(2)(ii) |
+| `PVE-VM-SECURE-BOOT` | UEFI Secure Boot and vTPM | proxmox | advisory | - | CC6.8, CC7.1 | 164.312(c)(1) |
+| `PVE-HA-ENABLED` | VMs managed by Proxmox HA | proxmox | advisory | - | A1.2, CC7.5 | 164.308(a)(7)(ii)(C), 164.312(c)(1) |
+
+`ALL-TAGS-REQUIRED` reads a map on AWS/Azure/GCP/OpenStack instances and volumes, a `Key=Value`
+list on OpenStack networks and the `env-` / `owner-` / `migratedfrom-` entries of the tag list on
+Proxmox VMs (`PVE-VM-OWNERSHIP-TAGS` adds the lower-case character check). The base
+`no_open_ingress` rule covers Proxmox firewall rules too: an inbound `ACCEPT` from `0.0.0.0/0`,
+`::/0` or an empty source (which matches every address) fails the gate.
 
 The pre-existing gate rules (`no_open_ingress`, `no_public_s3`, `encryption_at_rest`,
 `tags_required`, `no_code_execution`) are unchanged and still run. `ALL-TAGS-REQUIRED` and
@@ -153,7 +168,7 @@ that are missing from the catalog are kept visible as `Unknown control <id>` so 
 
 ## Adding a control
 
-1. Pick an id in the `<CLOUD>-<AREA>-<WHAT>` form (`AWS-`, `AZ-`, `GCP-`, `OS-`, or `ALL-`).
+1. Pick an id in the `<CLOUD>-<AREA>-<WHAT>` form (`AWS-`, `AZ-`, `GCP-`, `OS-`, `PVE-`, or `ALL-`).
 2. Add the rule to `hopshift/validation/policies/compliance/<cloud>.rego`: register the id and level in the
    `<cloud>_controls` map (that is what populates `controls` and `evaluated`) and write one or more
    `violations contains v if { ... v := <cloud>_violation("<ID>", r, "message") }` rules on

@@ -13,7 +13,7 @@ Code: `hopshift/services/connections/` (service, catalog, provider modules) and 
 |---|---|
 | `id` | uuid4 hex |
 | `name` | unique (case-insensitive), 1 to 80 characters |
-| `provider` | `aws`, `azure`, `gcp` or `openstack` |
+| `provider` | `aws`, `azure`, `gcp`, `openstack` or `proxmox` |
 | `auth_method` | a method key from the catalog below |
 | `config` | the non-secret fields of the method |
 | `status` | `unverified` after create or update, `ok` or `failed` after a test |
@@ -161,6 +161,25 @@ The identity holds `project_id`, `project_name`, `user_name`, `user_domain`, `se
 
 `clouds.yaml` is looked up at `clouds_yaml_path`, then `OS_CLIENT_CONFIG_FILE`, `./clouds.yaml`,
 `~/.config/openstack/clouds.yaml` and `/etc/openstack/clouds.yaml`.
+
+### Proxmox VE
+
+Common to both methods: `endpoint` (required; the API URL without `/api2/json`, for example
+`https://pve.example.internal:8006/`; `PROXMOX_VE_ENDPOINT`) and `insecure` (boolean, default
+`false`; accepts the node's self-signed certificate; `PROXMOX_VE_INSECURE`).
+
+| method | fields | verifies | Terraform environment |
+|---|---|---|---|
+| `api_token` | `token_id` (`user@realm!tokenname`), `token_secret` (secret) | `GET {endpoint}/api2/json/version` with `Authorization: PVEAPIToken=<id>=<secret>`, then `GET /api2/json/nodes` | `PROXMOX_VE_API_TOKEN` (`<id>=<secret>`) |
+| `password` | `username` (with realm: `root@pam`, `terraform@pve`), `password` (secret) | `POST {endpoint}/api2/json/access/ticket`, then `/version` and `/nodes` with the ticket cookie | `PROXMOX_VE_USERNAME`, `PROXMOX_VE_PASSWORD` |
+
+The identity holds `endpoint`, `principal`, `version`, `release`, `repoid`, `insecure` and, when
+the principal may list nodes (`Sys.Audit` on `/nodes`), `nodes` and `node_names`. The
+authentication ticket is used for the check only and discarded. Terraform needs the token or user
+to hold `VM.Allocate`, `VM.Config.*`, `VM.PowerMgmt`, `Datastore.AllocateSpace`, `Sys.Modify` (node
+network interfaces, HA) and `Sys.Audit`; API tokens with privilege separation carry their own
+ACLs. The generated `proxmox-migration/targets.tf` leaves `endpoint` and `insecure` at `null`, so
+both come from these variables unless overridden.
 
 ## Docker mounts
 

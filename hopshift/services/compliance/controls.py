@@ -4,8 +4,8 @@ Each control id and level here must match the rego bundle (data.hopshift.complia
 tests/validation/test_compliance_policies.py checks that. Framework references point to the
 section that covers the same objective:
 
-- cis:   CIS Foundations Benchmarks (AWS v3.0, Azure v3.0, GCP v3.0). CIS publishes no OpenStack
-         benchmark, so OpenStack controls carry no CIS reference.
+- cis:   CIS Foundations Benchmarks (AWS v3.0, Azure v3.0, GCP v3.0). CIS publishes no OpenStack or
+         Proxmox VE benchmark, so OpenStack and Proxmox controls carry no CIS reference.
 - soc2:  SOC 2 Trust Services Criteria (2017, 2022 points of focus) common criteria ids.
 - hipaa: HIPAA Security Rule, 45 CFR 164.308 / 164.310 / 164.312.
 
@@ -19,7 +19,7 @@ from typing import Literal
 
 Level = Literal["enforce", "advisory"]
 
-ALL_CLOUDS: tuple[str, ...] = ("aws", "azure", "gcp", "openstack")
+ALL_CLOUDS: tuple[str, ...] = ("aws", "azure", "gcp", "openstack", "proxmox")
 FRAMEWORKS: tuple[str, ...] = ("cis", "soc2", "hipaa")
 
 # Shorthand for the SOC 2 / HIPAA references used repeatedly below.
@@ -67,12 +67,13 @@ CONTROLS: tuple[Control, ...] = (
         title="Required ownership tags on every resource",
         description=(
             "Every taggable resource carries Environment, Owner and MigratedFrom (lowercase labels on GCP, "
-            "Key=Value list entries on OpenStack networks) so ownership and provenance are auditable."
+            "Key=Value list entries on OpenStack networks, env-/owner-/migratedfrom- tag list entries on Proxmox VMs) "
+            "so ownership and provenance are auditable."
         ),
         clouds=ALL_CLOUDS,
         level="enforce",
         frameworks=_frameworks(soc2=["CC6.1", "CC3.2"], hipaa=["164.308(a)(1)(ii)(A)", "164.310(d)(1)"]),
-        remediation="Add the missing keys to the resource's tags/labels/metadata map (the renderers emit var.environment and var.owner).",
+        remediation="Add the missing keys to the resource's tags/labels/metadata map, or the missing env-/owner-/migratedfrom- entries to a Proxmox tag list (the renderers emit var.environment and var.owner).",
     ),
     # ── AWS ───────────────────────────────────────────────────────────────────
     Control(
@@ -356,6 +357,79 @@ CONTROLS: tuple[Control, ...] = (
         level="advisory",
         frameworks=_frameworks(soc2=_SOC2_ENCRYPTION, hipaa=_HIPAA_ENCRYPTION),
         remediation="Ask the cloud operator for the LUKS-backed volume type and set var.encrypted_volume_type to it.",
+    ),
+    # ── Proxmox VE ────────────────────────────────────────────────────────────
+    Control(
+        id="PVE-FW-NO-OPEN-MGMT-PORTS",
+        title="No SSH/RDP from the internet in VM firewall rules",
+        description="Inbound ACCEPT rules in proxmox_virtual_environment_firewall_rules never cover port 22 or 3389 (by dport or SSH/RDP macro) from an empty source, 0.0.0.0/0 or ::/0; the rendered rules take their source from var.management_cidrs.",
+        clouds=("proxmox",),
+        level="enforce",
+        frameworks=_frameworks(soc2=_SOC2_ACCESS, hipaa=_HIPAA_ACCESS),
+        remediation="Set the rule source to the management ranges (var.management_cidrs, RFC 1918 by default) or an alias/ipset; never leave it empty or open to the internet.",
+    ),
+    Control(
+        id="PVE-VM-FIREWALL-ENABLED",
+        title="VM firewall enabled with inbound denied by default",
+        description="Every proxmox_virtual_environment_vm has a proxmox_virtual_environment_firewall_options with enabled = true and input_policy DROP or REJECT, and every network_device sets firewall = true; the Proxmox firewall is off by default and only filters NICs that opt in.",
+        clouds=("proxmox",),
+        level="enforce",
+        frameworks=_frameworks(soc2=_SOC2_ACCESS, hipaa=_HIPAA_ACCESS),
+        remediation="Add firewall_options { enabled = true, input_policy = \"DROP\" } for the VM and set firewall = true on each network_device; allow traffic with explicit rules.",
+    ),
+    Control(
+        id="PVE-VM-AGENT-ENABLED",
+        title="QEMU guest agent enabled",
+        description="proxmox_virtual_environment_vm declares agent { enabled = true } so Proxmox can shut the guest down cleanly, report its addresses and quiesce the file systems for backups; the guest must run qemu-guest-agent.",
+        clouds=("proxmox",),
+        level="enforce",
+        frameworks=_frameworks(soc2=["CC7.1", "A1.2"], hipaa=["164.308(a)(7)(ii)(A)", "164.312(c)(1)"]),
+        remediation="Add agent { enabled = true } to the VM and install qemu-guest-agent in the guest before the cut-over.",
+    ),
+    Control(
+        id="PVE-VM-OWNERSHIP-TAGS",
+        title="Ownership tags on every VM",
+        description="The VM tag list contains env-*, owner-* and migratedfrom-* entries and every literal tag is a lower-case Proxmox tag ([a-z0-9_.+-]), so ownership and provenance are auditable in the Proxmox UI and API.",
+        clouds=("proxmox",),
+        level="enforce",
+        frameworks=_frameworks(soc2=["CC6.1", "CC3.2"], hipaa=["164.308(a)(1)(ii)(A)", "164.310(d)(1)"]),
+        remediation="Add the missing env-<environment>, owner-<owner> and migratedfrom-<source> entries to tags and keep every tag lower-case.",
+    ),
+    Control(
+        id="PVE-VM-NO-SERIAL-CONSOLE",
+        title="No serial console device",
+        description="proxmox_virtual_environment_vm declares no serial_device block; a serial console is an interactive path into the guest that bypasses its network controls.",
+        clouds=("proxmox",),
+        level="enforce",
+        frameworks=_frameworks(soc2=_SOC2_ACCESS, hipaa=_HIPAA_ACCESS),
+        remediation="Remove the serial_device block (and vga = serial0) from migrated VMs; use the noVNC console with Proxmox permissions for break-glass access.",
+    ),
+    Control(
+        id="PVE-DISK-ENCRYPTION",
+        title="VM disks on an encrypted datastore",
+        description="Proxmox has no per-disk encryption flag; disks are protected by an encrypted datastore (LUKS under LVM, ZFS native encryption, encrypted Ceph OSDs). Datastore ids are opaque names, so this can only be confirmed by name or by the var.datastore_id default.",
+        clouds=("proxmox",),
+        level="advisory",
+        frameworks=_frameworks(soc2=_SOC2_ENCRYPTION, hipaa=_HIPAA_ENCRYPTION),
+        remediation="Create a LUKS- or ZFS-encrypted datastore on the node, set var.datastore_id to it (a name containing encrypt/luks/crypt satisfies the check) and confirm with the Proxmox operator.",
+    ),
+    Control(
+        id="PVE-VM-SECURE-BOOT",
+        title="UEFI Secure Boot and vTPM",
+        description="proxmox_virtual_environment_vm sets bios = \"ovmf\" with an efi_disk of type 4m and pre_enrolled_keys = true, and declares a tpm_state (vTPM 2.0) for measured boot; VMs migrated with legacy BIOS cannot satisfy this without converting the guest to UEFI.",
+        clouds=("proxmox",),
+        level="advisory",
+        frameworks=_frameworks(soc2=["CC6.8", "CC7.1"], hipaa=["164.312(c)(1)"]),
+        remediation="Convert the guest to UEFI, set bios = \"ovmf\", add efi_disk { type = \"4m\", pre_enrolled_keys = true } and tpm_state { version = \"v2.0\" }.",
+    ),
+    Control(
+        id="PVE-HA-ENABLED",
+        title="VMs managed by Proxmox HA",
+        description="Every proxmox_virtual_environment_vm is referenced by a proxmox_virtual_environment_haresource so the HA manager restarts it on another node after a node failure; VMs outside a VMware cluster are rendered without one.",
+        clouds=("proxmox",),
+        level="advisory",
+        frameworks=_frameworks(soc2=["A1.2", "CC7.5"], hipaa=["164.308(a)(7)(ii)(C)", "164.312(c)(1)"]),
+        remediation="Add the VM to an HA group with proxmox_virtual_environment_haresource { resource_id = \"vm:<id>\", state = \"started\" }; HA needs a cluster of at least three nodes (or two plus a QDevice) with shared storage.",
     ),
 )
 

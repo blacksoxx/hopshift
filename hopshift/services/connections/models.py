@@ -7,12 +7,13 @@ Fields marked `secret` are stored encrypted (see hopshift.services.secrets) and 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable
 
 from hopshift.services.secrets import mask_values
 
-PROVIDERS: tuple[str, ...] = ("aws", "azure", "gcp", "openstack")
+PROVIDERS: tuple[str, ...] = ("aws", "azure", "gcp", "openstack", "proxmox")
 STATUSES: tuple[str, ...] = ("unverified", "ok", "failed")
 FIELD_TYPES: tuple[str, ...] = ("text", "password", "textarea", "select", "boolean", "number")
 
@@ -186,6 +187,9 @@ _OPENSTACK_COMMON: tuple[FieldSpec, ...] = (
     FieldSpec("interface", "Endpoint interface", type="select", options=(("public", "public"), ("internal", "internal"), ("admin", "admin")), help="Optional (OS_INTERFACE)."),
 )
 
+_PROXMOX_ENDPOINT = FieldSpec("endpoint", "API endpoint", required=True, placeholder="https://pve.example.internal:8006/", help="Proxmox VE API URL without /api2/json (PROXMOX_VE_ENDPOINT).")
+_PROXMOX_INSECURE = FieldSpec("insecure", "Skip TLS verification", type="boolean", default=False, help="Accept the node's self-signed certificate (PROXMOX_VE_INSECURE). Prefer installing a trusted certificate.")
+
 
 # ── method-level validators ───────────────────────────────────────────────────
 
@@ -217,6 +221,25 @@ def _azure_oidc_token_source(config: dict[str, Any], secret: dict[str, Any]) -> 
 def _gcp_impersonation_base(config: dict[str, Any], secret: dict[str, Any]) -> list[str]:
     if str(config.get("base_method") or "adc") == "service_account_key" and not _present(secret, "key_json"):
         return ["key_json is required when base_method is service_account_key"]
+    return []
+
+
+def _proxmox_endpoint(config: dict[str, Any], secret: dict[str, Any]) -> list[str]:
+    endpoint = str(config.get("endpoint") or "").strip().lower()
+    if not endpoint.startswith(("https://", "http://")):
+        return ["endpoint must be an http(s) URL such as https://pve.example.internal:8006/"]
+    return []
+
+
+def _proxmox_token_id(config: dict[str, Any], secret: dict[str, Any]) -> list[str]:
+    if not re.fullmatch(r"[^@!\s]+@[^@!\s]+![^@!\s]+", str(config.get("token_id") or "")):
+        return ["token_id must look like user@realm!tokenname"]
+    return []
+
+
+def _proxmox_username(config: dict[str, Any], secret: dict[str, Any]) -> list[str]:
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+", str(config.get("username") or "")):
+        return ["username must include the realm, for example root@pam or terraform@pve"]
     return []
 
 
@@ -385,6 +408,26 @@ CATALOG: dict[str, ProviderSpec] = {
              _OPENSTACK_COMMON[1], _OPENSTACK_COMMON[2],
              FieldSpec("cloud", "Cloud name", required=True, placeholder="mycloud", help="Key under `clouds:` (OS_CLOUD)."),
              FieldSpec("clouds_yaml_path", "clouds.yaml path", help="Optional. Path to the file when it is not in the default locations (OS_CLIENT_CONFIG_FILE).")),
+        ),
+    )),
+    "proxmox": ProviderSpec("proxmox", "Proxmox VE", (
+        MethodSpec(
+            "api_token", "API token",
+            "A Proxmox VE API token (user@realm!tokenname and its secret); the token's own privileges apply when privilege separation is on.",
+            (_PROXMOX_ENDPOINT,
+             FieldSpec("token_id", "Token ID", required=True, placeholder="terraform@pve!hopshift", help="user@realm!tokenname; Terraform receives PROXMOX_VE_API_TOKEN as id=secret."),
+             FieldSpec("token_secret", "Token secret", type="password", required=True, secret=True, help="The UUID shown once when the token was created."),
+             _PROXMOX_INSECURE),
+            validators=(_proxmox_endpoint, _proxmox_token_id),
+        ),
+        MethodSpec(
+            "password", "Username and password",
+            "A Proxmox VE user with its realm (root@pam, terraform@pve) and password; the test requests an authentication ticket.",
+            (_PROXMOX_ENDPOINT,
+             FieldSpec("username", "Username", required=True, placeholder="terraform@pve", help="Includes the realm (PROXMOX_VE_USERNAME)."),
+             FieldSpec("password", "Password", type="password", required=True, secret=True),
+             _PROXMOX_INSECURE),
+            validators=(_proxmox_endpoint, _proxmox_username),
         ),
     )),
 }

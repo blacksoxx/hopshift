@@ -75,11 +75,27 @@ clouds contains "openstack" if {
 	p.source == "terraform-provider-openstack/openstack"
 }
 
+# bpg/proxmox resources are proxmox_virtual_environment_* (short proxmox_* aliases since 0.100).
+clouds contains "proxmox" if {
+	some r in input.resources
+	startswith(r.type, "proxmox_")
+}
+
+clouds contains "proxmox" if {
+	some p in input.providers
+	p.name == "proxmox"
+}
+
+clouds contains "proxmox" if {
+	some p in input.required_providers
+	p.source == "bpg/proxmox"
+}
+
 # ── catalog ───────────────────────────────────────────────────────────────────
 
 common_controls := {"ALL-TAGS-REQUIRED": "enforce"}
 
-controls := object.union_n([common_controls, aws_controls, azure_controls, gcp_controls, openstack_controls])
+controls := object.union_n([common_controls, aws_controls, azure_controls, gcp_controls, openstack_controls, proxmox_controls])
 
 evaluated contains id if {
 	count(clouds) > 0
@@ -194,4 +210,14 @@ violations contains v if {
 	some key in {"Environment", "Owner", "MigratedFrom"}
 	not data.hopshift.some_tag_with_prefix(tags, sprintf("%s=", [key]))
 	v := violation("ALL-TAGS-REQUIRED", common_controls["ALL-TAGS-REQUIRED"], r, sprintf("tags list missing %s=", [key]))
+}
+
+# Proxmox VMs carry a list of lower-case tags: env-<environment>, owner-<owner>, migratedfrom-<source>.
+violations contains v if {
+	some r in input.resources
+	r.type == "proxmox_virtual_environment_vm"
+	tags := object.get(r.config, "tags", [])
+	some key in {"env", "owner", "migratedfrom"}
+	not data.hopshift.some_tag_with_prefix(tags, sprintf("%s-", [key]))
+	v := violation("ALL-TAGS-REQUIRED", common_controls["ALL-TAGS-REQUIRED"], r, sprintf("tags list missing %s-", [key]))
 }

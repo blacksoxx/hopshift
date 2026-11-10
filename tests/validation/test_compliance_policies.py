@@ -624,6 +624,260 @@ def test_openstack_unverifiable_volume_type_is_advisory_only() -> None:
     assert _controls(result, "enforce") == set()
 
 
+# ── Proxmox VE ────────────────────────────────────────────────────────────────
+
+PROXMOX_VARIABLES = """
+variable "datastore_id" {
+  type    = string
+  default = "zfs-encrypted"
+}
+variable "management_cidrs" {
+  type    = list(string)
+  default = ["10.0.0.0/8", "192.168.0.0/16"]
+}
+variable "environment" {
+  type    = string
+  default = "test"
+}
+variable "owner" {
+  type    = string
+  default = "platform"
+}
+"""
+
+PROXMOX_TAGS = '["env-${var.environment}", "migratedfrom-vmware-vcenter", "owner-${var.owner}"]'
+
+PROXMOX_SECURE_BOOT = """
+  efi_disk {
+    datastore_id      = var.datastore_id
+    type              = "4m"
+    pre_enrolled_keys = true
+  }
+  tpm_state {
+    datastore_id = var.datastore_id
+    version      = "v2.0"
+  }
+"""
+
+
+def _proxmox_vm(
+    name: str,
+    *,
+    bios: str = "ovmf",
+    firmware: str = PROXMOX_SECURE_BOOT,
+    agent: bool = True,
+    tags: str = PROXMOX_TAGS,
+    firewall_nic: bool = True,
+    datastore: str = "var.datastore_id",
+    extra: str = "",
+) -> str:
+    agent_block = "  agent {\n    enabled = true\n  }\n" if agent else ""
+    return f"""
+resource "proxmox_virtual_environment_vm" "{name}" {{
+  name      = "{name}"
+  node_name = "pve"
+  tags      = {tags}
+  bios      = "{bios}"
+{firmware if bios == "ovmf" else ""}{agent_block}
+  cpu {{
+    cores = 2
+  }}
+  memory {{
+    dedicated = 2048
+  }}
+  operating_system {{
+    type = "l26"
+  }}
+  disk {{
+    interface    = "scsi0"
+    datastore_id = {datastore}
+    size         = 40
+  }}
+  network_device {{
+    bridge   = "vmbr0"
+    vlan_id  = 110
+    firewall = {str(firewall_nic).lower()}
+  }}
+{extra}}}
+"""
+
+
+def _proxmox_rule(
+    *,
+    source: str | None = 'join(",", var.management_cidrs)',
+    dport: str | None = '"22"',
+    macro: str | None = None,
+    proto: str | None = '"tcp"',
+    action: str = "ACCEPT",
+    direction: str = "in",
+) -> str:
+    lines = ["  rule {", f'    type    = "{direction}"', f'    action  = "{action}"', '    comment = "mgmt"']
+    if source is not None:
+        lines.append(f"    source  = {source}")
+    if proto is not None:
+        lines.append(f"    proto   = {proto}")
+    if dport is not None:
+        lines.append(f"    dport   = {dport}")
+    if macro is not None:
+        lines.append(f'    macro   = "{macro}"')
+    lines.append("  }")
+    return "\n".join(lines) + "\n"
+
+
+def _proxmox_firewall(name: str, rules: str, *, enabled: bool = True, input_policy: str = "DROP") -> str:
+    return f"""
+resource "proxmox_virtual_environment_firewall_options" "{name}" {{
+  node_name     = proxmox_virtual_environment_vm.{name}.node_name
+  vm_id         = proxmox_virtual_environment_vm.{name}.vm_id
+  enabled       = {str(enabled).lower()}
+  input_policy  = "{input_policy}"
+  output_policy = "ACCEPT"
+}}
+
+resource "proxmox_virtual_environment_firewall_rules" "{name}" {{
+  node_name = proxmox_virtual_environment_vm.{name}.node_name
+  vm_id     = proxmox_virtual_environment_vm.{name}.vm_id
+{rules}}}
+"""
+
+
+PROXMOX_HA = """
+resource "proxmox_virtual_environment_hagroup" "prod" {
+  group = "prod"
+  nodes = { pve = null }
+}
+
+resource "proxmox_virtual_environment_haresource" "web" {
+  resource_id = "vm:${proxmox_virtual_environment_vm.web.vm_id}"
+  group       = proxmox_virtual_environment_hagroup.prod.group
+  state       = "started"
+}
+"""
+
+PROXMOX_HARDENED = {
+    "proxmox-migration/variables.tf": PROXMOX_VARIABLES,
+    "proxmox-migration/main.tf": _proxmox_vm("web") + _proxmox_firewall("web", _proxmox_rule()) + PROXMOX_HA,
+}
+
+PROXMOX_INSECURE = {
+    "proxmox-migration/main.tf": (
+        _proxmox_vm("web", bios="seabios", agent=False, tags='["Env-Prod"]', firewall_nic=False, extra="  serial_device {}\n")
+        + _proxmox_vm("db")  # no firewall_options resource at all
+        + _proxmox_firewall("web", _proxmox_rule(source='"0.0.0.0/0"'), enabled=False, input_policy="ACCEPT")
+    ),
+}
+
+PROXMOX_ENFORCE_CONTROLS = {
+    "PVE-FW-NO-OPEN-MGMT-PORTS",
+    "PVE-VM-FIREWALL-ENABLED",
+    "PVE-VM-AGENT-ENABLED",
+    "PVE-VM-OWNERSHIP-TAGS",
+    "PVE-VM-NO-SERIAL-CONSOLE",
+}
+
+
+def _proxmox_files(rules: str, variables: str = PROXMOX_VARIABLES) -> dict[str, str]:
+    return {
+        "proxmox-migration/variables.tf": variables,
+        "proxmox-migration/main.tf": _proxmox_vm("web") + _proxmox_firewall("web", rules) + PROXMOX_HA,
+    }
+
+
+def test_proxmox_hardened_output_passes_every_control() -> None:
+    result = _evaluate(PROXMOX_HARDENED)
+
+    assert result.passed, result.deny_messages
+    assert _controls(result) == set()
+    assert set(result.evaluated) == {c.id for c in CONTROLS if "proxmox" in c.clouds}
+    assert "ALL-TAGS-REQUIRED" in result.evaluated
+
+
+def test_proxmox_insecure_output_fails_every_enforce_control() -> None:
+    result = _evaluate(PROXMOX_INSECURE)
+
+    assert not result.passed
+    assert _controls(result, "enforce") == PROXMOX_ENFORCE_CONTROLS | {"ALL-TAGS-REQUIRED"}
+    assert _controls(result, "advisory") == {"PVE-DISK-ENCRYPTION", "PVE-VM-SECURE-BOOT", "PVE-HA-ENABLED"}
+    firewall = _messages(result, "PVE-VM-FIREWALL-ENABLED")
+    assert any("net0 must set firewall = true" in m for m in firewall)
+    assert any("has no proxmox_virtual_environment_firewall_options" in m for m in firewall)
+    assert any("enabled = true" in m for m in firewall) and any("input_policy" in m for m in firewall)
+    tags = _messages(result, "PVE-VM-OWNERSHIP-TAGS")
+    assert any('"Env-Prod" is not a lower-case Proxmox tag' in m for m in tags)
+    assert {m for m in tags if "has no" in m} == {"tags list has no env-* tag", "tags list has no owner-* tag", "tags list has no migratedfrom-* tag"}
+    assert any(m.startswith("compliance PVE-VM-AGENT-ENABLED: ") and "(proxmox_virtual_environment_vm.web)" in m for m in result.deny_messages)
+    assert not any("PVE-HA-ENABLED" in m for m in result.deny_messages)
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        _proxmox_rule(source='"0.0.0.0/0"'),
+        _proxmox_rule(source=None, dport='"3000:4000"'),
+        _proxmox_rule(source='"::/0"', dport=None, macro="RDP", proto=None),
+        _proxmox_rule(source='"10.0.0.0/8, 0.0.0.0/0"', dport='"80,ssh"'),
+        _proxmox_rule(source=None, dport=None, proto=None),
+    ],
+    ids=["literal-open", "no-source-range", "ipv6-open-rdp-macro", "mixed-list-service-name", "everything-open"],
+)
+def test_proxmox_open_management_port_variants_are_denied(rule: str) -> None:
+    result = _evaluate(_proxmox_files(rule))
+
+    assert "PVE-FW-NO-OPEN-MGMT-PORTS" in _controls(result, "enforce")
+    assert not result.passed
+
+
+def test_proxmox_management_cidrs_variable_default_is_checked() -> None:
+    open_default = PROXMOX_VARIABLES.replace('["10.0.0.0/8", "192.168.0.0/16"]', '["0.0.0.0/0"]')
+    result = _evaluate(_proxmox_files(_proxmox_rule(), variables=open_default))
+
+    assert "PVE-FW-NO-OPEN-MGMT-PORTS" in _controls(result, "enforce")
+    # an expression the policy cannot trace to a variable default is treated as unverified, i.e. open
+    untraceable = _evaluate(_proxmox_files(_proxmox_rule(source="local.ranges")))
+    assert "PVE-FW-NO-OPEN-MGMT-PORTS" in _controls(untraceable, "enforce")
+
+
+def test_proxmox_open_https_is_not_a_management_port_finding() -> None:
+    result = _evaluate(_proxmox_files(_proxmox_rule(source='"0.0.0.0/0"', dport='"443"')))
+
+    assert "PVE-FW-NO-OPEN-MGMT-PORTS" not in _controls(result)
+    # the base no_open_ingress rule still fails the gate for any inbound ACCEPT from the internet
+    assert not result.passed
+    assert any(m.startswith("no_open_ingress: proxmox_virtual_environment_firewall_rules.web") for m in result.deny_messages)
+    # outbound and dropped inbound rules are not ingress findings
+    assert _evaluate(_proxmox_files(_proxmox_rule(source='"0.0.0.0/0"', direction="out"))).passed
+    assert _evaluate(_proxmox_files(_proxmox_rule(source='"0.0.0.0/0"', action="DROP"))).passed
+
+
+def test_proxmox_missing_ownership_tag_hits_both_tag_controls() -> None:
+    files = dict(PROXMOX_HARDENED)
+    files["proxmox-migration/main.tf"] = files["proxmox-migration/main.tf"].replace(', "owner-${var.owner}"', "", 1)
+
+    result = _evaluate(files)
+
+    assert {"ALL-TAGS-REQUIRED", "PVE-VM-OWNERSHIP-TAGS"} <= _controls(result, "enforce")
+    assert "tags list missing owner-" in _messages(result, "ALL-TAGS-REQUIRED")
+    assert "tags list has no owner-* tag" in _messages(result, "PVE-VM-OWNERSHIP-TAGS")
+
+
+def test_proxmox_advisories_report_secure_boot_details_and_unverified_datastore() -> None:
+    weak_efi = PROXMOX_SECURE_BOOT.replace('type              = "4m"', 'type              = "2m"').split("  tpm_state")[0]
+    files = {
+        "proxmox-migration/variables.tf": PROXMOX_VARIABLES,
+        "proxmox-migration/main.tf": _proxmox_vm("web", firmware=weak_efi, datastore='"local-lvm"') + _proxmox_firewall("web", _proxmox_rule()),
+    }
+    result = _evaluate(files)
+
+    assert result.passed
+    assert _controls(result, "enforce") == set()
+    secure_boot = _messages(result, "PVE-VM-SECURE-BOOT")
+    assert any("efi_disk must set type" in m for m in secure_boot) and any("has no tpm_state" in m for m in secure_boot)
+    assert _messages(result, "PVE-DISK-ENCRYPTION") == [
+        "disk scsi0 uses datastore local-lvm, which cannot be confirmed as encrypted; place VM disks on a LUKS- or ZFS-encrypted datastore"
+    ]
+    assert _messages(result, "PVE-HA-ENABLED") and "PVE-HA-ENABLED" in _controls(result, "advisory")
+
+
 # ── cross-cutting ─────────────────────────────────────────────────────────────
 
 
