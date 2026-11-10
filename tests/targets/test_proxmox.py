@@ -46,10 +46,10 @@ EXPECTED_FILES = [
     "proxmox-migration/firewall_web-01.tf",
     "proxmox-migration/network_vlans.tf",
     "proxmox-migration/placement_placement_groups.tf",
+    "proxmox-migration/providers.tf",
     "proxmox-migration/storage_db-01_disks.tf",
     "proxmox-migration/storage_mgmt-jump_disks.tf",
     "proxmox-migration/storage_web-01_disks.tf",
-    "proxmox-migration/targets.tf",
     "proxmox-migration/variables.tf",
 ]
 
@@ -124,7 +124,7 @@ def test_fixture_renders_the_expected_flat_root_module(files: dict[str, str]) ->
 
 
 def test_provider_block_pins_bpg_proxmox_and_keeps_credentials_out_of_files(files: dict[str, str]) -> None:
-    providers = files[ROOT + "targets.tf"]
+    providers = files[ROOT + "providers.tf"]
     assert 'source  = "bpg/proxmox"' in providers and 'version = "~> 0.121"' in providers
     assert 'provider "proxmox" {' in providers and "endpoint = var.proxmox_endpoint" in providers and "insecure = var.proxmox_insecure" in providers
     assert "api_token" not in providers and "password" not in providers.replace("PROXMOX_VE_PASSWORD", "")

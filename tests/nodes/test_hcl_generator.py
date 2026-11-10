@@ -397,7 +397,7 @@ def test_build_provider_fallback_hcl_for_gcp_emits_deterministic_files() -> None
     )
 
     assert "gcp-migration/main.tf" in fallback
-    assert "gcp-migration/targets.tf" in fallback
+    assert "gcp-migration/providers.tf" in fallback
     assert "gcp-migration/variables.tf" in fallback
     assert "gcp-migration/networking/vpc.tf" in fallback
     assert "gcp-migration/networking/subnets.tf" in fallback
@@ -504,8 +504,8 @@ def test_synthesize_provider_runtime_scaffold_for_openstack_adds_provider_and_va
         },
     )
 
-    assert "openstack-migration/targets.tf" in updated
-    providers_tf = updated["openstack-migration/targets.tf"]
+    assert "openstack-migration/providers.tf" in updated
+    providers_tf = updated["openstack-migration/providers.tf"]
     assert 'source  = "terraform-provider-openstack/openstack"' in providers_tf
     assert 'provider "openstack" {' in providers_tf
 
@@ -513,8 +513,8 @@ def test_synthesize_provider_runtime_scaffold_for_openstack_adds_provider_and_va
     assert "required_providers" not in main_tf
     assert 'provider "openstack"' not in main_tf
 
-    assert "openstack-migration/compute/targets.tf" in updated
-    compute_providers_tf = updated["openstack-migration/compute/targets.tf"]
+    assert "openstack-migration/compute/providers.tf" in updated
+    compute_providers_tf = updated["openstack-migration/compute/providers.tf"]
     assert 'source  = "terraform-provider-openstack/openstack"' in compute_providers_tf
 
     assert "openstack-migration/variables.tf" in updated

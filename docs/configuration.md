@@ -98,7 +98,7 @@ Behavior:
 ## output
 
 - base_dir
-- structure (informational; deterministic mode writes `{target}-migration/{resource_type}_{name}.tf` plus `targets.tf` and `variables.tf`)
+- structure (informational; deterministic mode writes `{target}-migration/{resource_type}_{name}.tf` plus `providers.tf` and `variables.tf`)
 - write_quarantine_report
 - quarantine_report_filename
 - write_review_notes

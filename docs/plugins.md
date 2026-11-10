@@ -88,13 +88,13 @@ order and flattens the result into one root module:
 | `compute` | `render_compute(cim, required_tags=...)` | CIM, tag map | `{"<root>/compute/<vm>.tf": hcl, ...}` (one file per ComputeUnit) |
 | `storage` | `render_storage(cim, required_tags=...)` | CIM, tag map | `{"<root>/storage/<vm>_disks.tf": hcl, ...}` |
 | `placement` | `render_placement(cim, required_tags=...)` | CIM, tag map | `{"<root>/placement/<file>.tf": hcl}` |
-| `runtime` | `render_runtime(cim, required_tags=...)` | CIM, tag map | `{"<root>/targets.tf": ..., "<root>/variables.tf": ...}` |
+| `runtime` | `render_runtime(cim, required_tags=...)` | CIM, tag map | `{"<root>/providers.tf": ..., "<root>/variables.tf": ...}` |
 
 Contracts the kit checks and the pipeline relies on:
 
 - **Keys are logical paths** `<root>/<resource_type>/<name>.tf` for the first four renderers; the
   assembler flattens them to `<root>/<resource_type>_<name>.tf`. `render_runtime` emits root files
-  directly (`targets.tf` with the `terraform { required_providers { ... } }` and `provider`
+  directly (`providers.tf` with the `terraform { required_providers { ... } }` and `provider`
   blocks, and `variables.tf`). Two logical keys must never flatten to the same name; names that
   differ only by case are rejected too.
 - **Names come from the CIM and are untrusted.** Build file stems with
@@ -335,13 +335,13 @@ from hopshift.targets.runtime_common import literal_default, tag_variable_blocks
 
 def render_runtime(cim, required_tags=None) -> dict[str, str]:
     tags = required_tags or {}
-    targets_tf = (
+    providers_tf = (
         'terraform {\n  required_version = ">= 1.5.0"\n  required_providers {\n'
         '    random = {\n      source  = "hashicorp/random"\n      version = "~> 3.6"\n    }\n  }\n}\n\n'
         'provider "random" {}\n'
     )
     variables_tf = tag_variable_blocks(literal_default(tags.get("Environment"), "dev"), literal_default(tags.get("Owner"), "platform-team"))
-    return {"nimbus-migration/targets.tf": targets_tf, "nimbus-migration/variables.tf": variables_tf}
+    return {"nimbus-migration/providers.tf": providers_tf, "nimbus-migration/variables.tf": variables_tf}
 ```
 
 ```python

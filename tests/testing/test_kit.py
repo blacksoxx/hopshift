@@ -43,7 +43,7 @@ def render_runtime(cim, required_tags=None):
         'variable "environment" {\\n  type    = string\\n  default = "%s"\\n}\\n\\n'
         'variable "owner" {\\n  type    = string\\n  default = "%s"\\n}\\n'
     ) % (tags.get("Environment", "dev"), tags.get("Owner", "platform"))
-    return {"ROOT-migration/targets.tf": providers, "ROOT-migration/variables.tf": variables}
+    return {"ROOT-migration/providers.tf": providers, "ROOT-migration/variables.tf": variables}
 '''
 
 _GOOD_NETWORK = '''
@@ -99,7 +99,7 @@ def render_networking(cim):
 _UNSAFE_RUNTIME = '''
 def render_runtime(cim, required_tags=None):
     return {
-        "ROOT-migration/targets.tf": 'terraform {\\n  required_providers {\\n    null = {\\n      source = "hashicorp/null"\\n    }\\n  }\\n}\\n\\nprovider "null" {}\\n',
+        "ROOT-migration/providers.tf": 'terraform {\\n  required_providers {\\n    null = {\\n      source = "hashicorp/null"\\n    }\\n  }\\n}\\n\\nprovider "null" {}\\n',
         "ROOT-migration/variables.tf": 'variable "environment" {\\n  type = string\\n}\\n',
     }
 '''

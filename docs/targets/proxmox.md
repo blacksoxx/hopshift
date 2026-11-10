@@ -35,7 +35,7 @@ proxmox-migration/
   network_vlans.tf                one proxmox_virtual_environment_network_linux_vlan per VLAN tag
   placement_placement_groups.tf   HA group per cluster, HA resource per clustered VM, affinity rules (PVE 9)
   storage_<vm>_disks.tf           disk inventory (comments): source VMDK, datastore, shared/RDM flags
-  targets.tf                      terraform { required_providers } and the provider block
+  providers.tf                      terraform { required_providers } and the provider block
   variables.tf
 ```
 

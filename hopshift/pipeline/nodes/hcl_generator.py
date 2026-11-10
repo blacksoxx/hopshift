@@ -1040,7 +1040,7 @@ def _synthesize_provider_module_layout(
 
     synthesized: dict[str, str] = {}
 
-    synthesized[f"{root_dir}/targets.tf"] = "\n".join(
+    synthesized[f"{root_dir}/providers.tf"] = "\n".join(
         [
             "terraform {",
             "  required_version = \">= 1.5.0\"",
@@ -1193,7 +1193,7 @@ def _synthesize_provider_runtime_scaffold(
         return hcl_output
 
     root_dir = _provider_migration_root(normalized_provider)
-    providers_path = f"{root_dir}/targets.tf"
+    providers_path = f"{root_dir}/providers.tf"
     variables_path = f"{root_dir}/variables.tf"
 
     env_default = str(required_tags.get("Environment", "dev"))
@@ -1202,7 +1202,7 @@ def _synthesize_provider_runtime_scaffold(
 
     synthesized = dict(hcl_output)
 
-    # Keep provider declarations in targets.tf only to avoid duplicate module-level blocks.
+    # Keep provider declarations in providers.tf only to avoid duplicate module-level blocks.
     for path, content in list(synthesized.items()):
         if not path.startswith(f"{root_dir}/"):
             continue
@@ -1322,7 +1322,7 @@ def _synthesize_provider_runtime_scaffold(
             module_dirs.add(parent_dir)
 
     for module_dir in module_dirs:
-        module_providers_path = f"{module_dir}/targets.tf"
+        module_providers_path = f"{module_dir}/providers.tf"
         synthesized[module_providers_path] = "\n".join(
             [
                 "terraform {",
@@ -1760,7 +1760,7 @@ def _build_deterministic_gcp_fallback_hcl(
         ]
     )
 
-    output["gcp-migration/targets.tf"] = "\n".join(
+    output["gcp-migration/providers.tf"] = "\n".join(
         [
             "terraform {",
             "  required_version = \">= 1.5.0\"",

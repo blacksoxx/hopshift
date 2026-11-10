@@ -19,7 +19,7 @@ policies.
 
 | File | Resources |
 |---|---|
-| `targets.tf` | `terraform` block with `required_version` and `required_providers`, `provider "google"` with `project`, `region` and `zone` from variables |
+| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "google"` with `project`, `region` and `zone` from variables |
 | `variables.tf` | the variables below |
 | `networking_vpc.tf` | one `google_compute_network` per virtual switch (`auto_create_subnetworks = false`, `REGIONAL` routing, description naming the source switch) |
 | `networking_subnets.tf` | one `google_compute_subnetwork` per network segment with `private_ip_google_access = true` and a `log_config` block (5 s aggregation, 0.5 sampling, all metadata); a `default` subnetwork for a switch without segments |

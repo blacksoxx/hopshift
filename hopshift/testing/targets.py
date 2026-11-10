@@ -75,7 +75,7 @@ SIZING_RAM_MB: tuple[int, ...] = (
     98304, 131072, 262144, 524288, 1048576, 4_000_000,
 )
 
-_PROVIDERS_FILES = ("targets.tf", "providers.tf")
+_PROVIDERS_FILES = ("providers.tf", "targets.tf")
 _PROVIDER_BLOCK = re.compile(r'^\s*provider\s+"', re.MULTILINE)
 
 
@@ -369,7 +369,7 @@ def _check_layout(spec: TargetSpec, files: dict[str, str]) -> str:
         problems.append("variables.tf is missing (render_runtime must emit it)")
     providers_file = next((name for name in _PROVIDERS_FILES if name in names), None)
     if providers_file is None:
-        problems.append("targets.tf (or providers.tf) with the terraform { required_providers } block is missing")
+        problems.append("providers.tf (or targets.tf) with the terraform { required_providers } block is missing")
     else:
         content = files[f"{root}/{providers_file}"]
         if "required_providers" not in content:

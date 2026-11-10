@@ -79,7 +79,7 @@ def build_environment(
 
 
 def render_backend_override(remote_state: dict[str, Any] | None, local_state_path: str, run_id: str | None = None) -> str:
-    """`backend_override.tf`: Terraform merges *_override.tf over the generated targets.tf.
+    """`backend_override.tf`: Terraform merges *_override.tf over the generated providers.tf.
 
     With a remote backend the state is namespaced per run: the configured `key` (s3, azurerm)
     or `prefix` (gcs) becomes a prefix and the run id is appended, so two runs never share a

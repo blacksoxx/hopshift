@@ -11,7 +11,7 @@ def render_runtime(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render targets.tf and variables.tf for the AWS root module."""
+    """Render providers.tf and variables.tf for the AWS root module."""
     del cim
     tags = required_tags or {}
     providers_tf = "\n".join(
@@ -54,6 +54,6 @@ def render_runtime(
         ]
     )
     return {
-        "aws-migration/targets.tf": providers_tf,
+        "aws-migration/providers.tf": providers_tf,
         "aws-migration/variables.tf": variables_tf,
     }

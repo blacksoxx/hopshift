@@ -100,7 +100,7 @@ def make_run(runtime: MigrationRuntime, status: str = "succeeded") -> str:
     runtime.store.create(record, {"virtual_machines": []})
     root = runtime.store.artifacts_dir(record.run_id) / "aws-migration"
     root.mkdir(parents=True)
-    (root / "targets.tf").write_text('provider "aws" {\n  region = var.aws_region\n}\n', encoding="utf-8")
+    (root / "providers.tf").write_text('provider "aws" {\n  region = var.aws_region\n}\n', encoding="utf-8")
     (root / "variables.tf").write_text(VARIABLES_TF, encoding="utf-8")
     return record.run_id
 

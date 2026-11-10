@@ -67,7 +67,7 @@ output/platform.sqlite              `deployments` table used for listing and the
 ```
 
 The workspace gets a `backend_override.tf` (Terraform merges `*_override.tf` files over
-`targets.tf`), so the generated files stay valid on their own and the backend is decided by the
+`providers.tf`), so the generated files stay valid on their own and the backend is decided by the
 platform. Provider downloads go through `validation.terraform_plugin_cache_dir` when it is set.
 
 ### Environment given to Terraform
@@ -165,7 +165,7 @@ generated module end to end.
    The connections service turns the endpoint into the provider's environment
    (`AWS_ENDPOINT_URL`, which Terraform's AWS provider 5.x+ honours for every service).
 
-3. The generated `targets.tf` needs three settings the real AWS API does not, otherwise the
+3. The generated `providers.tf` needs three settings the real AWS API does not, otherwise the
    provider tries to call STS and validate the region against the public endpoints. Add a
    `provider_override.tf` in the run's root module (`artifacts/aws-migration/`) with:
 

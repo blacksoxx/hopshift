@@ -10,7 +10,7 @@ run was created through the API or UI).
 Deterministic mode writes one flat root module per target, in the directory named by
 `TargetSpec.root` (`<target>-migration/`):
 
-- `targets.tf`: the `terraform` block (`required_version`, `required_providers`) and the `provider` block
+- `providers.tf`: the `terraform` block (`required_version`, `required_providers`) and the `provider` block
 - `variables.tf`: the module's variables
 - `networking_vpc.tf`, `networking_subnets.tf`, `networking_security_groups.tf`
 - `compute_<vm>.tf`: one file per compute unit
@@ -39,7 +39,7 @@ Notes:
 
 In `llm`/`hybrid` mode hcl_generator contains AWS-specific synthesis that can add module layout files:
 
-- aws-migration/targets.tf
+- aws-migration/providers.tf
 - aws-migration/locals.tf
 - aws-migration/main.tf
 - aws-migration/modules/networking/*

@@ -178,7 +178,7 @@ the principal may list nodes (`Sys.Audit` on `/nodes`), `nodes` and `node_names`
 authentication ticket is used for the check only and discarded. Terraform needs the token or user
 to hold `VM.Allocate`, `VM.Config.*`, `VM.PowerMgmt`, `Datastore.AllocateSpace`, `Sys.Modify` (node
 network interfaces, HA) and `Sys.Audit`; API tokens with privilege separation carry their own
-ACLs. The generated `proxmox-migration/targets.tf` leaves `endpoint` and `insecure` at `null`, so
+ACLs. The generated `proxmox-migration/providers.tf` leaves `endpoint` and `insecure` at `null`, so
 both come from these variables unless overridden.
 
 ## Docker mounts

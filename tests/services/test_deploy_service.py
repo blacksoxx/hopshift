@@ -164,7 +164,7 @@ def make_run(runtime: MigrationRuntime, status: str = "succeeded", cloud: str = 
     if with_tf:
         root = runtime.store.artifacts_dir(record.run_id) / f"{cloud}-migration"
         root.mkdir(parents=True)
-        (root / "targets.tf").write_text(PROVIDERS_TF, encoding="utf-8")
+        (root / "providers.tf").write_text(PROVIDERS_TF, encoding="utf-8")
         (root / "variables.tf").write_text(VARIABLES_TF, encoding="utf-8")
         (root / "networking_vpc.tf").write_text('resource "aws_vpc" "main" {\n  cidr_block = "10.0.0.0/16"\n}\n', encoding="utf-8")
     return record.run_id
@@ -270,7 +270,7 @@ def test_plan_lifecycle_records_summary_log_and_environment(
     assert (tmp_path / "plugin-cache").is_dir()
 
     # workspace is a copy with the backend override and tfvars; artifacts untouched; lock file persisted
-    assert (workspace / "targets.tf").is_file() and (workspace / "networking_vpc.tf").is_file()
+    assert (workspace / "providers.tf").is_file() and (workspace / "networking_vpc.tf").is_file()
     override = (workspace / "backend_override.tf").read_text(encoding="utf-8")
     assert 'backend "local"' in override and 'path = "../state/terraform.tfstate"' in override
     assert json.loads((workspace / "terraform.tfvars.json").read_text(encoding="utf-8")) == {"aws_region": "eu-west-1"}

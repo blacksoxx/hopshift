@@ -21,7 +21,7 @@ one directory, because Terraform only loads `.tf` files at the root of a module.
 
 | File | Resources |
 |---|---|
-| `targets.tf` | `terraform` block with `required_version` and `required_providers`, `provider "aws"` with `region = var.aws_region` |
+| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "aws"` with `region = var.aws_region` |
 | `variables.tf` | the variables below |
 | `networking_vpc.tf` | one `aws_vpc` per virtual switch (DNS support and hostnames on) and one `aws_default_security_group` per VPC that adopts the implicit default group with no rules |
 | `networking_subnets.tf` | one `aws_subnet` per network segment, tagged with its `VlanId`; a `default` subnet when the source had no segments |

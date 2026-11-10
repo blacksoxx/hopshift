@@ -17,7 +17,7 @@ def render_runtime(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render targets.tf (provider) and variables.tf for the Proxmox root module."""
+    """Render providers.tf (provider) and variables.tf for the Proxmox root module."""
     del cim
     tags = required_tags or {}
     providers_tf = "\n".join(
@@ -87,7 +87,7 @@ def render_runtime(
         ]
     )
     return {
-        f"{ROOT}/targets.tf": providers_tf,
+        f"{ROOT}/providers.tf": providers_tf,
         f"{ROOT}/variables.tf": variables_tf,
     }
 

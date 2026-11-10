@@ -66,7 +66,7 @@ LABELS = """
 # ── AWS ───────────────────────────────────────────────────────────────────────
 
 AWS_HARDENED = {
-    "aws-migration/targets.tf": """
+    "aws-migration/providers.tf": """
 terraform {
   required_providers {
     aws = {

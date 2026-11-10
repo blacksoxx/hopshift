@@ -19,7 +19,7 @@ proximity placement groups and availability sets.
 
 | File | Resources |
 |---|---|
-| `targets.tf` | `terraform` block with `required_version` and `required_providers`, `provider "azurerm" { features {} }` |
+| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "azurerm" { features {} }` |
 | `variables.tf` | the variables below |
 | `networking_vpc.tf` | one `azurerm_virtual_network` per virtual switch, named `${var.name_prefix}-<switch>` |
 | `networking_subnets.tf` | one `azurerm_subnet` per network segment; a `default` subnet for a switch without segments (subnets are not taggable) |

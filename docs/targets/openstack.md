@@ -18,7 +18,7 @@ routers and a security group, Nova instances and server groups, Cinder volumes.
 
 | File | Resources |
 |---|---|
-| `targets.tf` | `terraform` block with `required_version` and `required_providers`, `provider "openstack"` with `auth_url`, `user_name`, `password`, `tenant_name`, `domain_name` and `region` from variables |
+| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "openstack"` with `auth_url`, `user_name`, `password`, `tenant_name`, `domain_name` and `region` from variables |
 | `variables.tf` | the variables below |
 | `networking_vpc.tf` | one `openstack_networking_network_v2` per virtual switch (`admin_state_up`, not shared) with the required tags as `Key=Value` list entries |
 | `networking_subnets.tf` | one `openstack_networking_subnet_v2` per network segment (IPv4, DHCP on, DNS `8.8.8.8` and `8.8.4.4`, the VLAN id kept in the description); a `default` subnet for a switch without segments |

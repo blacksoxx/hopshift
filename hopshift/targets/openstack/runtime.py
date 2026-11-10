@@ -11,7 +11,7 @@ def render_runtime(
     cim: CanonicalInfrastructureModel,
     required_tags: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Render targets.tf and variables.tf for the OpenStack root module."""
+    """Render providers.tf and variables.tf for the OpenStack root module."""
     del cim
     tags = required_tags or {}
     providers_tf = "\n".join(
@@ -64,6 +64,6 @@ def render_runtime(
         ]
     )
     return {
-        "openstack-migration/targets.tf": providers_tf,
+        "openstack-migration/providers.tf": providers_tf,
         "openstack-migration/variables.tf": variables_tf,
     }
