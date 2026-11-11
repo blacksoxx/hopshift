@@ -149,12 +149,25 @@ with `terraform state list` in the workspace.
 ## LocalStack: a real AWS plan and apply without an account
 
 LocalStack emulates the AWS APIs locally, which is enough to exercise init, plan and apply on a
-generated module end to end.
+generated module end to end. `scripts/localstack_e2e.py` drives the whole flow below through
+the HTTP API (setup, sign-in, connection, run with both approvals, overrides, plan, apply,
+state, destroy) and is the quickest realistic check of a build:
 
-1. Start LocalStack (the free image covers EC2, VPC and EBS):
+```bash
+docker run -d --name localstack -p 4566:4566 -e SERVICES=ec2,sts,iam localstack/localstack:4.9
+python ui/e2e/serve.py --port 8765 --state-dir /tmp/hopshift-localstack &
+python scripts/localstack_e2e.py --base-url http://127.0.0.1:8765 --state-dir /tmp/hopshift-localstack \
+  --discovery tests/fixtures/discovery_multi_vm.json --endpoint http://localhost:4566
+```
+
+Step by step:
+
+1. Start LocalStack. Pin a 4.x tag: the `latest` images published since 2026 exit with
+   "License activation failed" unless `LOCALSTACK_AUTH_TOKEN` is set, while `4.9` runs EC2,
+   VPC, EBS and STS without an account.
 
    ```bash
-   docker run --rm -d --name localstack -p 4566:4566 localstack/localstack
+   docker run -d --name localstack -p 4566:4566 -e SERVICES=ec2,sts,iam localstack/localstack:4.9
    ```
 
    If the platform itself runs in Docker (see `docker-compose.yml`), put LocalStack on the same
@@ -163,9 +176,10 @@ generated module end to end.
 2. Create an AWS connection with the `access_keys` method: key id `test`, secret `test`,
    region `us-east-1`, and `endpoint_url` `http://localstack:4566` (or `http://localhost:4566`).
    The connections service turns the endpoint into the provider's environment
-   (`AWS_ENDPOINT_URL`, which Terraform's AWS provider 5.x+ honours for every service).
+   (`AWS_ENDPOINT_URL`, which Terraform's AWS provider 5.x+ honours for every service). The
+   connection test authenticates against LocalStack's STS as account `000000000000`.
 
-3. The generated `providers.tf` needs three settings the real AWS API does not, otherwise the
+3. The generated `providers.tf` needs settings the real AWS API does not, otherwise the
    provider tries to call STS and validate the region against the public endpoints. Add a
    `provider_override.tf` in the run's root module (`artifacts/aws-migration/`) with:
 
@@ -179,17 +193,34 @@ generated module end to end.
    }
    ```
 
-   Override files are merged into the generated provider block, so the module stays unchanged
+   LocalStack also rejects an instance whose root volume has no explicit size (real AWS takes
+   it from the AMI; the generated `root_block_device` only sets `encrypted = true`). Add one
+   override block per instance, in the same file or another `*_override.tf`:
+
+   ```hcl
+   resource "aws_instance" "web_01" {
+     root_block_device {
+       encrypted   = true
+       volume_size = 20
+     }
+   }
+   ```
+
+   Override files are merged into the generated blocks, so the module stays unchanged
    otherwise. Remember that editing the root module after a plan invalidates that plan (the
    apply gate recomputes the artifacts hash).
 
-4. Set `default_ami_id` to any `ami-` id (LocalStack accepts arbitrary ids), run `plan`,
-   review `plan.json`, then `apply` with `plan_id` and `confirmation`. `GET .../deploy/state`
-   lists the created resources; `destroy` removes them.
+4. Set `default_ami_id` to an image LocalStack knows: it validates AMI ids against its own
+   catalog, so pick one from `aws ec2 describe-images --endpoint-url http://localhost:4566`
+   (about 560 images ship with 4.9). Run `plan`, review `plan.json`, then `apply` with
+   `plan_id` and `confirmation`. `GET .../deploy/state` lists the created resources; `destroy`
+   removes them.
 
-LocalStack does not implement placement groups or every EBS option identically to AWS; a
-resource LocalStack rejects shows up as an apply error in `terraform.log` and is not a defect of
-the generated HCL.
+LocalStack does not implement placement groups (`CreatePlacementGroup` answers 501), so a
+discovery with DRS clusters applies everything except the placement group and the instances
+that reference it; the single-VM sample `discovery-2.json` applies completely. A resource
+LocalStack rejects shows up as an apply error in `terraform.log` and is not a defect of the
+generated HCL; `destroy` still removes what was created.
 
 ## API summary
 

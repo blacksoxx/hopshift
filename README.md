@@ -209,6 +209,7 @@ pip install -e ".[dev]" && pre-commit install && (cd ui && npm ci)
 pytest -q --ignore=tests/integration --cov    # fast unit suite with coverage
 pytest -q tests/integration                   # real terraform/tflint/opa on every built-in target
 cd ui && npx vitest run --coverage && npm run build && npx playwright test
+python scripts/localstack_e2e.py --state-dir /tmp/hopshift-localstack   # real plan, apply and destroy against LocalStack
 ```
 
 Pull requests get the full treatment automatically: lint, unit tests on three Python

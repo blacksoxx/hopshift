@@ -37,7 +37,7 @@ def cli():
               "input_file",
               required=True,
               type=click.Path(exists=True, path_type=Path),
-              help="Path to VMware discovery JSON input file.")
+              help="Path to the discovery JSON input file (any registered source).")
 # ── Target cloud ──────────────────────────────────────────────────────────────
 @click.option("--cloud",    "-c",
               required=True,
@@ -108,10 +108,10 @@ def terragen(
     environment, owner, output_dir, config_file, dry_run, skip_validation, skip_opa, no_mcp
 ):
     """
-    Convert a VMware discovery JSON to Terraform HCL for the target cloud.
+    Convert a discovery JSON (any registered source) to Terraform HCL for the target.
 
         Args:
-            --input: Path to VMware discovery JSON file.
+            --input: Path to the discovery JSON file.
             --cloud: Target cloud provider (aws|azure|gcp|openstack).
             --llm-provider: LLM backend (anthropic|openai|google).
             --environment: Environment tag value for all generated resources.
@@ -210,7 +210,7 @@ def terragen(
               "input_file",
               required=True,
               type=click.Path(exists=True, path_type=Path),
-              help="Path to VMware discovery JSON input file.")
+              help="Path to the discovery JSON input file (any registered source).")
 @click.option("--cloud", "-c",
               required=True,
               type=click.Choice(SUPPORTED_CLOUDS, case_sensitive=False),
