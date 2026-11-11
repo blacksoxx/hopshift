@@ -18,7 +18,7 @@ routers and a security group, Nova instances and server groups, Cinder volumes.
 
 | File | Resources |
 |---|---|
-| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "openstack"` with `auth_url`, `user_name`, `password`, `tenant_name`, `domain_name` and `region` from variables |
+| `providers.tf` | `terraform` block with `required_version` and `required_providers`, `provider "openstack"` with `auth_url`, `user_name`, `password`, `tenant_name`, `domain_name` and `region` bound to null-default variables, so the `OS_*` environment of the attached connection applies unless a variable is set |
 | `variables.tf` | the variables below |
 | `networking_vpc.tf` | one `openstack_networking_network_v2` per virtual switch (`admin_state_up`, not shared) with the required tags as `Key=Value` list entries |
 | `networking_subnets.tf` | one `openstack_networking_subnet_v2` per network segment (IPv4, DHCP on, DNS `8.8.8.8` and `8.8.4.4`, the VLAN id kept in the description); a `default` subnet for a switch without segments |
@@ -74,12 +74,12 @@ the target cloud.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `auth_url` | required | Keystone v3 endpoint |
-| `user_name` | required | user name |
-| `password` | required, `sensitive` | password; pass it as `TF_VAR_password` or through the deploy variables (masked) |
-| `tenant_name` | required | project name |
-| `domain_name` | `Default` | Keystone domain |
-| `region` | required | region name |
+| `auth_url` | `null` (reads `OS_AUTH_URL`) | Keystone v3 endpoint |
+| `user_name` | `null` (reads `OS_USERNAME`) | user name |
+| `password` | `null` (reads `OS_PASSWORD`), `sensitive` | password; set it as `TF_VAR_password` or through the deploy variables (masked) to override |
+| `tenant_name` | `null` (reads `OS_PROJECT_NAME`) | project name |
+| `domain_name` | `null` (reads `OS_USER_DOMAIN_NAME`) | Keystone domain |
+| `region` | `null` (reads `OS_REGION_NAME`) | region name |
 | `external_network_id` | required | external (provider) network for the routers |
 | `default_image_name` | `""` | fallback Glance image when a VM has no `image_overrides` entry |
 | `image_overrides` | `{}` | `map(string)`: Glance image name per source VM name |
@@ -88,12 +88,12 @@ the target cloud.
 | `environment` | the `--environment` value (`dev` when it was an expression) | `Environment` tag |
 | `owner` | the `--owner` value (`platform-team` when it was an expression) | `Owner` tag |
 
-The provider block takes its credentials from these variables, not from the environment. A
-deployment therefore needs `auth_url`, `user_name`, `password`, `tenant_name` and `region` set
-through `PUT /api/runs/{id}/deploy/variables` (or `TF_VAR_*`) even when a connection is
-attached; the connection's `OS_*` environment is exported as well but the explicit provider
-arguments win. Values set through the deploy variables are stored in `terraform.tfvars.json`
-and masked in the variables view and the logs when the variable is `sensitive`.
+The six provider variables default to `null`, so a deployment with an attached connection
+authenticates with the `OS_*` environment the connection exports (password, application
+credential or `clouds.yaml`) and needs no credential variables. Setting any of them through
+`PUT /api/runs/{id}/deploy/variables` (or `TF_VAR_*`) overrides the environment for that
+argument. Values set through the deploy variables are stored in `terraform.tfvars.json` and
+masked in the variables view and the logs when the variable is `sensitive`.
 
 ## Image handling
 

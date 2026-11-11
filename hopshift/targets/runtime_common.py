@@ -22,6 +22,16 @@ def variable_block(
     return "\n".join(lines) + "\n"
 
 
+def nullable_variable_block(name: str, type_: str, description: str, *, sensitive: bool = False) -> str:
+    """A variable whose default is `null`: a provider argument bound to it stays unset, so the
+    provider falls back to its own environment (the credentials a stored connection exports)."""
+    lines = [f'variable "{name}" {{', f"  type        = {type_}", f"  description = {hcl_string(description)}", "  default     = null"]
+    if sensitive:
+        lines.append("  sensitive   = true")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def tag_variable_blocks(environment_default: str, owner_default: str) -> str:
     return "".join(
         [

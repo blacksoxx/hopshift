@@ -4,6 +4,7 @@ from hopshift.cim.schema import CanonicalInfrastructureModel
 from hopshift.targets.common import hcl_string
 from hopshift.targets.proxmox import ROOT, proxmox_tag
 from hopshift.targets.runtime_common import literal_default, variable_block
+from hopshift.targets.runtime_common import nullable_variable_block as _nullable_variable
 
 # bpg/proxmox: the proxmox_virtual_environment_* resource names stay until 1.0 (short aliases exist from 0.100).
 PROVIDER_VERSION = "~> 0.121"
@@ -90,18 +91,6 @@ def render_runtime(
         f"{ROOT}/providers.tf": providers_tf,
         f"{ROOT}/variables.tf": variables_tf,
     }
-
-
-def _nullable_variable(name: str, type_: str, description: str) -> str:
-    return "\n".join(
-        [
-            f'variable "{name}" {{',
-            f"  type        = {type_}",
-            f"  description = {hcl_string(description)}",
-            "  default     = null",
-            "}",
-        ]
-    ) + "\n"
 
 
 def _nic_model_variable() -> str:

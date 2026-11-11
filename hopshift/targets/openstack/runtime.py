@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from hopshift.cim.schema import CanonicalInfrastructureModel
-from hopshift.targets.runtime_common import image_overrides_block, tag_variable_blocks, variable_block
+from hopshift.targets.runtime_common import (
+    image_overrides_block,
+    nullable_variable_block,
+    tag_variable_blocks,
+    variable_block,
+)
 from hopshift.targets.runtime_common import literal_default as _literal
 
 PROVIDER_VERSION = "~> 2.1"
@@ -26,6 +31,8 @@ def render_runtime(
             "  }",
             "}",
             "",
+            "# Credentials come from the OS_* environment a stored connection exports (password,",
+            "# application credential or clouds.yaml); the variables below override it when set.",
             'provider "openstack" {',
             "  auth_url    = var.auth_url",
             "  user_name   = var.user_name",
@@ -39,12 +46,12 @@ def render_runtime(
     )
     variables_tf = "\n".join(
         [
-            variable_block("auth_url", "string", "Keystone identity endpoint (v3)."),
-            variable_block("user_name", "string", "OpenStack user name."),
-            variable_block("password", "string", "OpenStack password; pass via TF_VAR_password.", sensitive=True),
-            variable_block("tenant_name", "string", "OpenStack project (tenant) name."),
-            variable_block("domain_name", "string", "Keystone domain name.", "Default"),
-            variable_block("region", "string", "OpenStack region name."),
+            nullable_variable_block("auth_url", "string", "Keystone identity endpoint (v3); null reads OS_AUTH_URL."),
+            nullable_variable_block("user_name", "string", "OpenStack user name; null reads OS_USERNAME."),
+            nullable_variable_block("password", "string", "OpenStack password; null reads OS_PASSWORD (or pass TF_VAR_password).", sensitive=True),
+            nullable_variable_block("tenant_name", "string", "OpenStack project (tenant) name; null reads OS_PROJECT_NAME."),
+            nullable_variable_block("domain_name", "string", "Keystone domain name; null reads OS_USER_DOMAIN_NAME."),
+            nullable_variable_block("region", "string", "OpenStack region name; null reads OS_REGION_NAME."),
             variable_block("external_network_id", "string", "External (provider) network id for routers."),
             variable_block(
                 "default_image_name",
