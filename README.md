@@ -107,11 +107,11 @@
 | hopshift/targets/proxmox/compute.py           |      164 |        3 |     98% |191-192, 227 |
 | hopshift/targets/proxmox/network.py           |       47 |        0 |    100% |           |
 | hopshift/targets/proxmox/placement.py         |       66 |        1 |     98% |        91 |
-| hopshift/targets/proxmox/runtime.py           |       27 |        0 |    100% |           |
+| hopshift/targets/proxmox/runtime.py           |       26 |        0 |    100% |           |
 | hopshift/targets/proxmox/sizing\_table.py     |       11 |        0 |    100% |           |
 | hopshift/targets/proxmox/storage.py           |       62 |        1 |     98% |        93 |
 | hopshift/targets/registry.py                  |       83 |       58 |     30% |15-42, 44, 46-49, 53-56, 64-81, 90-98, 102, 111, 116, 121, 127-134 |
-| hopshift/targets/runtime\_common.py           |       34 |        4 |     88% |39, 51, 55-56 |
+| hopshift/targets/runtime\_common.py           |       40 |        5 |     88% |20, 49, 61, 65-66 |
 | hopshift/testing/\_\_init\_\_.py              |        5 |        5 |      0% |     17-23 |
 | hopshift/testing/\_common.py                  |       85 |       39 |     54% |3-36, 45, 52, 64, 72, 76, 87, 95, 108, 113, 117, 122-126, 130 |
 | hopshift/testing/matrix.py                    |      161 |        7 |     96% |52, 70-71, 74, 96-97, 141 |
@@ -123,7 +123,7 @@
 | hopshift/validation/opa\_client.py            |      172 |       69 |     60% |1-18, 30-48, 51-52, 56-59, 72, 77, 81-82, 107-108, 112-114, 119, 123-124, 139-141, 145-147, 153, 190-197, 202, 211-218, 231, 244, 248, 279, 295, 304, 314-315 |
 | hopshift/validation/paths.py                  |       19 |        7 |     63% |  1-13, 30 |
 | hopshift/validation/tf\_runner.py             |       94 |       52 |     45% |1-34, 38, 52, 76-82, 90-91, 107-108, 122, 131, 141, 151, 158-163, 167-191 |
-| **TOTAL**                                     | **12721** | **2800** | **78%** |           |
+| **TOTAL**                                     | **12726** | **2801** | **78%** |           |
 
 1 empty file skipped.
 
