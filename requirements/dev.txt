@@ -96,9 +96,9 @@ azure-identity==1.27.0 \
     --hash=sha256:6a4c50e25e8e9a47b324a95ad024897e56cb3c6241e0094e93b126a2bf71edc5 \
     --hash=sha256:92fd2a93c0d2f777dac6c04e5fd7d5734f6643582b983544ef66b4575844e46d
     # via vmware-migration-agent (pyproject.toml)
-boltons==21.0.0 \
-    --hash=sha256:65e70a79a731a7fe6e98592ecfb5ccf2115873d01dbc576079874629e5c90f13 \
-    --hash=sha256:b9bb7b58b2b420bbe11a6025fdef6d3e5edc9f76a42fb467afe7ca212ef9948b
+boltons==26.2.0 \
+    --hash=sha256:41942cbce440211bbcf2487ccdc356964ad674f95a01068b8a0dd7a1d1fed036 \
+    --hash=sha256:d39cfd15c1a1c3bd4d705c82252fa9edb8e4f5e8cc039f8e39afac7b1b47e92c
     # via
     #   face
     #   glom
