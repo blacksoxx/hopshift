@@ -144,6 +144,24 @@ Example:
 hopshift mcp-check --servers terraform --timeout 10 --format text
 ```
 
+## Command groups: targets, sources, plugins, matrix
+
+Registry and conformance commands (see [plugins.md](plugins.md) and [support-matrix.md](support-matrix.md)).
+
+```bash
+hopshift targets list [--format json]               # registered targets with tier, tflint, connection, package
+hopshift targets check aws [--terraform] [--input discovery.json] [--format json]
+hopshift sources list
+hopshift sources check vmware --input tests/fixtures/discovery_multi_vm.json
+hopshift plugins list                               # entry points and their load status (exit 1 if one is broken)
+hopshift matrix render [--support support.yaml] [--output docs/support-matrix.md]
+hopshift matrix check                               # exit 1 when support.yaml is invalid or the doc is stale
+```
+
+`check` runs the conformance kit (renderer contract, layout, guards, parse, determinism, OPA)
+and exits 1 on any failure; `--terraform` adds `terraform init` and `validate`, plus `tflint`
+when the target declares a ruleset.
+
 ## Runtime Overrides Applied By CLI
 
 Before graph execution, terragen injects overrides into runtime config:

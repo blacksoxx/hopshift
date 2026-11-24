@@ -55,9 +55,9 @@ Everything lives in one package, `hopshift/`:
 | `hopshift/validation/` | terraform/tflint runner, OPA client, HCL parser, path policy, Rego policies (`policies/` for the gate, `policies/compliance/` for the control catalog) |
 | `hopshift/services/` | Platform services: database, secrets, audit, settings, `security/`, `connections/`, `deploy/`, `compliance/`, the `Platform` container and `errors.py` |
 | `hopshift/api/` | FastAPI app factory, middleware, dependencies (principal, roles), one router per area under `routes/` |
-| `hopshift/cli/` | The `hopshift` command: `terragen`, `assess`, `serve`, `report`, `mcp-check`, `admin`, `secrets`, `audit`, `runs` |
+| `hopshift/cli/` | The `hopshift` command: `terragen`, `assess`, `serve`, `report`, `mcp-check`, `admin`, `secrets`, `audit`, `runs`, and the registry commands `targets`, `sources`, `plugins`, `matrix` |
 | `ui/` | React 19 + Vite + Tailwind v4 web application (served by the API from `ui/dist`) |
-| `tests/` | Mirrors the package: `api/`, `cim/`, `cli/`, `generation/`, `nodes/`, `pipeline/`, `services/`, `targets/`, `validation/`, `integration/` (real terraform/tflint/opa), `fixtures/` |
+| `tests/` | Mirrors the package: `api/`, `cim/`, `cli/`, `generation/`, `nodes/`, `pipeline/`, `services/`, `sources/`, `targets/`, `testing/`, `validation/`, `integration/` (real terraform/tflint/opa), `fixtures/` |
 | `docs/` | This documentation |
 
 ## 3. Sources, the CIM and targets
@@ -76,6 +76,7 @@ flowchart LR
         T2[azure]
         T3[gcp]
         T4[openstack]
+        T6[proxmox]
         T5[your target<br/>TargetSpec]
     end
     S1 --> SR
@@ -86,6 +87,7 @@ flowchart LR
     TR --> T2
     TR --> T3
     TR --> T4
+    TR --> T6
     TR --> T5
 ```
 
@@ -222,7 +224,7 @@ flowchart TB
   [security.md](security.md).
 - **Connections.** A catalog describes every provider and sign-in method with its fields so
   the UI renders forms generically. Verification calls the target (STS, ARM, Resource Manager,
-  Keystone) and records the identity. At deployment time credentials are resolved into the
+  Keystone, the Proxmox VE API) and records the identity. At deployment time credentials are resolved into the
   environment variables Terraform providers read. See [connections.md](connections.md).
 - **Deployments.** Terraform runs in a fresh copy of the run's root module with state kept
   outside the artifacts, streaming logs with secret masking, timeouts and cancellation. Plan is

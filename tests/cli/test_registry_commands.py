@@ -81,7 +81,7 @@ def test_sources_list_and_check() -> None:
     listed = runner.invoke(cli, ["sources", "list"])
     assert listed.exit_code == 0, listed.output
     assert listed.output.splitlines()[0].split() == ["NAME", "LABEL", "TIER", "PLATFORM", "SCHEMAS"]
-    assert "vmware  VMware vSphere  tested  vmware_vsphere  vmware-discovery-stage1, vmware-discovery" in listed.output
+    assert "vmware  VMware vSphere  validated  vmware_vsphere  vmware-discovery-stage1, vmware-discovery" in listed.output
 
     checked = runner.invoke(cli, ["sources", "check", "vmware", "--input", str(FIXTURE)])
     assert checked.exit_code == 0, checked.output

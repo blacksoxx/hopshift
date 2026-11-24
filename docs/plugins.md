@@ -228,7 +228,8 @@ the spec. The kit fails `spec.connection_provider` when the key is not in the ca
 # pyproject.toml of the plugin
 [project]
 name = "hopshift-nimbus"
-dependencies = ["hopshift"]
+# hopshift is not on PyPI yet: depend on a release tag from git
+dependencies = ["hopshift @ git+https://github.com/blacksoxx/hopshift@v0.1.0"]
 
 [project.entry-points."hopshift.targets"]
 nimbus = "hopshift_nimbus:TARGET"

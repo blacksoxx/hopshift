@@ -8,9 +8,9 @@ constraints, and design decisions.
 hopshift migrates infrastructure from any source to any target through one canonical model.
 A discovery payload (today: VMware vSphere, produced by an Ansible collection) is translated
 into the Canonical Infrastructure Model (CIM), rendered as deployable, compliant Terraform for
-a target (today: AWS, Azure, GCP, OpenStack), reviewed and approved by people, and deployed
+a target (today: AWS, Azure, GCP, OpenStack, Proxmox VE), reviewed and approved by people, and deployed
 through stored connections. Ships as a CLI (`hopshift`), an HTTP API and a web UI; runs in CI
-or as a container (`ghcr.io/blacksoxx/hopshift`).
+or as a container (built from the Dockerfile; releases publish `ghcr.io/blacksoxx/hopshift`).
 
 ## Core constraint
 This is a data transformation pipeline, not a chatbot. Default HCL generation is
@@ -122,7 +122,7 @@ Full guide: `docs/plugins.md`. In short:
 - CIM translation has property-based tests (hypothesis) in `tests/cim/`
 - Sizing lookup has parametrized tests covering edge cases (exact match, ceiling, max)
 - OPA policies evaluate parsed HCL (see `hopshift/validation/hcl_parser.py`); policy tests in `tests/validation/` run the real `opa` binary
-- `tests/integration/` renders every built-in target and runs real terraform validate + tflint + OPA, and asserts zero enforce violations
+- `tests/integration/` renders every built-in target and runs real terraform validate + OPA (+ tflint where the target has a ruleset), and asserts zero enforce violations
 - Cloud SDK calls and the terraform binary are stubbed in unit tests (`tests/fixtures/fake_terraform.sh`)
 - No tests write to `output/`; use the `tmp_path` pytest fixture
 - `ruff check .` must be clean; line endings are LF everywhere (`.gitattributes`)

@@ -23,8 +23,8 @@ Dockerfile.
 git clone https://github.com/blacksoxx/hopshift.git
 cd hopshift
 cp .env.example .env
-# generate the key that encrypts stored credentials and put it in .env as HOPSHIFT_SECRET_KEY
-docker compose run --rm --no-deps agent python -m hopshift.cli.main secrets generate-key
+# the Fernet key that encrypts stored credentials and MFA secrets; keep it safe
+python3 -c "import base64,os;print('HOPSHIFT_SECRET_KEY='+base64.urlsafe_b64encode(os.urandom(32)).decode())" >> .env
 docker compose up -d --build
 ```
 
@@ -81,9 +81,9 @@ Environment variables (see `.env.example`): `HOPSHIFT_SECRET_KEY`, `HOPSHIFT_OID
 ## 5. First administrator, users, tokens
 
 - UI: the setup screen appears while no user exists.
-- CLI: `hopshift admin create-user --username admin --role admin` (prompts for the password),
+- CLI: `hopshift admin create-user admin --role admin` (prompts for the password),
   `hopshift admin reset-password`, `hopshift admin list-users`, `hopshift admin set-role`.
-- API tokens for automation: Settings → Tokens, or `POST /api/tokens`. Send them as
+- API tokens for automation: Settings → Tokens, or `POST /api/auth/tokens`. Send them as
   `Authorization: Bearer hs_...`. A token never has more rights than the user who created it.
 - Roles: `viewer` reads, `operator` runs and approves, `admin` manages users, connections and
   settings and reads the audit log.

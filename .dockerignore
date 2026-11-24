@@ -40,3 +40,5 @@ app-logs.txt
 # Agent worktrees and CI metadata
 .claude/
 .github/
+.env.*
+!.env.example

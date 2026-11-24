@@ -171,7 +171,8 @@ jobs:
       - run: npx playwright test
         working-directory: ui
         env:
-          HOPSHIFT_SECRET_KEY: ${{ secrets.HOPSHIFT_E2E_SECRET_KEY || 'LBG8NBG1A01nCYAz5Yf0a6_Tr4eq6lZ95uKwzE3TDIM=' }}
+          # TEST-ONLY Fernet key (same as ui/e2e/serve.py) for the throwaway e2e database.
+          HOPSHIFT_SECRET_KEY: ${{ secrets.HOPSHIFT_E2E_SECRET_KEY || 'Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:

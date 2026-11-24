@@ -14,10 +14,10 @@
   <a href="https://github.com/blacksoxx/hopshift/actions/workflows/codeql.yml"><img src="https://github.com/blacksoxx/hopshift/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/blacksoxx/hopshift"><img src="https://api.scorecard.dev/projects/github.com/blacksoxx/hopshift/badge" alt="OpenSSF Scorecard" /></a>
   <a href="https://github.com/blacksoxx/hopshift/tree/python-coverage-comment-action-data"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/blacksoxx/hopshift/python-coverage-comment-action-data/endpoint.json" alt="Coverage" /></a>
-  <a href="https://github.com/blacksoxx/hopshift/releases"><img src="https://img.shields.io/github/v/release/blacksoxx/hopshift?color=4f46e5" alt="Release" /></a>
+  <a href="https://github.com/blacksoxx/hopshift/releases"><img src="https://img.shields.io/github/v/release/blacksoxx/hopshift?color=4f46e5&include_prereleases" alt="Release" /></a>
   <a href="https://github.com/blacksoxx/hopshift/pkgs/container/hopshift"><img src="https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4f46e5.svg" alt="MIT" /></a>
-  <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12" />
+  <img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-3776ab.svg" alt="Python 3.12 | 3.13" />
   <img src="https://img.shields.io/badge/terraform-1.17-7b42bc.svg" alt="Terraform 1.17" />
   <img src="https://img.shields.io/badge/OPA-policies-1e90ff.svg" alt="OPA" />
 </p>
@@ -38,8 +38,8 @@ from and wherever you migrate to.
   other. Today: VMware vSphere in; AWS, Azure, GCP, OpenStack and Proxmox VE out.
 - **Deterministic core.** A discovery file becomes a CIM, then Terraform rendered from code.
   Same input, same output, every time. Diffable, reviewable, testable.
-- **Validated before it exists.** Every run passes `terraform validate`, `tflint` and OPA
-  policies before a single file is written. Blocked workloads are quarantined with reasons.
+- **Validated before it exists.** Every run passes `terraform validate`, `tflint` (where the
+  target has a ruleset) and OPA policies before a single file is written. Blocked workloads are quarantined with reasons.
 - **Compliant by construction.** The generated infrastructure is checked against controls
   mapped to CIS Benchmarks, SOC 2 and HIPAA, and the renderers are hardened so it passes.
 - **Humans decide.** Runs pause for CIM review and output approval. Apply and destroy require a
@@ -69,7 +69,7 @@ the target compute, ready for the data move you run with your tool of choice.
 git clone https://github.com/blacksoxx/hopshift.git
 cd hopshift
 cp .env.example .env
-docker compose run --rm --no-deps agent python -m hopshift.cli.main secrets generate-key   # put it in .env as HOPSHIFT_SECRET_KEY
+python3 -c "import base64,os;print('HOPSHIFT_SECRET_KEY='+base64.urlsafe_b64encode(os.urandom(32)).decode())" >> .env   # encryption key for stored secrets
 docker compose up -d --build
 ```
 
@@ -98,9 +98,11 @@ discovery.json ─▶ ingest ─▶ blockers ─▶ enrich ─▶ translate ─�
                                                      connections (encrypted) ─▶ plan ─▶ approve ─▶ apply
 ```
 
-1. **Discover** the source. For VMware the Ansible collection writes a JSON file with VMs,
-   disks, networks, clusters and the facts that block a migration (encryption, RDM, shared
-   disks, templates).
+1. **Discover** the source. For VMware an Ansible-based collector (not bundled here) writes a
+   JSON file with VMs, disks, networks, clusters and the facts that block a migration
+   (encryption, RDM, shared disks, templates). The contract is
+   [docs/discovery-schema.md](docs/discovery-schema.md); `discovery-2.json` and
+   `tests/fixtures/discovery_multi_vm.json` are ready-made samples.
 2. **Translate** into the Canonical Infrastructure Model. The source registry picks the
    translator from the discovery `schema_name`; the result is the same CIM for every source.
 3. **Render** a flat Terraform root module for the chosen target: networks, subnets, security
@@ -119,16 +121,18 @@ discovery.json ─▶ ingest ─▶ blockers ─▶ enrich ─▶ translate ─�
 
 | | Name | Tier |
 |---|---|---|
-| Source | VMware vSphere (`vmware-discovery-stage1`) | tested |
-| Target | AWS | tested |
-| Target | Microsoft Azure | tested |
-| Target | Google Cloud | tested |
+| Source | VMware vSphere (`vmware-discovery-stage1`) | validated |
+| Target | AWS | validated |
+| Target | Microsoft Azure | validated |
+| Target | Google Cloud | validated |
 | Target | OpenStack | validated |
-| Target | Proxmox VE | in progress ([docs/targets/proxmox.md](docs/targets/proxmox.md)) |
+| Target | Proxmox VE | validated |
 
-`tested` means the integration suite renders the target on every change and runs real
-`terraform validate`, `tflint` and the OPA bundle against the output; `validated` means the same
-without a tflint ruleset. The definitions and the full matrix are in
+`validated` means the integration suite renders the pair on every change and runs real
+`terraform init` and `validate`, `tflint` where the target has a ruleset (AWS, Azure, GCP), and
+the OPA bundle against the output. `tested` is reserved for pairs exercised against real
+infrastructure; none is claimed yet. AWS has also been planned, applied and destroyed end to end
+against LocalStack (`scripts/localstack_e2e.py`). The definitions and the full matrix are in
 [docs/support-matrix.md](docs/support-matrix.md). Adding a source or a target is a Python
 package with an entry point: see [docs/plugins.md](docs/plugins.md).
 
@@ -180,6 +184,7 @@ environment Terraform expects:
 | Azure | service principal (secret or certificate), managed identity, workload identity (OIDC), Azure CLI, device code |
 | GCP | service account key, application default credentials, impersonation, workload identity federation |
 | OpenStack | password, application credential, clouds.yaml |
+| Proxmox VE | API token, password (ticket) |
 
 See [docs/connections.md](docs/connections.md).
 
@@ -207,18 +212,18 @@ See [docs/connections.md](docs/connections.md).
 ```bash
 pip install -e ".[dev]" && pre-commit install && (cd ui && npm ci)
 pytest -q --ignore=tests/integration --cov    # fast unit suite with coverage
-pytest -q tests/integration                   # real terraform/tflint/opa on every built-in target
+pytest -q tests/integration                   # real terraform validate and OPA on every built-in target (tflint where a ruleset exists)
 cd ui && npx vitest run --coverage && npm run build && npx playwright test
-python scripts/localstack_e2e.py --state-dir /tmp/hopshift-localstack   # real plan, apply and destroy against LocalStack
+python scripts/localstack_e2e.py --state-dir /tmp/hopshift-localstack   # plan/apply/destroy on LocalStack; setup in docs/deployments.md
 ```
 
 Pull requests get the full treatment automatically: lint, unit tests on three Python
 targets, integration, UI, end-to-end, secret and dependency scans, semgrep, trivy, CodeQL, a
-coverage comment and a dependency review. Releases build a signed multi-arch image on GHCR.
+coverage comment and a dependency review. Each release tag builds a signed multi-arch image on GHCR.
 See [docs/ci.md](docs/ci.md), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
-Prefer the published image? `docker pull ghcr.io/blacksoxx/hopshift:latest`
-(linux/amd64 and linux/arm64, Sigstore-signed; see the release notes to verify).
+Prefer a prebuilt image? From the first release (v0.1.0) on, `docker pull ghcr.io/blacksoxx/hopshift:latest`
+(linux/amd64 and linux/arm64, Sigstore-signed; the release notes show how to verify it).
 
 ## Roadmap
 
@@ -235,8 +240,7 @@ In priority order:
    structured failure diagnostics.
 5. **State and environments from the UI**: remote state backends and workspaces managed per
    environment, with locking visible in the deployment view.
-6. **More sources and targets through the plugin interface**: Proxmox VE (in progress),
-   Hyper-V, Nutanix, IBM PowerVC; notifications (Slack, email).
+6. **More sources and targets through the plugin interface**: Hyper-V, Nutanix, IBM PowerVC; notifications (Slack, email).
 
 ## License
 

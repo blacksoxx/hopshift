@@ -18,7 +18,7 @@ services:
         required: false
     environment:
       # Required: encrypts stored cloud credentials and MFA secrets at rest.
-      - HOPSHIFT_SECRET_KEY=${HOPSHIFT_SECRET_KEY:?Set HOPSHIFT_SECRET_KEY in .env (generate one with: docker compose run --rm agent python -m hopshift.cli.main secrets generate-key)}
+      - 'HOPSHIFT_SECRET_KEY=${HOPSHIFT_SECRET_KEY:?Set HOPSHIFT_SECRET_KEY in .env first; see the Quick start in README.md}'
       # Optional: OIDC client secret when security.auth.oidc.enabled is true in config.yaml.
       - HOPSHIFT_OIDC_CLIENT_SECRET=${HOPSHIFT_OIDC_CLIENT_SECRET:-}
       # Optional: model providers for review notes and llm/hybrid generation.

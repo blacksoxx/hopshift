@@ -7,10 +7,10 @@ description = "Dummy credentials used by the unit tests and the end-to-end launc
 paths = [
   '''tests/services/test_connections\.py''',
   '''tests/api/test_connections_api\.py''',
-  '''ui/e2e/serve\.py''',
-  '''\.github/workflows/ci\.yml''',
 ]
 regexes = [
   '''sp-secret-value''',
+  # the documented TEST-ONLY Fernet key of the e2e launcher and CI (ui/e2e/serve.py, ci.yml)
+  '''Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=''',
   '''-----BEGIN PRIVATE KEY-----\\n(MIIE|abc)\\n''',
 ]

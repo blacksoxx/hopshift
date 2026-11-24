@@ -47,6 +47,6 @@ from hopshift.sources import vmware as _vmware  # noqa: E402  (import for side e
 registry.register(SourceSpec(
     name="vmware", label="VMware vSphere", blurb="VMs, disks, port groups, distributed switches, DRS clusters",
     schema_names=(_vmware.SCHEMA_NAME, "vmware-discovery"), translate=_vmware.translate_vmware_discovery_to_cim,
-    platform=str(_vmware.PLATFORM.value), tier="tested",
+    platform=str(_vmware.PLATFORM.value), tier="validated",
     collector="Ansible collection (vmware-discovery-stage1 schema)", docs="docs/sources/vmware.md",
 ))

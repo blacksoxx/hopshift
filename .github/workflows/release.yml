@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build and publish (e.g. v0.3.0)
+        description: Existing tag to build and publish (e.g. v0.1.0)
         required: true
 
 permissions:
@@ -67,7 +67,7 @@ jobs:
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         # One signature per digest: every tag points at the same manifest, so signing by digest
-        # covers 0.3.0, 0.3 and latest without duplicate entries in the transparency log.
+        # covers 0.1.0, 0.1 and latest without duplicate entries in the transparency log.
         run: cosign sign --yes "${IMAGE}@${DIGEST}"
       - name: SBOM of the repository (SPDX)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3

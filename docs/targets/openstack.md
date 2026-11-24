@@ -134,7 +134,8 @@ note on provider variables above.
   `openstack`, real `terraform init` and `validate`, zero `enforce` violations from the real OPA
   bundle and the evaluated control ids equal to the catalog. The suite also runs plain `tflint`
   when the binary is installed; there is no OpenStack ruleset, which is why the validator node
-  skips tflint for this target by default and the tier is `validated` rather than `tested`.
+  skips tflint for this target by default. `tested` would need a run against a real OpenStack
+  cloud, which has not been recorded yet.
 - `tests/validation/test_compliance_policies.py`: snippets per control.
 - `tests/generation/test_deterministic.py`, `tests/nodes/test_hcl_generator.py`: layout and
   the OpenStack normalisation and fallback of the `llm` path.

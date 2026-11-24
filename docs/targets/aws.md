@@ -12,7 +12,7 @@ security groups, EC2 instances, EBS volumes and placement groups.
 | tflint | yes (ruleset available; runs in the validator) |
 | Connections catalog key | `aws` |
 | Guest architectures | `x86_64` (and `unknown`) |
-| Tier | `tested` (see [support-matrix.md](../support-matrix.md)) |
+| Tier | `validated` (see [support-matrix.md](../support-matrix.md)) |
 
 ## Files rendered
 
@@ -133,7 +133,7 @@ variables for Terraform. Field lists, verification calls and the LocalStack reci
 
 ## Tier and evidence
 
-`tested`:
+`validated`:
 
 - `tests/integration/test_terraform_validate.py`: both sample inventories rendered for `aws`,
   then real `terraform init` and `validate` plus `tflint`; the real OPA bundle reports zero

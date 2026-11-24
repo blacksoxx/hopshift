@@ -8,6 +8,20 @@ version = "0.1.0"
 description = "Migrate infrastructure from any source to any target: discovery to a canonical model, validated Terraform, compliance, human approval, deployment."
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "blacksoxx" }]
+keywords = ["migration", "terraform", "vmware", "proxmox", "aws", "azure", "gcp", "openstack", "infrastructure-as-code", "compliance"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Intended Audience :: System Administrators",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Systems Administration",
+]
 dependencies = [
   "langgraph>=0.2",
   "pydantic>=2,<3",
@@ -35,6 +49,12 @@ dependencies = [
   "azure-identity>=1.19",
   "google-auth>=2.35",
 ]
+
+[project.urls]
+Homepage = "https://github.com/blacksoxx/hopshift"
+Documentation = "https://github.com/blacksoxx/hopshift/tree/main/docs"
+Issues = "https://github.com/blacksoxx/hopshift/issues"
+Changelog = "https://github.com/blacksoxx/hopshift/releases"
 
 [project.optional-dependencies]
 dev = [

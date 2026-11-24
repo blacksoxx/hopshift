@@ -50,6 +50,7 @@ def main() -> None:
     # terraform/tflint come from PATH; opa may live only in the virtualenv's bin on dev machines
     venv_bin = Path(sys.executable).resolve().parent
     os.environ["PATH"] = f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+    # TEST-ONLY Fernet key for the throwaway e2e database; never use it for a real deployment.
     os.environ.setdefault("HOPSHIFT_SECRET_KEY", "Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=")
     os.environ.setdefault("TF_PLUGIN_CACHE_DIR", str(Path.home() / ".cache" / "hopshift" / "terraform-plugins"))
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):

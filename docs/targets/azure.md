@@ -13,7 +13,7 @@ proximity placement groups and availability sets.
 | tflint | yes (ruleset available; runs in the validator) |
 | Connections catalog key | `azure` |
 | Guest architectures | `x86_64` (and `unknown`) |
-| Tier | `tested` (see [support-matrix.md](../support-matrix.md)) |
+| Tier | `validated` (see [support-matrix.md](../support-matrix.md)) |
 
 ## Files rendered
 
@@ -131,7 +131,7 @@ Catalog provider `azure`, methods `service_principal_secret`, `service_principal
 
 ## Tier and evidence
 
-`tested`:
+`validated`:
 
 - `tests/integration/test_terraform_validate.py`: both sample inventories rendered for
   `azure`, real `terraform init` and `validate` plus `tflint`, zero `enforce` violations from

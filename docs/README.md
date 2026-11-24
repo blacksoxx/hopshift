@@ -74,6 +74,7 @@ Core commands:
 - `report`: read generated artifacts from an existing output directory.
 - `mcp-check`: validate Terraform MCP connectivity before an `llm`/`hybrid` run.
 - `admin`, `secrets`, `audit`, `runs`: platform administration from the shell.
+- `targets`, `sources`, `plugins`, `matrix`: list registered targets and sources, run the conformance kit, inspect plugin entry points, render or check the support matrix.
 
 Quick-start examples:
 

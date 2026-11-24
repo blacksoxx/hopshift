@@ -13,7 +13,7 @@ policies.
 | tflint | yes (ruleset available; runs in the validator) |
 | Connections catalog key | `gcp` |
 | Guest architectures | `x86_64` (and `unknown`) |
-| Tier | `tested` (see [support-matrix.md](../support-matrix.md)) |
+| Tier | `validated` (see [support-matrix.md](../support-matrix.md)) |
 
 ## Files rendered
 
@@ -138,7 +138,7 @@ variables. See [connections.md](../connections.md).
 
 ## Tier and evidence
 
-`tested`:
+`validated`:
 
 - `tests/integration/test_terraform_validate.py`: both sample inventories rendered for `gcp`,
   real `terraform init` and `validate` plus `tflint`, zero `enforce` violations from the real

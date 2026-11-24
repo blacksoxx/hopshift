@@ -11,7 +11,7 @@ The built-in source. It translates the JSON written by the VMware discovery Ansi
 | Collector | Ansible collection producing `vmware-discovery-stage1` 1.x |
 | Module | `hopshift/sources/vmware.py` (`hopshift/cim/vmware_translator.py` re-exports it for older imports) |
 | Registered in | `hopshift/sources/__init__.py` as a `SourceSpec` |
-| Tier | `tested` (see [support-matrix.md](../support-matrix.md)) |
+| Tier | `validated` (see [support-matrix.md](../support-matrix.md)) |
 
 Registered sources and their schema names are listed by `GET /api/meta` (`sources`).
 
@@ -106,7 +106,7 @@ Tracked in [discovery-schema.md](../discovery-schema.md):
 
 ## Tier and evidence
 
-`tested`:
+`validated`:
 
 - `tests/cim/test_vmware_translator.py` and `tests/cim/test_cim_11.py`: translation rules,
   1.1 fields, declared collections and precedence.
