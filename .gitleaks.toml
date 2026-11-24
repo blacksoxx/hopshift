@@ -10,6 +10,8 @@ paths = [
 ]
 regexes = [
   '''sp-secret-value''',
+  # throwaway admin password of the screenshot script, used only against a temporary local server
+  '''correct-horse-battery-staple-42''',
   # the documented TEST-ONLY Fernet key of the e2e launcher and CI (ui/e2e/serve.py, ci.yml)
   '''Qh40Wvj8j_NWRxw2EUSyCZWB7H40nhwqeYcAoniaOJ8=''',
   '''-----BEGIN PRIVATE KEY-----\\n(MIIE|abc)\\n''',
