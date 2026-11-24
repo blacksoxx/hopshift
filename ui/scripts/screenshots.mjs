@@ -20,7 +20,7 @@ const out = path.resolve(here, "../../docs/images");
 const fixture = path.resolve(here, "../../tests/fixtures/discovery_multi_vm.json");
 fs.mkdirSync(out, { recursive: true });
 
-const ADMIN = { username: "admin", password: "correct-horse-battery-staple-42", name: "Youssef" };
+const ADMIN = { username: "admin", password: "correct-horse-battery-staple-42", name: "Alex Morgan" };
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light" });
