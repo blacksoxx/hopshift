@@ -64,7 +64,7 @@ ruff check . && pre-commit run --all-files && hopshift matrix check
 pytest -q --ignore=tests/integration --cov
 pytest -q tests/integration
 cd ui && npx tsc --noEmit && npx vitest run --coverage && npm run build && npx playwright test
-semgrep scan --config p/python --config p/typescript --config p/secrets --severity ERROR
+pipx run --spec semgrep==1.185.0 semgrep scan --config p/python --config p/typescript --config p/secrets --severity ERROR
 docker run --rm -v "$PWD":/repo aquasec/trivy fs --scanners vuln,misconfig,secret --severity CRITICAL,HIGH /repo
 ```
 

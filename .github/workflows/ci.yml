@@ -211,7 +211,8 @@ jobs:
         working-directory: ui
       - name: Static analysis (semgrep)
         run: |
-          semgrep scan --config p/python --config p/typescript --config p/secrets \
+          # semgrep runs isolated: its own pins (mcp, opentelemetry, wcmatch) lag behind advisories
+          pipx run --spec semgrep==1.185.0 semgrep scan --config p/python --config p/typescript --config p/secrets \
             --severity ERROR --error --metrics=off \
             --exclude ui/node_modules --exclude .venv --exclude output --exclude ui/dist
       - name: "Filesystem scan (trivy: lockfiles, IaC misconfiguration, secrets)"

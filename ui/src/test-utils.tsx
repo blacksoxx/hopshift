@@ -10,7 +10,7 @@ import type { AuthStatus, AuthUser, Role } from "@/types";
 
 // Radix dialogs and menus driven by userEvent are slow when nine files run in parallel; give
 // assertions and tests more headroom than the 1 s / 5 s defaults.
-configure({ asyncUtilTimeout: 4000 });
+configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 20_000 });
 
 // ── jsdom gaps used by Radix (pointer capture, scrollIntoView) and recharts (ResizeObserver) ──

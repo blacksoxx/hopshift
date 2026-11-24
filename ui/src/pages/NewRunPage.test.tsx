@@ -106,7 +106,8 @@ describe("NewRunPage", () => {
 
     // a file without any schema name is refused too
     await user.upload(screen.getByTestId("discovery-file"), discoveryFile({ virtual_machines: [{ vm_name: "a" }] }, "bare.json"));
-    expect(await screen.findByTestId("source-unknown")).toHaveTextContent("declares no metadata.schema_name");
+    // the previous refusal is still on screen until the new file is read: wait for the new text
+    await waitFor(() => expect(screen.getByTestId("source-unknown")).toHaveTextContent("declares no metadata.schema_name"));
     expect(screen.getByTestId("wizard-next")).toBeDisabled();
 
     // and a file another source claims is accepted
