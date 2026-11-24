@@ -89,7 +89,6 @@
 | hopshift/targets/azure/runtime.py             |       11 |        0 |    100% |           |
 | hopshift/targets/azure/sizing\_table.py       |       23 |        2 |     91% |    37, 39 |
 | hopshift/targets/azure/storage.py             |       74 |        7 |     91% |30-31, 72, 75, 104, 118, 120 |
-| hopshift/targets/base.py                      |       31 |       31 |      0% |      1-52 |
 | hopshift/targets/common.py                    |       46 |       15 |     67% |1-9, 24-27, 32, 45, 52, 73-78 |
 | hopshift/targets/gcp/compute.py               |      127 |       10 |     92% |112, 132, 140, 142, 153, 155, 165, 167, 170, 179 |
 | hopshift/targets/gcp/network.py               |      145 |       33 |     77% |13, 69-80, 83-93, 116, 155, 157, 168, 170, 180, 182, 197, 201 |
@@ -123,7 +122,7 @@
 | hopshift/validation/opa\_client.py            |      172 |       69 |     60% |1-18, 30-48, 51-52, 56-59, 72, 77, 81-82, 107-108, 112-114, 119, 123-124, 139-141, 145-147, 153, 190-197, 202, 211-218, 231, 244, 248, 279, 295, 304, 314-315 |
 | hopshift/validation/paths.py                  |       19 |        7 |     63% |  1-13, 30 |
 | hopshift/validation/tf\_runner.py             |       94 |       52 |     45% |1-34, 38, 52, 76-82, 90-91, 107-108, 122, 131, 141, 151, 158-163, 167-191 |
-| **TOTAL**                                     | **12726** | **2801** | **78%** |           |
+| **TOTAL**                                     | **12695** | **2770** | **78%** |           |
 
 1 empty file skipped.
 
